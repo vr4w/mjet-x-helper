@@ -1,45 +1,74 @@
-# MJET-X Helper 1.1.0
+# MJET-X Helper 1.1.1
 
 Kleines Windows-Desktop-Tool für den Maschinenrechner der MJET-X / MPRINT IP2000i 4c.
 
+Der Helper soll den Alltag an der Maschine einfacher machen:
+
+- neue Kundenfarben in die Master-Farbtabelle übernehmen
+- beim Start direkt zeigen, ob der Farbabgleich sauber ist
+- den Druckdaten-Übergabeordner aufräumen, damit LP2000i nicht mit alten Dateien voll läuft
+- eine gut lesbare Farbübersicht für die Vorstufe schreiben
+- PDFs mit negativer Überfüllung/Choke vorbereiten
+- auf Wunsch prüfen, ob eine neue Helper-Version bereitliegt
+
 ## Start
 
-1. Python 3.11 oder neuer installieren.
-2. Diesen Ordner auf den Maschinenrechner kopieren.
-3. `helper_config.json` prüfen und bei Bedarf Pfade anpassen.
-4. Starten:
+1. Diesen Ordner auf den Maschinenrechner kopieren.
+2. Beim ersten Start die vorgeschlagenen Orte prüfen und speichern.
+3. Starten:
 
 ```powershell
 python main.py
 ```
 
-Beim ersten Start wird `helper_config.json` automatisch erzeugt, falls sie fehlt.
+Beim ersten Start wird die lokale Einstellung `helper_config.json` automatisch erzeugt, falls sie fehlt. Wer die fertige EXE nutzt, muss Python nicht separat anfassen.
 
 ## Ersteinrichtung / Setup
 
 Wenn beim ersten Start wichtige Pfade fehlen, öffnet der MJET-X Helper einen Setup-Assistenten.
 
-Dort können die Arbeitsordner gewählt werden:
+Dort werden nur die Orte festgelegt, an denen die Maschine arbeitet. Wenn ein Vorschlag passt, einfach so lassen.
 
-- Arbeitsordner / MPRINT-Root
-- Maschinenfarben-Ordner
-- Einzelfarben-Ordner
-- Backup-Ordner
-- Master-Farbtabelle
-- `OUTPUT_PRINTDATA`
-- HTML-Farbübersicht
-- ColorGate-Installation
-- ColorGate INI / COS / JobDir
+Im Setup können gewählt werden:
 
-Der Button `Vorschläge suchen` versucht typische Pfade automatisch zu erkennen, zum Beispiel:
+- **Hauptordner der Maschine**
+  Der gemeinsame Ordner, in dem die MJET-X ihre Farbdaten und die Übersicht ablegt.
+
+- **Ordner für Maschinenfarben**
+  Hier liegen die Farbdaten der Maschine, inklusive Master-Farbtabelle und einzelne Kundenfarben.
+
+- **Ordner für einzelne Kundenfarben**
+  Dort landen einzelne Spotfarben mit Kundennamen, zum Beispiel `Weingut_Beispiel_Blau`.
+
+- **Backup-Ordner**
+  Vor Änderungen speichert der Helper hier Sicherungskopien, damit nichts endgültig verloren geht.
+
+- **Master-Farbtabelle**
+  Die Sammeldatei für alle Kundenfarben. Der Helper überträgt neue Farbnamen automatisch dorthin, damit ColorGate neue Jobs mit den bekannten Farben verarbeiten kann.
+
+- **Druckdaten-Übergabeordner**
+  Das ist der Ordner, den ColorGate mit fertigen Druckdaten befüllt und aus dem LP2000i die Daten öffnet. Der Helper kann ihn automatisch bereinigen, damit dort nicht ständig alte Jobs in der Liste stehen.
+
+- **Farbübersicht für die Vorstufe**
+  Eine gut lesbare HTML-Datei mit Farbbezeichnung, Status, Datum und CMYK-Werten. Die Vorstufe kann dort Kundenfarben nachschauen und neue Farbnamen eintragen.
+
+Zusätzlich gibt es ColorGate-Felder. Diese sind im Setup bewusst weniger prominent dargestellt, weil sie meistens automatisch erkannt werden:
+
+- **ColorGate-Programmordner**
+  Der Installationsordner von ColorGate auf dem Maschinenrechner.
+
+- **ColorGate-Einstellungsdatei / Profil- und Auftragsdatei / Jobordner**
+  Interne ColorGate-Orte. Diese bitte nur ändern, wenn die automatische Erkennung falsch ist.
+
+Der Button `Ordner automatisch suchen` versucht typische Orte automatisch zu erkennen. Alle Vorschläge bleiben manuell änderbar.
+
+Beispiele für typische Orte:
 
 ```text
 Z:\_MPRINT_4c
 C:\ProgramData\ColorGATE Software\Productionserver25
 C:\Users\user\Desktop\OUTPUT_PRINTDATA
 ```
-
-Alle Vorschläge bleiben manuell änderbar.
 
 Das Setup kann später im Expertmodus erneut geöffnet werden:
 
@@ -49,30 +78,30 @@ Das Setup kann später im Expertmodus erneut geöffnet werden:
 
 ## Update-Check
 
-Der MJET-X Helper kann optional eine kleine JSON-Datei prüfen und melden, ob eine neuere Version verfügbar ist.
+Der MJET-X Helper kann beim Start prüfen, ob eine neue Version bereitliegt.
 
-Es wird nichts automatisch installiert. Der Check zeigt nur einen Hinweis.
+Es wird nichts automatisch installiert. Der Check zeigt nur einen Hinweis mit Download-Link.
 
-Beispiel für eine Update-Datei:
+Im Setup heißt dieses Feld **Prüfung auf neue Version**. Dort kann eine Internetadresse oder lokale Datei hinterlegt werden, über die der Helper die aktuelle Versionsnummer liest.
+
+Technisches Beispiel für diese Versionsinformation:
 
 ```json
 {
-  "version": "1.1.0",
+  "version": "1.1.1",
   "url": "https://example.com/MJETXHelper.exe",
   "notes": "Kurzer Hinweis zur Version"
 }
 ```
 
-Die Update-Quelle wird in `helper_config.json` gesetzt:
+Die Einstellung liegt lokal in `helper_config.json`:
 
 ```json
 "update_check_enabled": true,
 "update_check_url": "https://raw.githubusercontent.com/vr4w/mjet-x-helper/main/update_info.json"
 ```
 
-Alternativ kann eine `https://...`-Adresse verwendet werden. Im Expertmodus gibt es den Button `Update` für eine manuelle Prüfung.
-
-Die echte `update_info.json` liegt im Repository und verweist auf den aktuellen GitHub Release:
+Im Expertmodus gibt es den Button `Update` für eine manuelle Prüfung. Die echte Versionsinformation liegt im Repository und verweist auf den aktuellen GitHub Release:
 
 ```text
 https://github.com/vr4w/mjet-x-helper/releases
@@ -80,15 +109,15 @@ https://github.com/vr4w/mjet-x-helper/releases
 
 Wichtig: `helper_config.json` enthält lokale Maschinenpfade und wird nicht ins Repository aufgenommen. Für Weitergabe und neue Installationen gibt es `helper_config.example.json`.
 
-## Was Version 1.1.0 macht
+## Was Version 1.1.1 macht
 
 - Baut aus den `.cct`- und `.ct`-Dateien im Ordner `Einzelfarben` eine neue `mprint4c-master.cct`.
 - Kopiert die alte Masterdatei vor dem Ersetzen in den Backup-Ordner.
 - Schreibt die neue Masterdatei zuerst als temporäre Datei und ersetzt sie danach atomar.
 - Prüft beim Start, ob die Einzelfarben bereits in der Masterdatei stehen.
 - Prüft `mprint mlabel.cos` im normalen Farbabgleich nicht.
-- Version 1.1.0 baut nur die Masterdatei neu; ColorGate übernimmt diese Datei beim Import neuer Jobs.
-- Schreibt bei jedem Farbabgleich eine Vorstufen-Übersicht als CSV und HTML.
+- Version 1.1.1 baut nur die Masterdatei neu; ColorGate übernimmt diese Datei beim Import neuer Jobs.
+- Schreibt bei jedem Farbabgleich eine gut lesbare Farbübersicht für die Vorstufe.
 - Überwacht `OUTPUT_PRINTDATA` optional und löscht nur stabile Dateien im Hintergrund.
 - Zeigt den JobDir-Status im Expertmodus an; JobDir wird nie automatisch geleert.
 - Bietet einen kleinen Tasten-Rechner mit `+ - * /`, Klammern, `pt → mm` und `mm → pt`.
@@ -100,15 +129,13 @@ Wichtig: `helper_config.json` enthält lokale Maschinenpfade und wird nicht ins 
 
 Der kleine `...`-Button oben rechts öffnet den Expertmodus.
 
-Dort sieht man Logs, erkannte ColorEntry-Namen, Pfade und Zusatzbuttons für Ordner, Config, Info, reine Prüfung, Master-Neubau und JobDir leeren. Die Profilprüfung ist in Version 1.1.0 nur als spätere Zusatzfunktion vorgesehen und blockiert den Farbabgleich nicht.
+Dort sieht man Logs, erkannte Farbnamen, Pfade und Zusatzbuttons für Setup, Konfig, Backup, Farben, ColorGate-Profil, Druckdaten, Info, reine Prüfung und Master-Neubau. Die Profilprüfung ist in Version 1.1.1 nur als spätere Zusatzfunktion vorgesehen und blockiert den Farbabgleich nicht.
 
 ## Farbübersicht für die Vorstufe
 
-Version 1.1.0 erzeugt im MPRINT-Serverordner nur die sichtbare Vorstufen-Datei:
+Die Farbübersicht ist die einfache Nachschlageseite für die Vorstufe. Dort stehen Farbbezeichnung, Status, Datum und CMYK-Werte, ohne dass jemand direkt in Farbtabelle oder Maschinenordner schauen muss.
 
-```text
-Z:\_MPRINT_4c\MPRINT_Farbuebersicht.html
-```
+Beim Setup wird gewählt, wo diese HTML-Datei liegen soll. Sinnvoll ist ein Ort, den die Vorstufe gut erreichen kann.
 
 Die interne Datendatei liegt im MJET-X-Helper-Programmordner:
 
@@ -270,7 +297,7 @@ Im normalen Ablauf erscheint keine Bestätigung, damit Bediener nicht vor einem 
 
 ## Sicherheitshinweise
 
-- Die `.cos`-Datei wird in Version 1.1.0 im normalen Farbabgleich nicht geprüft.
+- Die `.cos`-Datei wird in Version 1.1.1 im normalen Farbabgleich nicht geprüft.
 - JobDir wird nicht automatisch geleert.
 - Der JobDir-Löschbutton ist nur im Expertmodus sichtbar.
 - Es werden keine beliebigen Dialogfenster automatisch bestätigt.

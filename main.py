@@ -30,7 +30,7 @@ from urllib.request import urlopen
 
 
 APP_NAME = "MJET-X Helper"
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.1.1"
 APP_AUTHOR = "AE / Marvin Schöffel"
 APP_CONTACT = "ms@graphic-druck.de"
 CONFIG_NAME = "helper_config.json"
@@ -294,7 +294,7 @@ class ColorTableManager:
             self.logger.log(error, "ERROR")
             return SyncResult("red", error, errors=[error])
         if not single_dir.exists():
-            error = f"Einzelfarben-Ordner fehlt: {single_dir}"
+            error = f"Ordner für einzelne Kundenfarben fehlt: {single_dir}"
             self.logger.log(error, "ERROR")
             return SyncResult("red", error, errors=[error])
 
@@ -455,7 +455,7 @@ class ColorTableManager:
             self.logger.log(error, "ERROR")
             return SyncResult("red", error, errors=[error])
         if not single_dir.exists():
-            error = f"Einzelfarben-Ordner fehlt: {single_dir}"
+            error = f"Ordner für einzelne Kundenfarben fehlt: {single_dir}"
             self.logger.log(error, "ERROR")
             return SyncResult("red", error, errors=[error])
         if not master_path.exists():
@@ -2357,18 +2357,111 @@ class StatusRow:
 
 class SetupDialog(tk.Toplevel):
     FIELD_DEFINITIONS = [
-        ("nas_root", "Arbeitsordner / MPRINT-Root", "dir"),
-        ("color_root", "Maschinenfarben-Ordner", "dir"),
-        ("single_color_dir", "Einzelfarben-Ordner", "dir"),
-        ("backup_dir", "Backup-Ordner", "dir"),
-        ("master_cct", "Master-Farbtabelle", "file"),
-        ("output_printdata_dir", "OUTPUT_PRINTDATA", "dir"),
-        ("color_overview_html", "HTML-Farbübersicht", "save_file"),
-        ("colorgate_root", "ColorGate-Installation", "dir"),
-        ("colorgate_ini", "ColorGate INI", "file"),
-        ("colorgate_cos", "ColorGate COS", "file"),
-        ("colorgate_jobdir", "ColorGate JobDir", "dir"),
-        ("update_check_url", "Update-Quelle JSON", "file"),
+        (
+            "work",
+            "Wichtige Arbeitsorte",
+            "",
+            "",
+            "section",
+        ),
+        (
+            "nas_root",
+            "Hauptordner der Maschine",
+            "dir",
+            "Der gemeinsame Ordner, in dem die MJET-X ihre Farbdaten und die Übersicht ablegt.",
+            "normal",
+        ),
+        (
+            "color_root",
+            "Ordner für Maschinenfarben",
+            "dir",
+            "Hier liegen die Farbdaten der Maschine, inklusive Master-Farbtabelle und einzelne Kundenfarben.",
+            "normal",
+        ),
+        (
+            "single_color_dir",
+            "Ordner für einzelne Kundenfarben",
+            "dir",
+            "Dort landen einzelne Spotfarben mit Kundennamen, zum Beispiel Weingut_Beispiel_Blau.",
+            "normal",
+        ),
+        (
+            "backup_dir",
+            "Backup-Ordner",
+            "dir",
+            "Vor Änderungen speichert der Helper hier Sicherungskopien, damit nichts endgültig verloren geht.",
+            "normal",
+        ),
+        (
+            "master_cct",
+            "Master-Farbtabelle",
+            "file",
+            "Die Sammeldatei für alle Kundenfarben. Der Helper überträgt neue Farbnamen automatisch dorthin.",
+            "normal",
+        ),
+        (
+            "output_printdata_dir",
+            "Druckdaten-Übergabeordner",
+            "dir",
+            "Hier legt ColorGate fertige Druckdaten ab, die in LP2000i geöffnet werden. Der Helper räumt alte Dateien automatisch auf.",
+            "normal",
+        ),
+        (
+            "color_overview_html",
+            "Farbübersicht für die Vorstufe",
+            "save_file",
+            "Eine gut lesbare HTML-Datei mit Kundenfarbnamen, Status, Datum und CMYK-Werten.",
+            "normal",
+        ),
+        (
+            "colorgate",
+            "ColorGate - meistens automatisch erkannt",
+            "",
+            "Diese Felder nur ändern, wenn die automatische Erkennung falsch ist.",
+            "section",
+        ),
+        (
+            "colorgate_root",
+            "ColorGate-Programmordner",
+            "dir",
+            "Der Installationsordner von ColorGate auf dem Maschinenrechner.",
+            "advanced",
+        ),
+        (
+            "colorgate_ini",
+            "ColorGate-Einstellungsdatei",
+            "file",
+            "Interne Einstellungsdatei von ColorGate. Normalerweise muss hier nichts geändert werden.",
+            "advanced",
+        ),
+        (
+            "colorgate_cos",
+            "ColorGate-Profil-/Auftragsdatei",
+            "file",
+            "Datei mit dem MPRINT-Auftrag beziehungsweise Profil. Normalerweise wird sie automatisch gefunden.",
+            "advanced",
+        ),
+        (
+            "colorgate_jobdir",
+            "ColorGate-Jobordner",
+            "dir",
+            "ColorGate-Arbeitsordner für Jobs. Der Helper zeigt den Status, leert ihn aber nicht automatisch.",
+            "advanced",
+        ),
+        (
+            "updates",
+            "Updates",
+            "",
+            "",
+            "section",
+        ),
+        (
+            "update_check_url",
+            "Prüfung auf neue Version",
+            "file",
+            "Quelle, über die der Helper nur prüft, ob eine neue Version bereitliegt. Es wird nichts automatisch installiert.",
+            "advanced",
+        ),
     ]
 
     def __init__(self, parent: tk.Tk, config: dict, required: bool = False):
@@ -2376,6 +2469,11 @@ class SetupDialog(tk.Toplevel):
         self.result = False
         self.config = config
         self.vars: dict[str, tk.StringVar] = {}
+        self.field_labels = {
+            key: label
+            for key, label, _kind, _help_text, mode in self.FIELD_DEFINITIONS
+            if mode != "section"
+        }
         self.title(f"{APP_NAME} Setup")
         self.configure(bg=THEME["window"])
         self.transient(parent)
@@ -2396,7 +2494,7 @@ class SetupDialog(tk.Toplevel):
         ).pack(fill="x")
         tk.Label(
             header,
-            text="Bitte die Arbeitsordner prüfen. Vorschläge können automatisch gesucht und danach manuell korrigiert werden.",
+            text="Beim ersten Start werden nur die Orte festgelegt, an denen die Maschine arbeitet. Wenn ein Vorschlag passt, einfach so lassen.",
             bg=THEME["window"],
             fg=THEME["muted"],
             anchor="w",
@@ -2414,29 +2512,68 @@ class SetupDialog(tk.Toplevel):
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
-        for row_index, (key, label, kind) in enumerate(self.FIELD_DEFINITIONS):
+        row_index = 0
+        for key, label, kind, help_text, mode in self.FIELD_DEFINITIONS:
+            if mode == "section":
+                tk.Label(
+                    form,
+                    text=label,
+                    bg=THEME["window"],
+                    fg=THEME["button_text"],
+                    anchor="w",
+                    font=("Segoe UI", 10, "bold"),
+                ).grid(row=row_index, column=0, columnspan=3, sticky="ew", pady=(12, 3))
+                if help_text:
+                    row_index += 1
+                    tk.Label(
+                        form,
+                        text=help_text,
+                        bg=THEME["window"],
+                        fg=THEME["muted"],
+                        anchor="w",
+                        justify="left",
+                        wraplength=720,
+                        font=("Segoe UI", 8),
+                    ).grid(row=row_index, column=0, columnspan=3, sticky="ew", pady=(0, 4))
+                row_index += 1
+                continue
+
+            fg = THEME["muted"] if mode == "advanced" else THEME["text"]
+            entry_bg = THEME["panel_alt"] if mode == "advanced" else THEME["entry"]
             tk.Label(
                 form,
                 text=label,
                 bg=THEME["window"],
-                fg=THEME["text"],
+                fg=fg,
                 anchor="w",
                 font=("Segoe UI", 9, "bold"),
             ).grid(row=row_index, column=0, sticky="w", pady=(5, 1))
             var = tk.StringVar(value=str(config.get(key, "")))
             self.vars[key] = var
-            entry = tk.Entry(form, textvariable=var, bg=THEME["entry"], fg=THEME["text"], relief="solid", bd=1)
+            entry = tk.Entry(form, textvariable=var, bg=entry_bg, fg=fg, relief="solid", bd=1)
             entry.grid(row=row_index, column=1, sticky="ew", padx=(8, 6), pady=(5, 1), ipady=3)
             ttk.Button(
                 form,
-                text="Wählen",
+                text="Ändern" if mode == "advanced" else "Wählen",
                 command=lambda field_key=key, field_kind=kind: self.choose_path(field_key, field_kind),
             ).grid(row=row_index, column=2, sticky="ew", pady=(5, 1))
+            row_index += 1
+            tk.Label(
+                form,
+                text=help_text,
+                bg=THEME["window"],
+                fg=THEME["muted"],
+                anchor="w",
+                justify="left",
+                wraplength=500,
+                font=("Segoe UI", 8),
+            ).grid(row=row_index, column=1, sticky="ew", padx=(8, 6), pady=(0, 4))
+            row_index += 1
         form.columnconfigure(1, weight=1)
 
         button_bar = tk.Frame(self, bg=THEME["window"], padx=14, pady=12)
         button_bar.pack(fill="x", side="bottom")
-        ttk.Button(button_bar, text="Vorschläge suchen", command=self.apply_detected_paths).pack(side="left")
+        ttk.Button(button_bar, text="Ordner automatisch suchen", command=self.apply_detected_paths).pack(side="left")
         ttk.Button(button_bar, text="Abbrechen", command=self.cancel).pack(side="right")
         ttk.Button(button_bar, text="Speichern", command=self.save).pack(side="right", padx=(0, 8))
 
@@ -2446,12 +2583,13 @@ class SetupDialog(tk.Toplevel):
 
     def choose_path(self, key: str, kind: str) -> None:
         current = self.vars[key].get().strip()
+        title = f"{self.field_labels.get(key, key)} wählen"
         if kind == "dir":
-            selected = filedialog.askdirectory(parent=self, title=f"{key} wählen", initialdir=self._initial_dir(current))
+            selected = filedialog.askdirectory(parent=self, title=title, initialdir=self._initial_dir(current))
         elif kind == "save_file":
             selected = filedialog.asksaveasfilename(
                 parent=self,
-                title=f"{key} wählen",
+                title=title,
                 initialdir=self._initial_dir(current),
                 initialfile=Path(current).name or "MPRINT_Farbuebersicht.html",
                 defaultextension=".html",
@@ -2460,7 +2598,7 @@ class SetupDialog(tk.Toplevel):
         else:
             selected = filedialog.askopenfilename(
                 parent=self,
-                title=f"{key} wählen",
+                title=title,
                 initialdir=self._initial_dir(current),
                 filetypes=[("Alle Dateien", "*.*")],
             )
@@ -2575,7 +2713,7 @@ def is_newer_version(candidate: str, current: str) -> bool:
 def load_update_info(update_source: str) -> dict:
     source = update_source.strip()
     if not source:
-        raise ValueError("Keine Update-Quelle konfiguriert.")
+        raise ValueError("Keine Prüfung auf neue Version eingerichtet.")
     if re.match(r"^https?://", source, re.IGNORECASE):
         with urlopen(source, timeout=6) as response:
             raw = response.read(512_000).decode("utf-8")
@@ -2583,9 +2721,9 @@ def load_update_info(update_source: str) -> dict:
         raw = Path(source).read_text(encoding="utf-8")
     data = json.loads(raw)
     if not isinstance(data, dict):
-        raise ValueError("Update-Datei ist kein gültiges JSON-Objekt.")
+        raise ValueError("Versionsinformation konnte nicht gelesen werden.")
     if not str(data.get("version", "")).strip():
-        raise ValueError("Update-Datei enthält keine Version.")
+        raise ValueError("Versionsinformation enthält keine Versionsnummer.")
     return data
 
 
@@ -2682,7 +2820,7 @@ class MainApp:
         self.main_status_label.pack(fill="x", pady=(0, 10))
 
         self._button(self.normal_frame, "Farbabgleich starten", self.start_color_sync)
-        self._button(self.normal_frame, "OUTPUT_PRINTDATA leeren", self.clean_output_manual)
+        self._button(self.normal_frame, "Druckdaten-Ordner leeren", self.clean_output_manual)
         self._build_pdf_controls(self.normal_frame)
         self.cancel_output_button = self._button(
             self.normal_frame,
@@ -2925,12 +3063,12 @@ class MainApp:
         path_grid.pack(fill="x")
         path_buttons = [
             ("Setup", self.open_setup_dialog),
-            ("Config", lambda: self.open_path(CONFIG_PATH)),
+            ("Konfig", lambda: self.open_path(CONFIG_PATH)),
             ("Backup", lambda: self.open_path(self.config["backup_dir"])),
             ("Farben", lambda: self.open_path(self.config["color_root"])),
-            ("CG Settings", lambda: self.open_path(Path(self.config["colorgate_cos"]).parent)),
-            ("Output", lambda: self.open_path(self.config["output_printdata_dir"])),
-            ("JobDir", lambda: self.open_path(self.config["colorgate_jobdir"])),
+            ("CG Profil", lambda: self.open_path(Path(self.config["colorgate_cos"]).parent)),
+            ("Druckdaten", lambda: self.open_path(self.config["output_printdata_dir"])),
+            ("CG Jobs", lambda: self.open_path(self.config["colorgate_jobdir"])),
             ("Info", self.show_about),
             ("Update", self.check_for_updates_manual),
         ]
@@ -3700,10 +3838,10 @@ class MainApp:
                     "Hilfstool für MJET-X / ColorGate / LP2000i.",
                     "",
                     "Funktionen:",
-                    "- Farbabgleich über mprint4c-master.cct",
-                    "- OUTPUT_PRINTDATA sicher aufräumen",
+                    "- Kundenfarben in die Master-Farbtabelle übertragen",
+                    "- Druckdaten-Übergabeordner sicher aufräumen",
                     "- PDF-Verfeinerung mit QR/EAN-Schutz",
-                    "- HTML-Farbübersicht für die Vorstufe",
+                    "- Farbübersicht für die Vorstufe schreiben",
                     "",
                     f"by {APP_AUTHOR}",
                     APP_CONTACT,

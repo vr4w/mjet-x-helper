@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
-  "url": "https://github.com/vr4w/mjet-x-helper/releases/download/v1.1.0/MJETXHelper.exe",
-  "notes": "Erste oeffentliche MJET-X Helper Version mit Setup-Assistent, Farbabgleich, OUTPUT-Aufraeumen, PDF-Verfeinerung und HTML-Farbuebersicht."
+  "version": "1.1.1",
+  "url": "https://github.com/vr4w/mjet-x-helper/releases/download/v1.1.1/MJETXHelper.exe",
+  "notes": "Verstaendlichere Setup-Texte, klarere Begriffe fuer Arbeitsorte und zurueckgenommene ColorGate-Details."
 }
