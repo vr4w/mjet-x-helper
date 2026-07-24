@@ -6,6 +6,7 @@ __pycache__/
 .venv-build/
 build/
 dist/
+installer_dist/
 *.spec
 
 helper_logs/
@@ -15,4 +16,3 @@ work/
 helper_config.json
 helper_config.*.json
 !helper_config.example.json
-

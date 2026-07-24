@@ -89,7 +89,7 @@ Technisches Beispiel für diese Versionsinformation:
 ```json
 {
   "version": "1.1.1",
-  "url": "https://example.com/MJETXHelper.exe",
+  "url": "https://example.com/MJETXHelper_Setup_v1.1.1.exe",
   "notes": "Kurzer Hinweis zur Version"
 }
 ```
@@ -246,6 +246,45 @@ pyinstaller --onefile --noconsole --clean --name MJETXHelper --collect-all fitz 
 Die fertige EXE liegt danach unter `dist\MJETXHelper.exe`.
 
 Wichtig: `helper_config.json` muss neben der EXE liegen. Wenn sie dort fehlt, erstellt die EXE beim ersten Start eine neue Default-Datei.
+
+## Installer Build
+
+Der Installer ist für die Weitergabe gedacht. Damit bekommt ein anderer Maschinenrechner eine normale Windows-Installation mit Startmenü-Eintrag und optionalem Autostart.
+
+Der Ablauf auf Windows:
+
+1. `build_exe.bat` starten.
+2. Prüfen, ob `dist\MJETXHelper.exe` vorhanden ist.
+3. Einmalig Inno Setup 6 installieren, falls es auf dem Build-Rechner noch fehlt.
+4. `build_installer.bat` starten.
+
+Die fertige Installer-Datei liegt danach unter:
+
+```text
+installer_dist\MJETXHelper_Setup_v1.1.1.exe
+```
+
+Der Installer legt den Helper bewusst im Benutzerordner ab:
+
+```text
+%LOCALAPPDATA%\MJET-X Helper
+```
+
+Das ist wichtig, weil der Helper dort seine lokale Einstellung, Logs und interne Arbeitsdaten speichern kann, ohne dass Windows nach Adminrechten fragt.
+
+## GitHub / Release
+
+Auf GitHub liegen Quellcode, README und die kleine Versionsinformation für den Update-Check.
+
+Für eine echte Weitergabe sollte zusätzlich die fertige Installer-Datei als Release-Datei hochgeladen werden:
+
+1. Auf GitHub im Repository `vr4w/mjet-x-helper` den Bereich `Releases` öffnen.
+2. `Draft a new release` wählen.
+3. Tag passend zur Version setzen, zum Beispiel `v1.1.1`.
+4. Die Datei `installer_dist\MJETXHelper_Setup_v1.1.1.exe` anhängen.
+5. Release veröffentlichen.
+
+Danach kann die Adresse in `update_info.json` auf genau diese Release-Datei zeigen. Der Helper installiert Updates nicht automatisch, sondern zeigt nur an, dass eine neue Version bereitliegt.
 
 ## Maschinen-Test nach Build
 
