@@ -1,2 +1,290 @@
-# mjet-x-helper
-a usefull programm adding convenient tools for daily use to your MJET printing machine
+# MJET-X Helper 1.1.0
+
+Kleines Windows-Desktop-Tool für den Maschinenrechner der MJET-X / MPRINT IP2000i 4c.
+
+## Start
+
+1. Python 3.11 oder neuer installieren.
+2. Diesen Ordner auf den Maschinenrechner kopieren.
+3. `helper_config.json` prüfen und bei Bedarf Pfade anpassen.
+4. Starten:
+
+```powershell
+python main.py
+```
+
+Beim ersten Start wird `helper_config.json` automatisch erzeugt, falls sie fehlt.
+
+## Ersteinrichtung / Setup
+
+Wenn beim ersten Start wichtige Pfade fehlen, öffnet der MJET-X Helper einen Setup-Assistenten.
+
+Dort können die Arbeitsordner gewählt werden:
+
+- Arbeitsordner / MPRINT-Root
+- Maschinenfarben-Ordner
+- Einzelfarben-Ordner
+- Backup-Ordner
+- Master-Farbtabelle
+- `OUTPUT_PRINTDATA`
+- HTML-Farbübersicht
+- ColorGate-Installation
+- ColorGate INI / COS / JobDir
+
+Der Button `Vorschläge suchen` versucht typische Pfade automatisch zu erkennen, zum Beispiel:
+
+```text
+Z:\_MPRINT_4c
+C:\ProgramData\ColorGATE Software\Productionserver25
+C:\Users\user\Desktop\OUTPUT_PRINTDATA
+```
+
+Alle Vorschläge bleiben manuell änderbar.
+
+Das Setup kann später im Expertmodus erneut geöffnet werden:
+
+```text
+... -> Setup
+```
+
+## Update-Check
+
+Der MJET-X Helper kann optional eine kleine JSON-Datei prüfen und melden, ob eine neuere Version verfügbar ist.
+
+Es wird nichts automatisch installiert. Der Check zeigt nur einen Hinweis.
+
+Beispiel für eine Update-Datei:
+
+```json
+{
+  "version": "1.1.0",
+  "url": "https://example.com/MJETXHelper.exe",
+  "notes": "Kurzer Hinweis zur Version"
+}
+```
+
+Die Update-Quelle wird in `helper_config.json` gesetzt:
+
+```json
+"update_check_enabled": true,
+"update_check_url": "https://raw.githubusercontent.com/vr4w/mjet-x-helper/main/update_info.json"
+```
+
+Alternativ kann eine `https://...`-Adresse verwendet werden. Im Expertmodus gibt es den Button `Update` für eine manuelle Prüfung.
+
+Die echte `update_info.json` liegt im Repository und verweist auf den aktuellen GitHub Release:
+
+```text
+https://github.com/vr4w/mjet-x-helper/releases
+```
+
+Wichtig: `helper_config.json` enthält lokale Maschinenpfade und wird nicht ins Repository aufgenommen. Für Weitergabe und neue Installationen gibt es `helper_config.example.json`.
+
+## Was Version 1.1.0 macht
+
+- Baut aus den `.cct`- und `.ct`-Dateien im Ordner `Einzelfarben` eine neue `mprint4c-master.cct`.
+- Kopiert die alte Masterdatei vor dem Ersetzen in den Backup-Ordner.
+- Schreibt die neue Masterdatei zuerst als temporäre Datei und ersetzt sie danach atomar.
+- Prüft beim Start, ob die Einzelfarben bereits in der Masterdatei stehen.
+- Prüft `mprint mlabel.cos` im normalen Farbabgleich nicht.
+- Version 1.1.0 baut nur die Masterdatei neu; ColorGate übernimmt diese Datei beim Import neuer Jobs.
+- Schreibt bei jedem Farbabgleich eine Vorstufen-Übersicht als CSV und HTML.
+- Überwacht `OUTPUT_PRINTDATA` optional und löscht nur stabile Dateien im Hintergrund.
+- Zeigt den JobDir-Status im Expertmodus an; JobDir wird nie automatisch geleert.
+- Bietet einen kleinen Tasten-Rechner mit `+ - * /`, Klammern, `pt → mm` und `mm → pt`.
+- Kann PDFs bei 3600 dpi als Rasterprozess reduzieren; die Choke-Stärke wird pro Durchlauf ausgewählt.
+- Die PDF-Reduktion liegt in der Normalansicht und kann mehrere PDFs in einem Lauf verarbeiten.
+- Speichert Fensterposition und Fenstergröße.
+
+## Expertmodus
+
+Der kleine `...`-Button oben rechts öffnet den Expertmodus.
+
+Dort sieht man Logs, erkannte ColorEntry-Namen, Pfade und Zusatzbuttons für Ordner, Config, Info, reine Prüfung, Master-Neubau und JobDir leeren. Die Profilprüfung ist in Version 1.1.0 nur als spätere Zusatzfunktion vorgesehen und blockiert den Farbabgleich nicht.
+
+## Farbübersicht für die Vorstufe
+
+Version 1.1.0 erzeugt im MPRINT-Serverordner nur die sichtbare Vorstufen-Datei:
+
+```text
+Z:\_MPRINT_4c\MPRINT_Farbuebersicht.html
+```
+
+Die interne Datendatei liegt im MJET-X-Helper-Programmordner:
+
+```text
+work\MPRINT_Farbuebersicht_daten.csv
+```
+
+Wenn die Vorstufe in der HTML bei `Kundenfarbe eintragen` eine Farbe einträgt, speichert der laufende Helper diese Farbe intern und aktualisiert die HTML. Solange noch keine passende Einzelfarbe existiert, bleibt sie in der Übersicht mit:
+
+```text
+Noch nicht an MPRINT gedruckt
+```
+
+Sobald eine passende Einzelfarbe vorhanden ist und die Farbe in der Masterdatei steht, schreibt das Tool:
+
+```text
+MPRINT angepasst / druckbar
+```
+
+Die HTML-Datei ist die gut lesbare Ansicht für schnelles Nachschauen.
+
+Wichtig: Damit das Eingabefeld in der HTML funktioniert, muss der MJET-X Helper laufen. Der Helper startet dafür einen kleinen lokalen Empfang auf Port `8765`. Falls die Vorstufe von einem anderen Rechner aus einträgt, muss dieser Port auf dem MPRINT-Rechner erreichbar sein.
+
+Versteckter Adminmodus in der HTML: fünfmal auf die Überschrift `MPRINT Farbübersicht` klicken. Dann erscheint eine Löschspalte für falsche Übersichtseinträge. Echte Farben aus `Einzelfarben` oder der Masterdatei erscheinen beim nächsten Abgleich wieder automatisch.
+
+Die HTML zeigt zusätzlich `Angelegt am`, `Gedruckt am` und die aus der Einzelfarbe gelesenen CMYK-Werte. `Gedruckt am` wird gesetzt, sobald die Farbe erstmals als `MPRINT angepasst / druckbar` erkannt wird.
+
+## PDF Reduktion
+
+Buttons:
+
+```text
+PDF 0,05 pt
+PDF 0,07 pt
+PDF 0,10 pt
+PDF 0,15 pt
+```
+
+Das Tool fragt nach Klick auf eine der Stärken eine oder mehrere PDFs ab und erstellt neben jeder Originaldatei einen Ordner:
+
+```text
+<PDF-Name>_reduziert
+```
+
+Darin wird nur die ausgewählte Variante erzeugt:
+
+```text
+*_reduce_010pt.pdf
+```
+
+Die PDF wird dafür mit 3600 dpi gerastert. Die reduzierte Hauptgrafik wird als Volltonfarbe aus der Quell-PDF ausgegeben. QR-/EAN-artige Bereiche werden vorher auf einer Suchauflösung erkannt und mit einer Schutzbox ausgespart.
+
+Wichtig: Die Quell-PDF muss eine echte Volltonfarbe enthalten. Das Tool verwendet die erste gefundene Separation-Volltonfarbe, ignoriert dabei aber `All`/Registrierungsfarbe.
+
+Die Erkennung nutzt zwei Wege:
+
+- Rastermuster im gerenderten Bild
+- viele kleine PDF-Pfade/Rechtecke, wie sie bei QR-/EAN-Codes vorkommen können
+
+Wenn keine Codebereiche sicher erkannt werden, öffnet das Tool ein kleines Vorschaubild:
+
+```text
+QR/EAN markieren
+```
+
+Dort kann der Bediener einen oder mehrere Kästen um QR-/EAN-Codes ziehen und mit `Markierung übernehmen` fortfahren. Die markierten Bereiche werden wie automatisch erkannte Codes geschützt.
+
+Mit `Trotzdem ohne Code reduzieren` kann eine PDF ohne Codes bewusst weiterverarbeitet werden. Mit `Abbrechen` wird gestoppt, damit Codes nicht versehentlich beschädigt werden.
+
+Wichtige Config-Werte:
+
+```json
+"pdf_reduce_dpi": 3600,
+"pdf_reduce_detect_dpi": 300,
+"pdf_reduce_code_protect_margin_mm": 3.0,
+"pdf_reduce_abort_if_no_codes_found": true,
+"pdf_reduce_vector_detection": true
+```
+
+Für den PyInstaller-Build müssen PyMuPDF und Pillow mit eingepackt werden. Falls lokal installiert werden muss:
+
+```powershell
+python -m pip install PyMuPDF Pillow
+```
+
+## PyInstaller Build
+
+Am einfachsten auf dem MPRINT-Rechner:
+
+```powershell
+build_exe.bat
+```
+
+Die Datei erstellt eine lokale Build-Umgebung, installiert `pyinstaller`, `PyMuPDF` und `Pillow`, baut die EXE und kopiert `helper_config.json` neben die fertige EXE.
+
+PyInstaller und die PDF-Pakete installieren:
+
+```powershell
+python -m pip install pyinstaller PyMuPDF Pillow
+```
+
+EXE bauen:
+
+```powershell
+pyinstaller --onefile --noconsole --clean --name MJETXHelper --collect-all fitz --collect-all PIL --hidden-import fitz --hidden-import PIL --hidden-import PIL.Image --hidden-import PIL.ImageChops --hidden-import PIL.ImageFilter --hidden-import PIL.PngImagePlugin main.py
+```
+
+Die fertige EXE liegt danach unter `dist\MJETXHelper.exe`.
+
+Wichtig: `helper_config.json` muss neben der EXE liegen. Wenn sie dort fehlt, erstellt die EXE beim ersten Start eine neue Default-Datei.
+
+## Maschinen-Test nach Build
+
+Nach dem Build auf dem MPRINT-Rechner sollte zuerst die echte EXE getestet werden:
+
+1. `build_exe.bat` starten.
+2. `dist\MJETXHelper.exe` öffnen.
+3. Expertmodus über den `...`-Button öffnen.
+4. `PDF 0,10 pt` mit der Felsenberg-Testdatei starten.
+5. Ergebnis-PDF aus dem erzeugten Ordner `<PDF-Name>_reduziert` in ColorGate importieren.
+
+Bitte dabei prüfen:
+
+- Wird die Volltonfarbe in ColorGate als `Crusius dgrau` erkannt?
+- Wird der Name nicht sichtbar als `Crusius#20dgrau` angezeigt?
+- Bleiben QR/EAN-Bereiche sauber und lesbar?
+- Wirkt feine Schrift bei 3600 dpi sichtbar besser als vorher?
+- Bleiben Laufzeit und Speicherverbrauch am Maschinenrechner akzeptabel?
+- Stimmen Ausgabeordner und Dateiname, zum Beispiel `*_reduce_010pt.pdf`?
+
+Hinweis: `#20` ist in der PDF-Rohsyntax die normale Codierung für ein Leerzeichen. Wenn ColorGate daraus trotzdem einen sichtbaren Farbnamen mit `#20` macht, muss die Spot-Ausgabestruktur im PDF noch einmal angepasst werden.
+
+## Bekannte Grenzen
+
+- Wenn eine PDF mehrere echte Volltonfarben enthält, nimmt das Tool aktuell die erste gefundene Nicht-Registrierungsfarbe.
+- Die manuelle QR/EAN-Markierung ist eingebaut, muss aber am Maschinenrechner praktisch mit Ziehen der Kästen getestet werden.
+- QR/EAN-Schutzbereiche werden als unveränderte Rasterausschnitte über die Spot-Hauptgrafik gelegt.
+- 3600 dpi ist bewusst als Qualitätsstandard gesetzt, kann bei sehr großen PDFs aber Laufzeit und RAM deutlich erhöhen.
+- 4800 dpi ist nicht als Standard gesetzt. Ein späterer Testmodus wäre sinnvoll, falls 3600 dpi noch zu grob wirkt.
+
+## Autostart
+
+1. `Win + R` drücken.
+2. `shell:startup` eingeben.
+3. Eine Verknuepfung zu `MJETXHelper.exe` in diesen Ordner legen.
+
+Das Tool läuft normal im Benutzerkontext. Dadurch bleiben gemappte Laufwerke wie `Z:` sichtbar.
+
+## Feierabend / Herunterfahren
+
+Der Button startet ohne Countdown und ohne Ja/Nein-Abfragen:
+
+1. Farbabgleich ausführen.
+2. `OUTPUT_PRINTDATA` stabil leeren.
+3. Bekannte Programme sauber schließen.
+4. Windows-Shutdown starten.
+
+Im normalen Ablauf erscheint keine Bestätigung, damit Bediener nicht vor einem offenen Dialog stehen bleiben.
+
+## Sicherheitshinweise
+
+- Die `.cos`-Datei wird in Version 1.1.0 im normalen Farbabgleich nicht geprüft.
+- JobDir wird nicht automatisch geleert.
+- Der JobDir-Löschbutton ist nur im Expertmodus sichtbar.
+- Es werden keine beliebigen Dialogfenster automatisch bestätigt.
+- Beim Herunterfahren werden nur bekannte Prozessnamen aus der Config angesprochen.
+- `taskkill` wird zuerst ohne `/F` genutzt. Erzwingen gibt es nur im Expertmodus.
+- OUTPUT_PRINTDATA und JobDir löschen nur Dateien, keine Ordner.
+- Dateien werden erst gelöscht, wenn sie alt genug sind und ihre Größe nach 2 Sekunden unverändert ist.
+
+## Logs
+
+Logs liegen unter:
+
+```text
+Z:\_MPRINT_4c\Maschinenfarben\Backup\helper_logs
+```
+
+Falls dieser Ordner nicht erreichbar ist, nutzt das Tool einen lokalen `helper_logs`-Ordner neben `main.py` beziehungsweise neben der EXE.
