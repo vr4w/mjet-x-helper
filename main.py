@@ -997,8 +997,10 @@ class ColorTableManager:
     ) -> None:
         submit_url = self._color_request_submit_url()
         delete_url = submit_url.rsplit("/", 1)[0] + "/farbe-loeschen"
+        status_url = submit_url.rsplit("/", 1)[0] + "/status"
         submit_url_json = json.dumps(submit_url)
         delete_url_json = json.dumps(delete_url)
+        status_url_json = json.dumps(status_url)
         body_rows = []
         for row in rows:
             name = str(row.get("Farbbezeichnung", ""))
@@ -1049,6 +1051,11 @@ class ColorTableManager:
     input {{ flex: 1; padding: 10px 12px; border: 1px solid #c8cdd3; font-size: 15px; }}
     button {{ border: 1px solid #b7c0ca; background: #d8e1ec; color: #1d3348; padding: 9px 12px; cursor: pointer; font-weight: 600; }}
     button:hover {{ background: #c7d5e5; }}
+    .connection {{ display: inline-flex; align-items: center; gap: 8px; margin: -8px 0 16px; color: #626b75; font-size: 14px; }}
+    .connection::before {{ content: ""; width: 10px; height: 10px; border-radius: 50%; background: #8c939b; }}
+    .connection.ok::before {{ background: #2f8f4e; }}
+    .connection.down::before {{ background: #bd3f3f; }}
+    .connection.checking::before {{ background: #c9901a; }}
     #entryStatus {{ margin: -8px 0 16px; color: #626b75; min-height: 20px; }}
     table {{ width: 100%; border-collapse: collapse; background: white; box-shadow: 0 0 0 1px #c8cdd3; }}
     th, td {{ padding: 9px 10px; border-bottom: 1px solid #dfe3e7; text-align: left; font-size: 14px; vertical-align: top; }}
@@ -1073,6 +1080,7 @@ class ColorTableManager:
     <input name="farbe" id="farbe" autocomplete="off" placeholder="Kundenfarbe eintragen">
     <button type="submit">Eintragen</button>
   </form>
+  <div id="connectionStatus" class="connection checking">Verbindung wird geprüft</div>
   <div id="entryStatus"></div>
   <iframe name="submitFrame" style="display:none"></iframe>
   <table>
@@ -1080,6 +1088,53 @@ class ColorTableManager:
     <tbody>{''.join(body_rows)}</tbody>
   </table>
   <script>
+    function fetchWithTimeout(url, options, timeoutMs) {{
+      if (!window.AbortController) {{
+        return fetch(url, options);
+      }}
+      var controller = new AbortController();
+      var timeout = window.setTimeout(function() {{ controller.abort(); }}, timeoutMs || 8000);
+      var merged = Object.assign({{}}, options || {{}}, {{ signal: controller.signal }});
+      return fetch(url, merged).finally(function() {{ window.clearTimeout(timeout); }});
+    }}
+    function responseTextOrError(response) {{
+      return response.text().then(function(text) {{
+        if (!response.ok) {{
+          var error = new Error(text || ('Servermeldung ' + response.status));
+          error.status = response.status;
+          throw error;
+        }}
+        return text;
+      }});
+    }}
+    function friendlyFetchError(error) {{
+      var message = error && error.message ? error.message : '';
+      if (error && error.name === 'AbortError') {{
+        return 'Die Verbindung zur MJET hat zu lange gedauert.';
+      }}
+      if (error instanceof TypeError || /Failed to fetch|NetworkError|Load failed/i.test(message)) {{
+        return 'Die MJET beziehungsweise der Little MPRINT Helper ist derzeit nicht erreichbar. Die Farbe konnte nicht gespeichert werden.';
+      }}
+      return message || 'Die Farbe konnte nicht gespeichert werden.';
+    }}
+    function setConnectionStatus(kind, text) {{
+      var node = document.getElementById('connectionStatus');
+      node.className = 'connection ' + kind;
+      node.textContent = text;
+    }}
+    function checkConnection() {{
+      if (!window.fetch) {{
+        setConnectionStatus('down', 'MJET-Verbindung kann mit diesem Browser nicht geprüft werden');
+        return;
+      }}
+      setConnectionStatus('checking', 'Verbindung wird geprüft');
+      fetchWithTimeout({status_url_json}, {{ method: 'GET', cache: 'no-store' }}, 5000)
+        .then(responseTextOrError)
+        .then(function() {{ setConnectionStatus('ok', 'MJET erreichbar'); }})
+        .catch(function() {{ setConnectionStatus('down', 'MJET nicht erreichbar'); }});
+    }}
+    checkConnection();
+    window.setInterval(checkConnection, 15000);
     document.querySelectorAll('.copy').forEach(function(button) {{
       button.addEventListener('click', function() {{
         var name = button.getAttribute('data-name') || '';
@@ -1102,23 +1157,18 @@ class ColorTableManager:
           return;
         }}
         status.textContent = 'Eintrag wird gelöscht...';
-        fetch({delete_url_json}, {{
+        fetchWithTimeout({delete_url_json}, {{
           method: 'POST',
           headers: {{ 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }},
           body: new URLSearchParams({{ farbe: name }}).toString()
-        }})
-        .then(function(response) {{
-          if (!response.ok) {{
-            throw new Error('Helper nicht erreichbar');
-          }}
-          return response.text();
-        }})
+        }}, 8000)
+        .then(responseTextOrError)
         .then(function(text) {{
           status.textContent = text || 'Eintrag gelöscht.';
           window.setTimeout(function() {{ window.location.reload(); }}, 700);
         }})
         .catch(function(error) {{
-          status.textContent = 'Eintrag nicht gelöscht: ' + error.message;
+          status.textContent = 'Eintrag nicht gelöscht: ' + friendlyFetchError(error);
         }});
       }});
     }});
@@ -1151,24 +1201,21 @@ class ColorTableManager:
         return;
       }}
       status.textContent = 'Eintrag wird gesendet...';
-      fetch({submit_url_json}, {{
+      fetchWithTimeout({submit_url_json}, {{
         method: 'POST',
         headers: {{ 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }},
         body: new URLSearchParams({{ farbe: value }}).toString()
-      }})
-      .then(function(response) {{
-        if (!response.ok) {{
-          throw new Error('Helper nicht erreichbar');
-        }}
-        return response.text();
-      }})
+      }}, 8000)
+      .then(responseTextOrError)
       .then(function(text) {{
         status.textContent = text || 'Kundenfarbe eingetragen.';
         input.value = '';
+        checkConnection();
         window.setTimeout(function() {{ window.location.reload(); }}, 900);
       }})
       .catch(function(error) {{
-        status.textContent = 'Eintrag nicht gespeichert: ' + error.message;
+        status.textContent = 'Eintrag nicht gespeichert: ' + friendlyFetchError(error);
+        checkConnection();
       }});
     }});
   </script>
@@ -1566,9 +1613,24 @@ class ColorRequestServer:
                     values = parse_qs(body)
                     color_name = values.get("farbe", [""])[0]
                     if path == "/farbe-loeschen":
+                        if not color_name.strip():
+                            self._send_text("Keine Farbbezeichnung übergeben.", status=400)
+                            return
                         message = color_manager.delete_overview_color(color_name)
+                        if message.startswith("Eintrag nicht gefunden"):
+                            self._send_text(message, status=404)
+                            return
                     else:
+                        if not color_name.strip():
+                            self._send_text("Bitte eine Farbbezeichnung eintragen.", status=400)
+                            return
+                        if len(re.sub(r"\s+", " ", color_name).strip()) > 160:
+                            self._send_text("Die Farbbezeichnung ist zu lang.", status=400)
+                            return
                         message = color_manager.add_requested_color(color_name)
+                        if message.startswith("Kundenfarbe ist bereits"):
+                            self._send_text(message, status=409)
+                            return
                     self._send_text(message)
                 except Exception as exc:
                     logger.log(f"Kundenfarbe konnte nicht übernommen werden: {exc}", "ERROR")
