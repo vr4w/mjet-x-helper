@@ -641,11 +641,17 @@ class ColorTableManager:
             "Status",
             "Angelegt am",
             "Gedruckt am",
+            "Abgeglichen am",
             "CMYK",
             "Einzelfarbe vorhanden",
             "In Masterdatei",
             "Letzter Abgleich",
             "Quelle",
+            "created_at",
+            "last_printed_at",
+            "last_synced_at",
+            "legacy_created_at",
+            "legacy_printed_at",
         ]
         extra_fields = [
             field
@@ -697,12 +703,21 @@ class ColorTableManager:
             else:
                 source = "Vorstufe"
 
-            angelegt_am = existing.get("Angelegt am", "").strip() or existing.get("AngelegtAm", "").strip()
-            if not angelegt_am:
-                angelegt_am = now_text
-            gedruckt_am = existing.get("Gedruckt am", "").strip() or existing.get("GedrucktAm", "").strip()
-            if in_single and in_master and not gedruckt_am:
-                gedruckt_am = now_text
+            legacy_created_at = (
+                existing.get("legacy_created_at", "").strip()
+                or existing.get("Angelegt am", "").strip()
+                or existing.get("AngelegtAm", "").strip()
+            )
+            legacy_printed_at = (
+                existing.get("legacy_printed_at", "").strip()
+                or existing.get("Gedruckt am", "").strip()
+                or existing.get("GedrucktAm", "").strip()
+            )
+            created_at = existing.get("created_at", "").strip()
+            if not created_at and not existing:
+                created_at = now_text
+            last_printed_at = existing.get("last_printed_at", "").strip()
+            last_synced_at = now_text
             cmyk = str(info.get("cmyk", "") or existing.get("CMYK", "")).strip()
 
             output_row = {field: existing.get(field, "") for field in extra_fields}
@@ -710,19 +725,26 @@ class ColorTableManager:
                 {
                     "Farbbezeichnung": name,
                     "Status": status,
-                    "Angelegt am": angelegt_am,
-                    "Gedruckt am": gedruckt_am,
+                    "Angelegt am": created_at,
+                    "Gedruckt am": last_printed_at,
+                    "Abgeglichen am": last_synced_at,
                     "CMYK": cmyk,
                     "Einzelfarbe vorhanden": "ja" if in_single else "nein",
                     "In Masterdatei": "ja" if in_master else "nein",
-                    "Letzter Abgleich": now_text,
+                    "Letzter Abgleich": last_synced_at,
                     "Quelle": source,
+                    "created_at": created_at,
+                    "last_printed_at": last_printed_at,
+                    "last_synced_at": last_synced_at,
+                    "legacy_created_at": legacy_created_at,
+                    "legacy_printed_at": legacy_printed_at,
                 }
             )
             rows.append(output_row)
 
         with self.overview_lock:
             csv_path.parent.mkdir(parents=True, exist_ok=True)
+            self._backup_color_overview_before_timestamp_migration(csv_path, existing_fields)
             temp_csv = csv_path.with_suffix(csv_path.suffix + ".tmp")
             with temp_csv.open("w", encoding="utf-8-sig", newline="") as handle:
                 writer = csv.DictWriter(handle, fieldnames=fieldnames, delimiter=";")
@@ -750,13 +772,25 @@ class ColorTableManager:
                 name_column = "Farbbezeichnung"
             if "Quelle" not in fields:
                 fields.append("Quelle")
+            for field in ("created_at", "last_printed_at", "last_synced_at"):
+                if field not in fields:
+                    fields.append(field)
 
             existing_keys = {
                 (row.get(name_column) or row.get("Farbbezeichnung") or "").strip().casefold()
                 for row in rows
             }
             if cleaned.casefold() not in existing_keys:
-                rows.append({"Farbbezeichnung": cleaned, "Quelle": "Vorstufe"})
+                created_at = now_stamp()
+                rows.append(
+                    {
+                        "Farbbezeichnung": cleaned,
+                        "Quelle": "Vorstufe",
+                        "created_at": created_at,
+                        "last_printed_at": "",
+                        "last_synced_at": created_at,
+                    }
+                )
                 csv_path.parent.mkdir(parents=True, exist_ok=True)
                 temp_csv = csv_path.with_suffix(csv_path.suffix + ".tmp")
                 with temp_csv.open("w", encoding="utf-8-sig", newline="") as handle:
@@ -769,6 +803,8 @@ class ColorTableManager:
                         writer.writerow({field: normalized.get(field, "") for field in fields})
                 os.replace(temp_csv, csv_path)
                 self.logger.log(f"Kundenfarbe eingetragen: {cleaned}")
+            else:
+                return f"Kundenfarbe ist bereits in der Übersicht: {cleaned}"
 
         self.refresh_color_overview()
         return f"Kundenfarbe eingetragen: {cleaned}"
@@ -812,6 +848,25 @@ class ColorTableManager:
         if removed:
             return f"Eintrag gelöscht: {cleaned}"
         return f"Eintrag nicht gefunden oder wird von Einzelfarben/Master wieder erzeugt: {cleaned}"
+
+    def _backup_color_overview_before_timestamp_migration(
+        self,
+        csv_path: Path,
+        existing_fields: list[str],
+    ) -> None:
+        if not csv_path.exists():
+            return
+        required_fields = {"created_at", "last_printed_at", "last_synced_at"}
+        if required_fields.issubset(set(existing_fields)):
+            return
+        backup_path = csv_path.with_name(
+            f"{csv_path.stem}_backup_vor_timestamp_migration_{filename_stamp()}{csv_path.suffix}"
+        )
+        try:
+            shutil.copy2(csv_path, backup_path)
+            self.logger.log(f"Backup vor Zeitstempel-Migration geschrieben: {backup_path}")
+        except Exception as exc:
+            self.logger.log(f"Backup vor Zeitstempel-Migration fehlgeschlagen: {exc}", "WARN")
 
     def refresh_color_overview(self) -> None:
         single_names = self._single_color_names()
@@ -950,6 +1005,7 @@ class ColorTableManager:
             status = row.get("Status", "")
             angelegt_am = str(row.get("Angelegt am", ""))
             gedruckt_am = str(row.get("Gedruckt am", ""))
+            abgeglichen_am = str(row.get("Abgeglichen am", "") or row.get("Letzter Abgleich", ""))
             cmyk = str(row.get("CMYK", ""))
             if "druckbar" in status:
                 css = "ok"
@@ -961,8 +1017,9 @@ class ColorTableManager:
                 css = "warn"
             escaped_name = html.escape(name)
             escaped_status = html.escape(str(status))
-            escaped_angelegt_am = html.escape(angelegt_am)
-            escaped_gedruckt_am = html.escape(gedruckt_am)
+            escaped_angelegt_am = html.escape(angelegt_am or "nicht erfasst")
+            escaped_gedruckt_am = html.escape(gedruckt_am or "nicht erfasst")
+            escaped_abgeglichen_am = html.escape(abgeglichen_am or "nicht erfasst")
             escaped_cmyk = html.escape(cmyk)
             button_name = html.escape(name, quote=True)
             body_rows.append(
@@ -973,6 +1030,7 @@ class ColorTableManager:
                 f"<td>{escaped_status}</td>"
                 f"<td>{escaped_angelegt_am}</td>"
                 f"<td>{escaped_gedruckt_am}</td>"
+                f"<td>{escaped_abgeglichen_am}</td>"
                 f"<td>{escaped_cmyk}</td>"
                 f"<td class=\"adminOnly\"><button type=\"button\" class=\"delete\" data-name=\"{button_name}\">Löschen</button></td>"
                 f"</tr>"
@@ -998,7 +1056,7 @@ class ColorTableManager:
     th.indicator, td:first-child {{ width: 34px; text-align: center; }}
     .name {{ font-weight: 600; }}
     .copy {{ padding: 6px 9px; font-size: 12px; }}
-    td:nth-child(5), td:nth-child(6), td:nth-child(7) {{ color: #626b75; white-space: nowrap; }}
+    td:nth-child(5), td:nth-child(6), td:nth-child(7), td:nth-child(8) {{ color: #626b75; white-space: nowrap; }}
     .delete {{ padding: 6px 9px; font-size: 12px; background: #d8b7b7; color: #3e1f1f; }}
     .adminOnly {{ display: none; }}
     body.admin .adminOnly {{ display: table-cell; }}
@@ -1018,7 +1076,7 @@ class ColorTableManager:
   <div id="entryStatus"></div>
   <iframe name="submitFrame" style="display:none"></iframe>
   <table>
-    <thead><tr><th class="indicator"></th><th>Farbbezeichnung</th><th></th><th>Status</th><th>Angelegt am</th><th>Gedruckt am</th><th>CMYK</th><th class="adminOnly"></th></tr></thead>
+    <thead><tr><th class="indicator"></th><th>Farbbezeichnung</th><th></th><th>Status</th><th>Angelegt am</th><th>Gedruckt am</th><th>Abgeglichen am</th><th>CMYK</th><th class="adminOnly"></th></tr></thead>
     <tbody>{''.join(body_rows)}</tbody>
   </table>
   <script>
