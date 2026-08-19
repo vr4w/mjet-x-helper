@@ -669,6 +669,11 @@ class ColorTableManager:
             "legacy_created_at",
             "legacy_printed_at",
             "sk_assignments",
+            "printed",
+            "printed_at",
+            "approved",
+            "approved_at",
+            "transfer",
         ]
         extra_fields = [
             field
@@ -737,6 +742,7 @@ class ColorTableManager:
             last_synced_at = now_text
             cmyk = str(info.get("cmyk", "") or existing.get("CMYK", "")).strip()
             sk_assignments = self._parse_sk_assignments(existing)
+            printed, printed_at, approved, approved_at, transfer = self._color_workflow_from_row(existing, sk_assignments)
 
             output_row = {field: existing.get(field, "") for field in extra_fields}
             output_row.update(
@@ -757,6 +763,11 @@ class ColorTableManager:
                     "legacy_created_at": legacy_created_at,
                     "legacy_printed_at": legacy_printed_at,
                     "sk_assignments": self._dump_sk_assignments(sk_assignments),
+                    "printed": "ja" if printed else "nein",
+                    "printed_at": printed_at,
+                    "approved": "ja" if approved else "nein",
+                    "approved_at": approved_at,
+                    "transfer": self._dump_transfer(transfer),
                 }
             )
             rows.append(output_row)
@@ -765,6 +776,7 @@ class ColorTableManager:
             csv_path.parent.mkdir(parents=True, exist_ok=True)
             self._backup_color_overview_before_timestamp_migration(csv_path, existing_fields)
             self._backup_color_overview_before_sk_migration(csv_path, existing_fields)
+            self._backup_color_overview_before_transfer_migration(csv_path, existing_fields)
             temp_csv = csv_path.with_suffix(csv_path.suffix + ".tmp")
             with temp_csv.open("w", encoding="utf-8-sig", newline="") as handle:
                 writer = csv.DictWriter(handle, fieldnames=fieldnames, delimiter=";")
@@ -793,7 +805,7 @@ class ColorTableManager:
                 name_column = "Farbbezeichnung"
             if "Quelle" not in fields:
                 fields.append("Quelle")
-            for field in ("created_at", "last_printed_at", "last_synced_at", "sk_assignments"):
+            for field in ("created_at", "last_printed_at", "last_synced_at", "sk_assignments", "printed", "printed_at", "approved", "approved_at", "transfer"):
                 if field not in fields:
                     fields.append(field)
 
@@ -811,6 +823,11 @@ class ColorTableManager:
                         "last_printed_at": "",
                         "last_synced_at": created_at,
                         "sk_assignments": "[]",
+                        "printed": "nein",
+                        "printed_at": "",
+                        "approved": "nein",
+                        "approved_at": "",
+                        "transfer": self._dump_transfer(self._empty_transfer()),
                     }
                 )
                 csv_path.parent.mkdir(parents=True, exist_ok=True)
@@ -860,70 +877,47 @@ class ColorTableManager:
 
     def mark_sk_printed(self, color_name: str, sk_number: str) -> dict:
         cleaned_color = self._clean_color_name(color_name)
-        cleaned_sk = self._clean_sk_number(sk_number)
         if not cleaned_color:
             return self._api_result(False, "Keine Kundenfarbe übergeben.", 400)
-        if not cleaned_sk:
-            return self._api_result(False, "Keine SK-Nr. übergeben.", 400)
-
-        def update(row: dict[str, str], assignments: list[dict[str, object]]) -> tuple[bool, str]:
-            assignment = self._find_sk_assignment(assignments, cleaned_sk)
-            if assignment is None:
-                return False, f"SK {cleaned_sk} wurde bei {cleaned_color} nicht gefunden."
-            if assignment.get("printed"):
-                return True, f"SK {cleaned_sk} ist bereits als gedruckt markiert."
-            assignment["printed"] = True
-            assignment["printed_at"] = now_stamp()
-            row["sk_assignments"] = self._dump_sk_assignments(assignments)
-            return True, f"SK {cleaned_sk} wurde als gedruckt markiert."
-
-        return self._update_sk_assignment(cleaned_color, cleaned_sk, update)
+        return self._update_color_workflow(
+            cleaned_color,
+            lambda row, assignments: self._set_color_printed(row, assignments),
+        )
 
     def approve_sk_assignment(self, color_name: str, sk_number: str) -> dict:
         cleaned_color = self._clean_color_name(color_name)
-        cleaned_sk = self._clean_sk_number(sk_number)
         if not cleaned_color:
             return self._api_result(False, "Keine Kundenfarbe übergeben.", 400)
-        if not cleaned_sk:
-            return self._api_result(False, "Keine SK-Nr. übergeben.", 400)
+        return self._update_color_workflow(
+            cleaned_color,
+            lambda row, assignments: self._set_color_approved(row, assignments),
+        )
 
-        def update(row: dict[str, str], assignments: list[dict[str, object]]) -> tuple[bool, str]:
-            assignment = self._find_sk_assignment(assignments, cleaned_sk)
-            if assignment is None:
-                return False, f"SK {cleaned_sk} wurde bei {cleaned_color} nicht gefunden."
-            if not assignment.get("printed"):
-                return False, "Die SK muss zuerst als erfolgreich gedruckt markiert werden."
-            if assignment.get("approved"):
-                return True, f"SK {cleaned_sk} ist bereits freigegeben."
-            assignment["approved"] = True
-            assignment["approved_at"] = now_stamp()
-            row["sk_assignments"] = self._dump_sk_assignments(assignments)
-            return True, f"SK {cleaned_sk} wurde freigegeben."
-
-        return self._update_sk_assignment(cleaned_color, cleaned_sk, update)
-
-    def mark_template_updated(self, color_name: str, sk_number: str) -> dict:
+    def mark_template_updated(
+        self,
+        color_name: str,
+        sk_number: str,
+        template_updated: bool = False,
+        portal_informed: bool = False,
+        completed_by: str = "",
+        note: str = "",
+    ) -> dict:
         cleaned_color = self._clean_color_name(color_name)
-        cleaned_sk = self._clean_sk_number(sk_number)
         if not cleaned_color:
             return self._api_result(False, "Keine Kundenfarbe übergeben.", 400)
-        if not cleaned_sk:
-            return self._api_result(False, "Keine SK-Nr. übergeben.", 400)
-
-        def update(row: dict[str, str], assignments: list[dict[str, object]]) -> tuple[bool, str]:
-            assignment = self._find_sk_assignment(assignments, cleaned_sk)
-            if assignment is None:
-                return False, f"SK {cleaned_sk} wurde bei {cleaned_color} nicht gefunden."
-            if not assignment.get("approved"):
-                return False, "Die SK muss zuerst freigegeben werden."
-            if assignment.get("template_updated"):
-                return True, f"SK {cleaned_sk} ist bereits als übernommen markiert."
-            assignment["template_updated"] = True
-            assignment["template_updated_at"] = now_stamp()
-            row["sk_assignments"] = self._dump_sk_assignments(assignments)
-            return True, f"SK {cleaned_sk} wurde als übernommen markiert."
-
-        return self._update_sk_assignment(cleaned_color, cleaned_sk, update)
+        if not template_updated and not portal_informed:
+            return self._api_result(False, "Bitte mindestens eine Übernahmeart auswählen.", 400)
+        return self._update_color_workflow(
+            cleaned_color,
+            lambda row, assignments: self._set_color_transfer(
+                row,
+                assignments,
+                template_updated=template_updated,
+                portal_informed=portal_informed,
+                completed_by=self._clean_color_name(completed_by),
+                note=str(note).strip(),
+            ),
+        )
 
     def delete_overview_color(self, color_name: str) -> str:
         cleaned = re.sub(r"\s+", " ", color_name).strip()
@@ -1011,6 +1005,216 @@ class ColorTableManager:
 
         self.refresh_color_overview()
         return self._api_result(True, result_message, 200)
+
+    def _update_color_workflow(self, color_name: str, update: callable) -> dict:
+        csv_path = self._overview_csv_path()
+        with self.overview_lock:
+            rows, fields = self._read_color_overview_with_legacy(csv_path)
+            original_fields = list(fields)
+            name_column = self._find_name_column(fields) or "Farbbezeichnung"
+            if "Farbbezeichnung" not in fields:
+                fields = ["Farbbezeichnung"] + [field for field in fields if field != name_column]
+                name_column = "Farbbezeichnung"
+            for field in ("printed", "printed_at", "approved", "approved_at", "transfer"):
+                if field not in fields:
+                    fields.append(field)
+
+            target_row = None
+            assignments: list[dict[str, object]] = []
+            for row in rows:
+                raw_name = self._clean_color_name(row.get(name_column) or row.get("Farbbezeichnung") or "")
+                if raw_name.casefold() == color_name.casefold():
+                    target_row = row
+                    assignments = self._parse_sk_assignments(row)
+                    break
+            if target_row is None:
+                return self._api_result(False, f"Kundenfarbe nicht gefunden: {color_name}", 404)
+
+            changed, message = update(target_row, assignments)
+            if not changed:
+                return self._api_result(False, message, 409)
+
+            self._backup_color_overview_before_transfer_migration(csv_path, original_fields)
+            csv_path.parent.mkdir(parents=True, exist_ok=True)
+            temp_csv = csv_path.with_suffix(csv_path.suffix + ".tmp")
+            with temp_csv.open("w", encoding="utf-8-sig", newline="") as handle:
+                writer = csv.DictWriter(handle, fieldnames=fields, delimiter=";")
+                writer.writeheader()
+                for row in rows:
+                    normalized = dict(row)
+                    if name_column != "Farbbezeichnung":
+                        normalized["Farbbezeichnung"] = row.get(name_column, "")
+                    writer.writerow({field: normalized.get(field, "") for field in fields})
+            os.replace(temp_csv, csv_path)
+
+        self.refresh_color_overview()
+        return self._api_result(True, message, 200)
+
+    def _set_color_printed(
+        self,
+        row: dict[str, str],
+        assignments: list[dict[str, object]],
+    ) -> tuple[bool, str]:
+        printed, printed_at, approved, approved_at, transfer = self._color_workflow_from_row(row, assignments)
+        if printed:
+            return True, "Farbe ist bereits als gedruckt markiert."
+        printed_at = now_stamp()
+        row["printed"] = "ja"
+        row["printed_at"] = printed_at
+        row["last_printed_at"] = printed_at
+        row["Gedruckt am"] = printed_at
+        row["approved"] = "ja" if approved else "nein"
+        row["approved_at"] = approved_at
+        row["transfer"] = self._dump_transfer(transfer)
+        return True, "Farbe wurde als gedruckt markiert."
+
+    def _set_color_approved(
+        self,
+        row: dict[str, str],
+        assignments: list[dict[str, object]],
+    ) -> tuple[bool, str]:
+        printed, printed_at, approved, approved_at, transfer = self._color_workflow_from_row(row, assignments)
+        if not printed:
+            return False, "Die Farbe muss zuerst als gedruckt markiert werden."
+        if approved:
+            return True, "Farbe ist bereits freigegeben."
+        row["printed"] = "ja"
+        row["printed_at"] = printed_at or now_stamp()
+        row["approved"] = "ja"
+        row["approved_at"] = now_stamp()
+        row["transfer"] = self._dump_transfer(transfer)
+        return True, "Farbe wurde freigegeben."
+
+    def _set_color_transfer(
+        self,
+        row: dict[str, str],
+        assignments: list[dict[str, object]],
+        template_updated: bool,
+        portal_informed: bool,
+        completed_by: str,
+        note: str,
+    ) -> tuple[bool, str]:
+        printed, printed_at, approved, approved_at, transfer = self._color_workflow_from_row(row, assignments)
+        if not approved:
+            return False, "Die Farbe muss zuerst freigegeben werden."
+        transfer.update(
+            {
+                "completed": True,
+                "template_updated": bool(template_updated),
+                "portal_informed": bool(portal_informed),
+                "completed_at": now_stamp(),
+                "completed_by": completed_by,
+                "note": note,
+            }
+        )
+        row["printed"] = "ja" if printed else "nein"
+        row["printed_at"] = printed_at
+        row["approved"] = "ja"
+        row["approved_at"] = approved_at or now_stamp()
+        row["transfer"] = self._dump_transfer(transfer)
+        return True, "Farbübernahme wurde gespeichert."
+
+    def _color_workflow_from_row(
+        self,
+        row: dict[str, str],
+        assignments: list[dict[str, object]],
+    ) -> tuple[bool, str, bool, str, dict[str, object]]:
+        legacy_printed = any(bool(item.get("printed")) for item in assignments)
+        legacy_approved = any(bool(item.get("approved")) for item in assignments)
+        legacy_transfer = any(bool(item.get("template_updated")) for item in assignments)
+        printed = self._truthy(row.get("printed", "")) or legacy_printed
+        approved = self._truthy(row.get("approved", "")) or legacy_approved
+        printed_at = str(row.get("printed_at", "") or "")
+        approved_at = str(row.get("approved_at", "") or "")
+        if not printed_at:
+            printed_at = self._first_assignment_time(assignments, "printed_at")
+        if not approved_at:
+            approved_at = self._first_assignment_time(assignments, "approved_at")
+        transfer = self._parse_transfer(row.get("transfer", ""))
+        if legacy_transfer and not transfer.get("completed"):
+            transfer["completed"] = True
+            transfer["template_updated"] = True
+            transfer["portal_informed"] = False
+            transfer["completed_at"] = self._first_assignment_time(assignments, "template_updated_at")
+        return printed, printed_at, approved, approved_at, transfer
+
+    def _first_assignment_time(self, assignments: list[dict[str, object]], field: str) -> str:
+        for item in assignments:
+            value = str(item.get(field) or "").strip()
+            if value:
+                return value
+        return ""
+
+    def _empty_transfer(self) -> dict[str, object]:
+        return {
+            "completed": False,
+            "template_updated": False,
+            "portal_informed": False,
+            "completed_at": "",
+            "completed_by": "",
+            "note": "",
+        }
+
+    def _parse_transfer(self, raw: object) -> dict[str, object]:
+        transfer = self._empty_transfer()
+        if isinstance(raw, dict):
+            data = raw
+        else:
+            text = str(raw or "").strip()
+            if not text:
+                return transfer
+            try:
+                data = json.loads(text)
+            except Exception:
+                return transfer
+        if not isinstance(data, dict):
+            return transfer
+        transfer["completed"] = bool(data.get("completed"))
+        transfer["template_updated"] = bool(data.get("template_updated"))
+        transfer["portal_informed"] = bool(data.get("portal_informed"))
+        transfer["completed_at"] = str(data.get("completed_at") or "")
+        transfer["completed_by"] = str(data.get("completed_by") or "")
+        transfer["note"] = str(data.get("note") or "")
+        return transfer
+
+    def _dump_transfer(self, transfer: dict[str, object]) -> str:
+        normalized = self._parse_transfer(transfer)
+        return json.dumps(normalized, ensure_ascii=False, separators=(",", ":"))
+
+    def _truthy(self, value: object) -> bool:
+        return str(value).strip().casefold() in {"1", "true", "ja", "yes", "y", "x"}
+
+    def _transfer_method_text(self, transfer: dict[str, object]) -> str:
+        template = bool(transfer.get("template_updated"))
+        portal = bool(transfer.get("portal_informed"))
+        if template and portal:
+            return "Vorlage + Portal"
+        if template:
+            return "Vorlage angepasst"
+        if portal:
+            return "Portal informiert"
+        if transfer.get("completed"):
+            return "nicht erfasst"
+        return "offen"
+
+    def _workflow_history(
+        self,
+        printed: bool,
+        printed_at: str,
+        approved: bool,
+        approved_at: str,
+        transfer: dict[str, object],
+    ) -> list[str]:
+        entries: list[str] = []
+        if printed:
+            entries.append(f"{printed_at or 'Datum nicht erfasst'} - Gedruckt")
+        if approved:
+            entries.append(f"{approved_at or 'Datum nicht erfasst'} - Andreas freigegeben")
+        if transfer.get("completed"):
+            method = self._transfer_method_text(transfer)
+            at = str(transfer.get("completed_at") or "Datum nicht erfasst")
+            entries.append(f"{at} - {method}")
+        return entries
 
     def _parse_sk_assignments(self, row: dict[str, str]) -> list[dict[str, object]]:
         raw = str(row.get("sk_assignments", "") or row.get("SK-Zuordnungen", "")).strip()
@@ -1105,6 +1309,25 @@ class ColorTableManager:
             self.logger.log(f"Backup vor SK-Workflow-Migration geschrieben: {backup_path}")
         except Exception as exc:
             self.logger.log(f"Backup vor SK-Workflow-Migration fehlgeschlagen: {exc}", "WARN")
+
+    def _backup_color_overview_before_transfer_migration(
+        self,
+        csv_path: Path,
+        existing_fields: list[str],
+    ) -> None:
+        if not csv_path.exists():
+            return
+        required = {"printed", "approved", "transfer"}
+        if required.issubset(set(existing_fields)):
+            return
+        backup_path = csv_path.with_name(
+            f"{csv_path.stem}_backup_vor_transfer_workflow_migration_{filename_stamp()}{csv_path.suffix}"
+        )
+        try:
+            shutil.copy2(csv_path, backup_path)
+            self.logger.log(f"Backup vor Übernahme-Workflow-Migration geschrieben: {backup_path}")
+        except Exception as exc:
+            self.logger.log(f"Backup vor Übernahme-Workflow-Migration fehlgeschlagen: {exc}", "WARN")
 
     def refresh_color_overview(self) -> None:
         single_names = self._single_color_names()
@@ -1260,13 +1483,14 @@ class ColorTableManager:
             abgeglichen_am = str(row.get("Abgeglichen am", "") or row.get("Letzter Abgleich", ""))
             cmyk = str(row.get("CMYK", ""))
             assignments = self._parse_sk_assignments(row)
-            open_print_tests += sum(1 for item in assignments if not item.get("printed"))
-            open_approvals += sum(1 for item in assignments if item.get("printed") and not item.get("approved"))
-            open_template_updates += sum(
-                1
-                for item in assignments
-                if item.get("approved") and not item.get("template_updated")
-            )
+            printed, printed_at, approved, approved_at, transfer = self._color_workflow_from_row(row, assignments)
+            transfer_done = bool(transfer.get("completed"))
+            if not printed:
+                open_print_tests += 1
+            if printed and not approved:
+                open_approvals += 1
+            if approved and not transfer_done:
+                open_template_updates += 1
             if "druckbar" in status:
                 css = "ok"
             elif "offen" in status:
@@ -1283,79 +1507,79 @@ class ColorTableManager:
             escaped_cmyk = html.escape(cmyk or "nicht erfasst")
             button_name = html.escape(name, quote=True)
             button_cmyk = html.escape(cmyk, quote=True)
+            transfer_method = self._transfer_method_text(transfer)
+            transfer_method_attr = html.escape(transfer_method, quote=True)
+            completed_by = html.escape(str(transfer.get("completed_by") or "nicht erfasst"))
+            transfer_note = html.escape(str(transfer.get("note") or ""))
+            transfer_at = html.escape(str(transfer.get("completed_at") or "nicht erfasst"))
+            if printed:
+                print_summary = "<span class=\"statusLine done\">● erledigt</span>"
+            else:
+                print_summary = (
+                    f"<button type=\"button\" class=\"workflow\" data-action=\"printed\" "
+                    f"data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\">Druck erledigt</button>"
+                )
+            if approved:
+                approval_summary = "<span class=\"statusLine done\">● Andreas</span>"
+            elif printed:
+                approval_summary = (
+                    f"<button type=\"button\" class=\"workflow warn\" data-action=\"approve\" "
+                    f"data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\">Andreas freigeben</button>"
+                )
+            else:
+                approval_summary = "<span class=\"statusLine idle\">wartet auf Druck</span>"
+            if transfer_done:
+                template_summary = (
+                    f"<details class=\"transferDetails\"><summary><span class=\"statusLine done\">● erledigt</span></summary>"
+                    f"<div>Methode: {html.escape(transfer_method)}</div>"
+                    f"<div>Datum: {transfer_at}</div>"
+                    f"<div>Bearbeiter: {completed_by}</div>"
+                    f"{'<div>Notiz: ' + transfer_note + '</div>' if transfer_note else ''}"
+                    "</details>"
+                )
+            elif approved:
+                template_summary = (
+                    f"<button type=\"button\" class=\"workflow danger\" data-action=\"template\" "
+                    f"data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\" data-method=\"{transfer_method_attr}\">"
+                    "Übernahme offen</button>"
+                )
+            else:
+                template_summary = "<span class=\"statusLine idle\">wartet auf Prüfung</span>"
+            history_html = "<br>".join(html.escape(item) for item in self._workflow_history(printed, printed_at, approved, approved_at, transfer))
+            if not history_html:
+                history_html = "noch keine Workflow-Historie"
             if assignments:
-                printed_done = sum(1 for item in assignments if item.get("printed"))
-                approved_done = sum(1 for item in assignments if item.get("approved"))
-                template_done = sum(1 for item in assignments if item.get("template_updated"))
-                print_summary = f"{printed_done}/{len(assignments)} gedruckt"
-                approval_summary = f"{approved_done}/{len(assignments)} frei"
-                template_summary = f"{template_done}/{len(assignments)} übernommen"
                 detail_items = []
                 for assignment in assignments:
                     sk_number = html.escape(str(assignment.get("sk_number", "")))
-                    sk_attr = html.escape(str(assignment.get("sk_number", "")), quote=True)
-                    if assignment.get("printed"):
-                        printed_html = "<span class=\"badge done\">Gedruckt</span>"
-                    else:
-                        printed_html = (
-                            f"<button type=\"button\" class=\"workflow\" data-action=\"printed\" "
-                            f"data-color=\"{button_name}\" data-sk=\"{sk_attr}\" data-cmyk=\"{button_cmyk}\">"
-                            "Test ausstehend</button>"
-                        )
-                    if assignment.get("approved"):
-                        approval_html = "<span class=\"badge done\">Freigegeben</span>"
-                    elif assignment.get("printed"):
-                        approval_html = (
-                            f"<button type=\"button\" class=\"workflow warn\" data-action=\"approve\" "
-                            f"data-color=\"{button_name}\" data-sk=\"{sk_attr}\" data-cmyk=\"{button_cmyk}\">"
-                            "Abnahme ausstehend</button>"
-                        )
-                    else:
-                        approval_html = "<span class=\"badge idle\">Erst drucken</span>"
-                    if assignment.get("template_updated"):
-                        template_html = "<span class=\"badge done\">Übernommen</span>"
-                    elif assignment.get("approved"):
-                        template_html = (
-                            f"<button type=\"button\" class=\"workflow danger\" data-action=\"template\" "
-                            f"data-color=\"{button_name}\" data-sk=\"{sk_attr}\" data-cmyk=\"{button_cmyk}\">"
-                            "Übernahme offen</button>"
-                        )
-                    else:
-                        template_html = "<span class=\"badge idle\">Wartet</span>"
                     detail_items.append(
                         "<div class=\"skItem\">"
                         f"<strong>SK {sk_number}</strong>"
-                        f"<span class=\"printedSlot\">{printed_html}</span>"
-                        f"<span class=\"approvalSlot\">{approval_html}</span>"
-                        f"<span class=\"templateSlot\">{template_html}</span>"
                         "</div>"
                     )
                 sk_html = (
-                    f"<details><summary>{len(assignments)} SK anzeigen</summary>"
+                    f"<details><summary>{len(assignments)} Eindruckvorlage(n)</summary>"
                     f"{''.join(detail_items)}</details>"
                 )
             else:
-                print_summary = "keine SK"
-                approval_summary = "keine SK"
-                template_summary = "keine SK"
-                sk_html = "<span class=\"muted\">noch keine SK</span>"
+                sk_html = "<span class=\"muted\">keine Eindruckvorlage hinterlegt</span>"
             body_rows.append(
                 f"<tr class=\"{css}\">"
                 f"<td><span class=\"dot\" aria-hidden=\"true\"></span></td>"
                 f"<td class=\"name\">{escaped_name}</td>"
                 f"<td><button type=\"button\" class=\"copy\" data-name=\"{button_name}\">Kopieren</button></td>"
                 f"<td>{escaped_cmyk}</td>"
-                f"<td>{html.escape(print_summary)}</td>"
+                f"<td>{print_summary}</td>"
                 f"<td>{sk_html}<br><button type=\"button\" class=\"addSk\" data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\">SK hinzufügen</button></td>"
-                f"<td>{html.escape(approval_summary)}</td>"
-                f"<td>{html.escape(template_summary)}</td>"
-                f"<td class=\"history\"><span title=\"Angelegt am\">{escaped_angelegt_am}</span><br><span title=\"Gedruckt am\">{escaped_gedruckt_am}</span><br><span title=\"Abgeglichen am\">{escaped_abgeglichen_am}</span></td>"
+                f"<td>{approval_summary}</td>"
+                f"<td>{template_summary}</td>"
+                f"<td class=\"history\"><strong>Historie</strong><br>{history_html}<br><span title=\"Angelegt am\">Angelegt: {escaped_angelegt_am}</span><br><span title=\"Abgeglichen am\">Abgleich: {escaped_abgeglichen_am}</span></td>"
                 f"<td class=\"adminOnly\"><button type=\"button\" class=\"delete\" data-name=\"{button_name}\">Löschen</button></td>"
                 f"</tr>"
             )
 
         summary_html = (
-            f"<button type=\"button\" class=\"summaryPill\" data-filter=\"print\">{open_print_tests} Drucktests offen</button>"
+            f"<button type=\"button\" class=\"summaryPill\" data-filter=\"print\">{open_print_tests} Drucke offen</button>"
             f"<button type=\"button\" class=\"summaryPill\" data-filter=\"approval\">{open_approvals} Abnahmen offen</button>"
             f"<button type=\"button\" class=\"summaryPill\" data-filter=\"template\">{open_template_updates} Übernahmen offen</button>"
         )
@@ -1390,7 +1614,7 @@ class ColorTableManager:
     .addSk {{ margin-top: 7px; }}
     td:nth-child(4), td:nth-child(5), td:nth-child(7), td:nth-child(8), .history {{ color: #626b75; white-space: nowrap; }}
     details summary {{ cursor: pointer; color: #1d3348; font-weight: 700; }}
-    .skItem {{ display: grid; grid-template-columns: 90px minmax(110px, 1fr) minmax(120px, 1fr) minmax(120px, 1fr); gap: 8px; align-items: center; padding: 7px 0; border-top: 1px solid #eef1f4; }}
+    .skItem {{ padding: 7px 0; border-top: 1px solid #eef1f4; }}
     .badge {{ display: inline-block; padding: 5px 8px; border: 1px solid #c8cdd3; background: #eef1f4; font-size: 12px; font-weight: 700; }}
     .badge.done {{ border-color: #2f8f4e; background: #e3f0e7; color: #1f5c35; }}
     .badge.idle {{ color: #626b75; }}
@@ -1410,7 +1634,11 @@ class ColorTableManager:
     .dialogBox {{ width: min(420px, calc(100vw - 32px)); background: #fff; border: 1px solid #b7c0ca; box-shadow: 0 18px 45px rgba(0, 0, 0, 0.22); padding: 16px; }}
     .dialogBox h2 {{ margin: 0 0 12px; font-size: 20px; }}
     .dialogBody {{ color: #20242a; line-height: 1.45; }}
-    .dialogBody input {{ width: 100%; box-sizing: border-box; margin-top: 6px; }}
+    .statusLine {{ font-weight: 700; }}
+    .statusLine.done {{ color: #2f8f4e; }}
+    .statusLine.idle {{ color: #8c939b; }}
+    .dialogBody input[type="text"], .dialogBody input:not([type]), .dialogBody textarea {{ width: 100%; box-sizing: border-box; margin-top: 6px; }}
+    .dialogBody input[type="checkbox"] {{ width: auto; margin: 0 6px 0 0; }}
     .dialogActions {{ display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }}
   </style>
 </head>
@@ -1426,7 +1654,7 @@ class ColorTableManager:
   <div id="entryStatus"></div>
   <iframe name="submitFrame" style="display:none"></iframe>
   <table>
-    <thead><tr><th class="indicator"></th><th>Kundenfarbe</th><th></th><th>CMYK</th><th>Druckstatus</th><th>SK-Nr.</th><th>Abnahme</th><th>Übernahme</th><th>Historie</th><th class="adminOnly"></th></tr></thead>
+    <thead><tr><th class="indicator"></th><th>Kundenfarbe</th><th></th><th>CMYK</th><th>Druck</th><th>Betroffene Eindruckvorlagen</th><th>Prüfung</th><th>Übernahme</th><th>Historie</th><th class="adminOnly"></th></tr></thead>
     <tbody>{''.join(body_rows)}</tbody>
   </table>
   <div id="dialogBackdrop" class="dialogBackdrop" role="dialog" aria-modal="true">
@@ -1531,7 +1759,7 @@ class ColorTableManager:
         body.innerHTML = options.body || '';
         ok.textContent = options.okText || 'OK';
         backdrop.classList.add('open');
-        var input = body.querySelector('input');
+        var input = options.returnInput ? body.querySelector('input') : null;
         function cleanup(value) {{
           backdrop.classList.remove('open');
           cancel.onclick = null;
@@ -1545,7 +1773,7 @@ class ColorTableManager:
             cleanup(null);
           }} else if (event.key === 'Enter') {{
             event.preventDefault();
-            cleanup(input ? input.value : true);
+	            cleanup(input ? input.value : true);
           }}
         }}
         cancel.onclick = function() {{ cleanup(null); }};
@@ -1568,22 +1796,15 @@ class ColorTableManager:
       var approvalOpen = document.querySelectorAll('.workflow[data-action="approve"]').length;
       var templateOpen = document.querySelectorAll('.workflow[data-action="template"]').length;
       var pills = document.querySelectorAll('.summaryPill');
-      if (pills[0]) pills[0].textContent = printOpen + ' Drucktests offen';
+      if (pills[0]) pills[0].textContent = printOpen + ' Drucke offen';
       if (pills[1]) pills[1].textContent = approvalOpen + ' Abnahmen offen';
       if (pills[2]) pills[2].textContent = templateOpen + ' Übernahmen offen';
     }}
-    function updateRowCounts(row) {{
+    function updateSkSummary(row) {{
       if (!row) return;
-      var items = row.querySelectorAll('.skItem');
-      var printedDone = row.querySelectorAll('.skItem .printedSlot .badge.done').length;
-      var approvedDone = row.querySelectorAll('.skItem .approvalSlot .badge.done').length;
-      var templateDone = row.querySelectorAll('.skItem .templateSlot .badge.done').length;
-      if (row.cells[4]) row.cells[4].textContent = items.length ? printedDone + '/' + items.length + ' gedruckt' : 'keine SK';
-      if (row.cells[6]) row.cells[6].textContent = items.length ? approvedDone + '/' + items.length + ' frei' : 'keine SK';
-      if (row.cells[7]) row.cells[7].textContent = items.length ? templateDone + '/' + items.length + ' übernommen' : 'keine SK';
+      var items = row.querySelectorAll('.skItem').length;
       var summary = row.querySelector('details summary');
-      if (summary) summary.textContent = items.length + ' SK anzeigen';
-      updateSummaries();
+      if (summary) summary.textContent = items + ' Eindruckvorlage(n)';
     }}
     function bindWorkflowButton(button) {{
       button.addEventListener('click', handleWorkflowClick);
@@ -1594,7 +1815,7 @@ class ColorTableManager:
       button.className = className || 'workflow';
       button.dataset.action = action;
       button.dataset.color = color;
-      button.dataset.sk = sk;
+      if (sk) button.dataset.sk = sk;
       button.dataset.cmyk = cmyk || '';
       button.textContent = text;
       bindWorkflowButton(button);
@@ -1614,7 +1835,7 @@ class ColorTableManager:
       details = document.createElement('details');
       details.open = true;
       var summary = document.createElement('summary');
-      summary.textContent = '0 SK anzeigen';
+      summary.textContent = '0 Eindruckvorlage(n)';
       details.appendChild(summary);
       cell.insertBefore(details, cell.firstChild);
       return details;
@@ -1625,13 +1846,10 @@ class ColorTableManager:
       var details = ensureDetails(row);
       var item = document.createElement('div');
       item.className = 'skItem';
-      item.innerHTML = '<strong>SK ' + escapeHtml(sk) + '</strong><span class="printedSlot"></span><span class="approvalSlot"></span><span class="templateSlot"></span>';
-      item.querySelector('.printedSlot').appendChild(createWorkflowButton('printed', color, sk, cmyk, 'Test ausstehend', 'workflow'));
-      item.querySelector('.approvalSlot').appendChild(makeBadge('Erst drucken', 'badge idle'));
-      item.querySelector('.templateSlot').appendChild(makeBadge('Wartet', 'badge idle'));
+      item.innerHTML = '<strong>SK ' + escapeHtml(sk) + '</strong>';
       details.appendChild(item);
       details.open = true;
-      updateRowCounts(row);
+      updateSkSummary(row);
     }}
     document.querySelectorAll('.summaryPill').forEach(function(button) {{
       button.addEventListener('click', function() {{
@@ -1667,10 +1885,11 @@ class ColorTableManager:
         var cmyk = button.getAttribute('data-cmyk') || 'nicht erfasst';
         var status = document.getElementById('entryStatus');
         showDialog({{
-          title: 'SK hinzufügen',
-          body: '<p><strong>Farbe:</strong><br>' + escapeHtml(color) + '</p><p><strong>CMYK:</strong><br>' + escapeHtml(cmyk) + '</p><label>SK-Nr.<input id="skInput" autocomplete="off"></label>',
-          okText: 'Hinzufügen'
-        }}).then(function(sk) {{
+	          title: 'SK hinzufügen',
+	          body: '<p><strong>Farbe:</strong><br>' + escapeHtml(color) + '</p><p><strong>CMYK:</strong><br>' + escapeHtml(cmyk) + '</p><label>SK-Nr.<input id="skInput" autocomplete="off"></label>',
+	          okText: 'Hinzufügen',
+	          returnInput: true
+	        }}).then(function(sk) {{
           if (sk === null) {{
             return;
           }}
@@ -1696,7 +1915,6 @@ class ColorTableManager:
         var button = this;
         var action = button.getAttribute('data-action') || '';
         var color = button.getAttribute('data-color') || '';
-        var sk = button.getAttribute('data-sk') || '';
         var cmyk = button.getAttribute('data-cmyk') || 'nicht erfasst';
         var status = document.getElementById('entryStatus');
         var url = '';
@@ -1705,22 +1923,25 @@ class ColorTableManager:
           url = {sk_printed_url_json};
           dialog = {{
             title: 'Druck erfolgreich?',
-            body: '<p><strong>Farbe:</strong><br>' + escapeHtml(color) + '</p><p><strong>SK:</strong><br>' + escapeHtml(sk) + '</p><p>Wurde dieser Eindruck erfolgreich gedruckt?</p>',
+            body: '<p><strong>Farbe:</strong><br>' + escapeHtml(color) + '</p><p><strong>CMYK:</strong><br>' + escapeHtml(cmyk) + '</p><p>Wurde diese Farbe erfolgreich auf der MJET gedruckt?</p>',
             okText: 'Ja, gedruckt'
           }};
         }} else if (action === 'approve') {{
           url = {sk_approved_url_json};
           dialog = {{
             title: 'Druck freigeben?',
-            body: '<p><strong>Farbe:</strong><br>' + escapeHtml(color) + '</p><p><strong>SK:</strong><br>' + escapeHtml(sk) + '</p><p><strong>CMYK:</strong><br>' + escapeHtml(cmyk) + '</p><p>Das Druckergebnis wurde geprüft und die Farbrezeptur kann verwendet werden.</p>',
+            body: '<p><strong>Farbe:</strong><br>' + escapeHtml(color) + '</p><p><strong>CMYK:</strong><br>' + escapeHtml(cmyk) + '</p><p>Andreas hat das Druckergebnis geprüft und die Farbrezeptur freigegeben?</p>',
             okText: 'Ja, freigeben'
           }};
         }} else if (action === 'template') {{
           url = {sk_template_url_json};
+          var rowForSk = button.closest('tr');
+          var skItems = Array.from(rowForSk.querySelectorAll('.skItem strong')).map(function(item) {{ return item.textContent.replace(/^SK\\s*/, ''); }});
+          var skList = skItems.length ? '<ul>' + skItems.map(function(item) {{ return '<li>' + escapeHtml(item) + '</li>'; }}).join('') + '</ul>' : '<p>Keine Eindruckvorlage hinterlegt.</p>';
           dialog = {{
-            title: 'Vorlage aktualisiert?',
-            body: '<p><strong>Farbe:</strong><br>' + escapeHtml(color) + '</p><p><strong>SK:</strong><br>' + escapeHtml(sk) + '</p><p><strong>Freigegebene Werte:</strong><br>' + escapeHtml(cmyk) + '</p><p>Wurden die Farbwerte in der Eindruckvorlage übernommen oder an das Portal weitergegeben?</p>',
-            okText: 'Ja, erledigt'
+            title: 'Farbübernahme abschließen',
+            body: '<p><strong>Kundenfarbe:</strong><br>' + escapeHtml(color) + '</p><p><strong>CMYK:</strong><br>' + escapeHtml(cmyk) + '</p><p><strong>Betroffene Eindruckvorlagen:</strong></p>' + skList + '<p>Wie wurde die Änderung übernommen?</p><label><input type="checkbox" id="transferTemplate"> Eindruckvorlage angepasst</label><br><label><input type="checkbox" id="transferPortal"> Portal informiert</label><p><label>Bearbeitet durch:<input id="transferBy" autocomplete="off"></label></p><p><label>Notiz:<textarea id="transferNote" rows="3"></textarea></label></p>',
+            okText: 'Speichern'
           }};
         }} else {{
           return;
@@ -1730,25 +1951,36 @@ class ColorTableManager:
             return;
           }}
           status.textContent = 'Status wird gespeichert...';
-          postHelper(url, {{ farbe: color, sk: sk }})
+          var data = {{ farbe: color }};
+          if (action === 'template') {{
+            var templateChecked = document.getElementById('transferTemplate') && document.getElementById('transferTemplate').checked;
+            var portalChecked = document.getElementById('transferPortal') && document.getElementById('transferPortal').checked;
+            if (!templateChecked && !portalChecked) {{
+              status.textContent = 'Bitte mindestens eine Übernahmeart auswählen.';
+              return;
+            }}
+            data.template_updated = templateChecked ? '1' : '';
+            data.portal_informed = portalChecked ? '1' : '';
+            data.completed_by = document.getElementById('transferBy') ? document.getElementById('transferBy').value : '';
+            data.note = document.getElementById('transferNote') ? document.getElementById('transferNote').value : '';
+          }}
+          postHelper(url, data)
             .then(function(payload) {{
-              var item = button.closest('.skItem');
               var row = button.closest('tr');
               status.textContent = payloadMessage(payload, 'Status gespeichert.');
               if (action === 'printed') {{
-                button.replaceWith(makeBadge('Gedruckt', 'badge done'));
-                var approvalSlot = item.querySelector('.approvalSlot');
-                approvalSlot.innerHTML = '';
-                approvalSlot.appendChild(createWorkflowButton('approve', color, sk, cmyk, 'Abnahme ausstehend', 'workflow warn'));
+                row.cells[4].innerHTML = '<span class="statusLine done">● erledigt</span>';
+                row.cells[6].innerHTML = '';
+                row.cells[6].appendChild(createWorkflowButton('approve', color, '', cmyk, 'Andreas freigeben', 'workflow warn'));
               }} else if (action === 'approve') {{
-                button.replaceWith(makeBadge('Freigegeben', 'badge done'));
-                var templateSlot = item.querySelector('.templateSlot');
-                templateSlot.innerHTML = '';
-                templateSlot.appendChild(createWorkflowButton('template', color, sk, cmyk, 'Übernahme offen', 'workflow danger'));
+                row.cells[6].innerHTML = '<span class="statusLine done">● Andreas</span>';
+                row.cells[7].innerHTML = '';
+                row.cells[7].appendChild(createWorkflowButton('template', color, '', cmyk, 'Übernahme offen', 'workflow danger'));
               }} else if (action === 'template') {{
-                button.replaceWith(makeBadge('Übernommen', 'badge done'));
+                var method = data.template_updated && data.portal_informed ? 'Vorlage + Portal' : (data.template_updated ? 'Vorlage angepasst' : 'Portal informiert');
+                row.cells[7].innerHTML = '<details class="transferDetails"><summary><span class="statusLine done">● erledigt</span></summary><div>Methode: ' + escapeHtml(method) + '</div><div>Datum: jetzt</div><div>Bearbeiter: ' + escapeHtml(data.completed_by || 'nicht erfasst') + '</div>' + (data.note ? '<div>Notiz: ' + escapeHtml(data.note) + '</div>' : '') + '</details>';
               }}
-              updateRowCounts(row);
+              updateSummaries();
             }})
             .catch(function(error) {{
               status.textContent = 'Status nicht gespeichert: ' + friendlyFetchError(error);
@@ -2200,6 +2432,10 @@ class ColorRequestServer:
                     values = parse_qs(body)
                     color_name = values.get("farbe", [""])[0]
                     sk_number = values.get("sk", [""])[0]
+                    template_updated = bool(values.get("template_updated", [""])[0].strip())
+                    portal_informed = bool(values.get("portal_informed", [""])[0].strip())
+                    completed_by = values.get("completed_by", [""])[0]
+                    note = values.get("note", [""])[0]
                     if path == "/farbe-loeschen":
                         if not color_name.strip():
                             self._send_json({"ok": False, "message": "Keine Farbbezeichnung übergeben."}, status=400)
@@ -2230,7 +2466,14 @@ class ColorRequestServer:
                     elif path == "/sk-freigeben":
                         result = color_manager.approve_sk_assignment(color_name, sk_number)
                     else:
-                        result = color_manager.mark_template_updated(color_name, sk_number)
+                        result = color_manager.mark_template_updated(
+                            color_name,
+                            sk_number,
+                            template_updated=template_updated,
+                            portal_informed=portal_informed,
+                            completed_by=completed_by,
+                            note=note,
+                        )
                     self._send_json(result, status=int(result.get("status", 200)))
                 except Exception as exc:
                     logger.log(f"Kundenfarbe konnte nicht übernommen werden: {exc}", "ERROR")

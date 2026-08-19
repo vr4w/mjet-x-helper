@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import sys
 import tkinter as tk
 import xml.etree.ElementTree as ET
 import json
@@ -118,16 +119,16 @@ class LocalColorReferenceProvider:
     def _load_colors(self) -> list[ReferenceColor]:
         candidates = self._candidate_files()
         colors: list[ReferenceColor] = []
-        seen: set[tuple[str, str]] = set()
+        seen: set[tuple[str, str, str, str, int, int, int, int]] = set()
         for path in candidates:
             for color in self._read_color_file(path):
-                key = (color.system, color.name.casefold())
+                key = self._dedupe_key(color)
                 if key in seen:
                     continue
                 seen.add(key)
                 colors.append(color)
         for color in self._read_offline_reference_file():
-            key = (color.system, color.name.casefold())
+            key = self._dedupe_key(color)
             if key in seen:
                 continue
             seen.add(key)
@@ -164,10 +165,8 @@ class LocalColorReferenceProvider:
         return colors
 
     def _read_offline_reference_file(self) -> list[ReferenceColor]:
-        path = Path(str(self.config.get("reference_colors_json", ""))).expanduser()
-        if not str(path) or not path.exists():
-            path = DEFAULT_REFERENCE_JSON
-        if not path.exists():
+        path = next((candidate for candidate in self._reference_json_candidates() if candidate.exists()), None)
+        if path is None:
             return []
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
@@ -183,8 +182,11 @@ class LocalColorReferenceProvider:
             name = str(item.get("name", "")).strip()
             number = str(item.get("number", "")).strip()
             variant = str(item.get("variant", "")).upper().strip()
-            if not name or not number:
+            if not name:
                 continue
+            if not number:
+                _, number, variant_from_name = normalize_reference_query(name)
+                variant = variant or variant_from_name
             colors.append(
                 ReferenceColor(
                     system,
@@ -198,6 +200,40 @@ class LocalColorReferenceProvider:
                 )
             )
         return colors
+
+    def _reference_json_candidates(self) -> list[Path]:
+        candidates: list[Path] = []
+        configured = str(self.config.get("reference_colors_json", "") or "").strip()
+        if configured:
+            candidates.append(Path(configured).expanduser())
+        bundle_dir = Path(str(getattr(sys, "_MEIPASS", "") or ""))
+        if bundle_dir:
+            candidates.append(bundle_dir / "data" / "reference_colors.json")
+        if getattr(sys, "frozen", False):
+            candidates.append(Path(sys.executable).resolve().parent / "data" / "reference_colors.json")
+        candidates.append(DEFAULT_REFERENCE_JSON)
+        candidates.append(Path.cwd() / "data" / "reference_colors.json")
+        unique: list[Path] = []
+        seen: set[str] = set()
+        for path in candidates:
+            key = str(path)
+            if key in seen:
+                continue
+            seen.add(key)
+            unique.append(path)
+        return unique
+
+    def _dedupe_key(self, color: ReferenceColor) -> tuple[str, str, str, str, int, int, int, int]:
+        return (
+            color.system,
+            color.name.casefold(),
+            color.search_number,
+            color.variant,
+            color.c,
+            color.m,
+            color.y,
+            color.k,
+        )
 
     def _system_filter(self, query: str) -> str:
         upper = query.upper()
