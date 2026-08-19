@@ -1932,6 +1932,8 @@ class ColorTableManager:
     body {{ font-family: Segoe UI, Arial, sans-serif; margin: 24px; color: #20242a; background: #f4f5f6; }}
     h1 {{ margin: 0 0 6px; font-size: 24px; }}
     .meta {{ margin: 0 0 18px; color: #626b75; }}
+    .searchBar {{ display: flex; flex-direction: column; gap: 5px; margin: 0 0 14px; max-width: 360px; }}
+    .searchBar label {{ color: #1d3348; font-weight: 700; font-size: 14px; }}
     .summary {{ display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; }}
     .summaryPill {{ padding: 7px 10px; background: #fff; }}
     .entry {{ display: flex; gap: 8px; margin: 0 0 18px; max-width: 720px; }}
@@ -1945,6 +1947,8 @@ class ColorTableManager:
     .connection.checking::before {{ background: #c9901a; }}
     #entryStatus {{ margin: -8px 0 16px; color: #626b75; min-height: 20px; }}
     table {{ width: 100%; border-collapse: collapse; background: white; box-shadow: 0 0 0 1px #c8cdd3; }}
+    .noResults {{ display: none; margin: 12px 0 0; color: #626b75; font-weight: 700; }}
+    .noResults.visible {{ display: block; }}
     th, td {{ padding: 9px 10px; border-bottom: 1px solid #dfe3e7; text-align: left; font-size: 14px; vertical-align: top; }}
     th {{ background: #e7e9ec; }}
     th.indicator, td:first-child {{ width: 34px; text-align: center; }}
@@ -1984,6 +1988,10 @@ class ColorTableManager:
 <body>
   <h1 id="title">MPRINT Farbübersicht</h1>
   <p class="meta">Automatisch aktualisiert: {html.escape(now_stamp())}</p>
+  <div class="searchBar">
+    <label for="colorSearch">Farbsuche</label>
+    <input type="search" id="colorSearch" autocomplete="off" placeholder="VOGT">
+  </div>
   <div class="summary">{summary_html}</div>
   <form class="entry" method="post" action="{html.escape(submit_url, quote=True)}" target="submitFrame">
     <input name="farbe" id="farbe" autocomplete="off" placeholder="Kundenfarbe eintragen">
@@ -1996,6 +2004,7 @@ class ColorTableManager:
     <thead><tr><th class="indicator"></th><th>Kundenfarbe</th><th></th><th>CMYK</th><th>Druck</th><th>Betroffene Eindruckvorlagen</th><th>Prüfung</th><th>Übernahme</th><th>Historie</th><th class="adminOnly"></th></tr></thead>
     <tbody>{''.join(body_rows)}</tbody>
   </table>
+  <div id="noSearchResults" class="noResults">Keine passenden Farben gefunden</div>
   <div id="dialogBackdrop" class="dialogBackdrop" role="dialog" aria-modal="true">
     <div class="dialogBox">
       <h2 id="dialogTitle"></h2>
@@ -2086,6 +2095,37 @@ class ColorTableManager:
       return String(value || '').replace(/[&<>"']/g, function(char) {{
         return {{ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }}[char];
       }});
+    }}
+    function normalizeSearchText(value) {{
+      return String(value || '').toLocaleLowerCase('de-DE');
+    }}
+    function refreshRowSearchText(row) {{
+      if (!row) return;
+      row.dataset.searchText = normalizeSearchText(row.textContent || '');
+    }}
+    function applyColorSearch() {{
+      var input = document.getElementById('colorSearch');
+      var message = document.getElementById('noSearchResults');
+      var query = normalizeSearchText(input ? input.value.trim() : '');
+      var visible = 0;
+      document.querySelectorAll('tbody tr').forEach(function(row) {{
+        if (!row.dataset.searchText) {{
+          refreshRowSearchText(row);
+        }}
+        var matches = !query || row.dataset.searchText.indexOf(query) !== -1;
+        row.hidden = !matches;
+        if (matches) {{
+          visible += 1;
+        }}
+      }});
+      if (message) {{
+        message.classList.toggle('visible', visible === 0);
+      }}
+    }}
+    document.querySelectorAll('tbody tr').forEach(refreshRowSearchText);
+    var colorSearch = document.getElementById('colorSearch');
+    if (colorSearch) {{
+      colorSearch.addEventListener('input', applyColorSearch);
     }}
     function showDialog(options) {{
       return new Promise(function(resolve) {{
@@ -2189,6 +2229,8 @@ class ColorTableManager:
       details.appendChild(item);
       details.open = true;
       updateSkSummary(row);
+      refreshRowSearchText(row);
+      applyColorSearch();
     }}
     document.querySelectorAll('.summaryPill').forEach(function(button) {{
       button.addEventListener('click', function() {{
@@ -2319,6 +2361,8 @@ class ColorTableManager:
                 var method = data.template_updated && data.portal_informed ? 'Vorlage + Portal' : (data.template_updated ? 'Vorlage angepasst' : 'Portal informiert');
                 row.cells[7].innerHTML = '<details class="transferDetails"><summary><span class="statusLine done">● erledigt</span></summary><div>Methode: ' + escapeHtml(method) + '</div><div>Datum: jetzt</div><div>Bearbeiter: ' + escapeHtml(data.completed_by || 'nicht erfasst') + '</div>' + (data.note ? '<div>Notiz: ' + escapeHtml(data.note) + '</div>' : '') + '</details>';
               }}
+              refreshRowSearchText(row);
+              applyColorSearch();
               updateSummaries();
             }})
             .catch(function(error) {{
