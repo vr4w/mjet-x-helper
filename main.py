@@ -19,6 +19,7 @@ import tempfile
 import threading
 import time
 import tkinter as tk
+import webbrowser
 import xml.etree.ElementTree as ET
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from dataclasses import dataclass, field
@@ -652,6 +653,7 @@ class ColorTableManager:
             "last_synced_at",
             "legacy_created_at",
             "legacy_printed_at",
+            "sk_assignments",
         ]
         extra_fields = [
             field
@@ -719,6 +721,7 @@ class ColorTableManager:
             last_printed_at = existing.get("last_printed_at", "").strip()
             last_synced_at = now_text
             cmyk = str(info.get("cmyk", "") or existing.get("CMYK", "")).strip()
+            sk_assignments = self._parse_sk_assignments(existing)
 
             output_row = {field: existing.get(field, "") for field in extra_fields}
             output_row.update(
@@ -738,6 +741,7 @@ class ColorTableManager:
                     "last_synced_at": last_synced_at,
                     "legacy_created_at": legacy_created_at,
                     "legacy_printed_at": legacy_printed_at,
+                    "sk_assignments": self._dump_sk_assignments(sk_assignments),
                 }
             )
             rows.append(output_row)
@@ -745,6 +749,7 @@ class ColorTableManager:
         with self.overview_lock:
             csv_path.parent.mkdir(parents=True, exist_ok=True)
             self._backup_color_overview_before_timestamp_migration(csv_path, existing_fields)
+            self._backup_color_overview_before_sk_migration(csv_path, existing_fields)
             temp_csv = csv_path.with_suffix(csv_path.suffix + ".tmp")
             with temp_csv.open("w", encoding="utf-8-sig", newline="") as handle:
                 writer = csv.DictWriter(handle, fieldnames=fieldnames, delimiter=";")
@@ -766,13 +771,14 @@ class ColorTableManager:
         csv_path = self._overview_csv_path()
         with self.overview_lock:
             rows, fields = self._read_color_overview_with_legacy(csv_path)
+            original_fields = list(fields)
             name_column = self._find_name_column(fields) or "Farbbezeichnung"
             if "Farbbezeichnung" not in fields:
                 fields = ["Farbbezeichnung"] + [field for field in fields if field != name_column]
                 name_column = "Farbbezeichnung"
             if "Quelle" not in fields:
                 fields.append("Quelle")
-            for field in ("created_at", "last_printed_at", "last_synced_at"):
+            for field in ("created_at", "last_printed_at", "last_synced_at", "sk_assignments"):
                 if field not in fields:
                     fields.append(field)
 
@@ -789,6 +795,7 @@ class ColorTableManager:
                         "created_at": created_at,
                         "last_printed_at": "",
                         "last_synced_at": created_at,
+                        "sk_assignments": "[]",
                     }
                 )
                 csv_path.parent.mkdir(parents=True, exist_ok=True)
@@ -808,6 +815,100 @@ class ColorTableManager:
 
         self.refresh_color_overview()
         return f"Kundenfarbe eingetragen: {cleaned}"
+
+    def add_sk_assignment(self, color_name: str, sk_number: str) -> dict:
+        cleaned_color = self._clean_color_name(color_name)
+        cleaned_sk = self._clean_sk_number(sk_number)
+        if not cleaned_color:
+            return self._api_result(False, "Keine Kundenfarbe übergeben.", 400)
+        if not cleaned_sk:
+            return self._api_result(False, "Bitte eine SK-Nr. eintragen.", 400)
+
+        def update(row: dict[str, str], assignments: list[dict[str, object]]) -> tuple[bool, str]:
+            if any(str(item.get("sk_number", "")).casefold() == cleaned_sk.casefold() for item in assignments):
+                return False, f"Diese SK-Nr. ist bei {cleaned_color} bereits eingetragen."
+            assignments.append(
+                {
+                    "sk_number": cleaned_sk,
+                    "printed": False,
+                    "printed_at": "",
+                    "approved": False,
+                    "approved_at": "",
+                    "template_updated": False,
+                    "template_updated_at": "",
+                }
+            )
+            row["sk_assignments"] = self._dump_sk_assignments(assignments)
+            return True, f"SK {cleaned_sk} wurde bei {cleaned_color} hinzugefügt."
+
+        return self._update_sk_assignment(cleaned_color, cleaned_sk, update)
+
+    def mark_sk_printed(self, color_name: str, sk_number: str) -> dict:
+        cleaned_color = self._clean_color_name(color_name)
+        cleaned_sk = self._clean_sk_number(sk_number)
+        if not cleaned_color:
+            return self._api_result(False, "Keine Kundenfarbe übergeben.", 400)
+        if not cleaned_sk:
+            return self._api_result(False, "Keine SK-Nr. übergeben.", 400)
+
+        def update(row: dict[str, str], assignments: list[dict[str, object]]) -> tuple[bool, str]:
+            assignment = self._find_sk_assignment(assignments, cleaned_sk)
+            if assignment is None:
+                return False, f"SK {cleaned_sk} wurde bei {cleaned_color} nicht gefunden."
+            if assignment.get("printed"):
+                return True, f"SK {cleaned_sk} ist bereits als gedruckt markiert."
+            assignment["printed"] = True
+            assignment["printed_at"] = now_stamp()
+            row["sk_assignments"] = self._dump_sk_assignments(assignments)
+            return True, f"SK {cleaned_sk} wurde als gedruckt markiert."
+
+        return self._update_sk_assignment(cleaned_color, cleaned_sk, update)
+
+    def approve_sk_assignment(self, color_name: str, sk_number: str) -> dict:
+        cleaned_color = self._clean_color_name(color_name)
+        cleaned_sk = self._clean_sk_number(sk_number)
+        if not cleaned_color:
+            return self._api_result(False, "Keine Kundenfarbe übergeben.", 400)
+        if not cleaned_sk:
+            return self._api_result(False, "Keine SK-Nr. übergeben.", 400)
+
+        def update(row: dict[str, str], assignments: list[dict[str, object]]) -> tuple[bool, str]:
+            assignment = self._find_sk_assignment(assignments, cleaned_sk)
+            if assignment is None:
+                return False, f"SK {cleaned_sk} wurde bei {cleaned_color} nicht gefunden."
+            if not assignment.get("printed"):
+                return False, "Die SK muss zuerst als erfolgreich gedruckt markiert werden."
+            if assignment.get("approved"):
+                return True, f"SK {cleaned_sk} ist bereits freigegeben."
+            assignment["approved"] = True
+            assignment["approved_at"] = now_stamp()
+            row["sk_assignments"] = self._dump_sk_assignments(assignments)
+            return True, f"SK {cleaned_sk} wurde freigegeben."
+
+        return self._update_sk_assignment(cleaned_color, cleaned_sk, update)
+
+    def mark_template_updated(self, color_name: str, sk_number: str) -> dict:
+        cleaned_color = self._clean_color_name(color_name)
+        cleaned_sk = self._clean_sk_number(sk_number)
+        if not cleaned_color:
+            return self._api_result(False, "Keine Kundenfarbe übergeben.", 400)
+        if not cleaned_sk:
+            return self._api_result(False, "Keine SK-Nr. übergeben.", 400)
+
+        def update(row: dict[str, str], assignments: list[dict[str, object]]) -> tuple[bool, str]:
+            assignment = self._find_sk_assignment(assignments, cleaned_sk)
+            if assignment is None:
+                return False, f"SK {cleaned_sk} wurde bei {cleaned_color} nicht gefunden."
+            if not assignment.get("approved"):
+                return False, "Die SK muss zuerst freigegeben werden."
+            if assignment.get("template_updated"):
+                return True, f"SK {cleaned_sk} ist bereits als übernommen markiert."
+            assignment["template_updated"] = True
+            assignment["template_updated_at"] = now_stamp()
+            row["sk_assignments"] = self._dump_sk_assignments(assignments)
+            return True, f"SK {cleaned_sk} wurde als übernommen markiert."
+
+        return self._update_sk_assignment(cleaned_color, cleaned_sk, update)
 
     def delete_overview_color(self, color_name: str) -> str:
         cleaned = re.sub(r"\s+", " ", color_name).strip()
@@ -849,6 +950,110 @@ class ColorTableManager:
             return f"Eintrag gelöscht: {cleaned}"
         return f"Eintrag nicht gefunden oder wird von Einzelfarben/Master wieder erzeugt: {cleaned}"
 
+    def _update_sk_assignment(self, color_name: str, sk_number: str | None, update: callable) -> dict:
+        csv_path = self._overview_csv_path()
+        changed = False
+        result_message = ""
+        result_status = 200
+        with self.overview_lock:
+            rows, fields = self._read_color_overview_with_legacy(csv_path)
+            original_fields = list(fields)
+            name_column = self._find_name_column(fields) or "Farbbezeichnung"
+            if "Farbbezeichnung" not in fields:
+                fields = ["Farbbezeichnung"] + [field for field in fields if field != name_column]
+                name_column = "Farbbezeichnung"
+            if "sk_assignments" not in fields:
+                fields.append("sk_assignments")
+
+            target_row = None
+            for row in rows:
+                raw_name = self._clean_color_name(row.get(name_column) or row.get("Farbbezeichnung") or "")
+                if raw_name.casefold() == color_name.casefold():
+                    target_row = row
+                    break
+            if target_row is None:
+                return self._api_result(False, f"Kundenfarbe nicht gefunden: {color_name}", 404)
+
+            assignments = self._parse_sk_assignments(target_row)
+            changed, result_message = update(target_row, assignments)
+            if not changed:
+                result_status = 409 if sk_number else 400
+                return self._api_result(False, result_message, result_status)
+
+            self._backup_color_overview_before_sk_migration(csv_path, original_fields)
+            target_row["sk_assignments"] = self._dump_sk_assignments(assignments)
+            csv_path.parent.mkdir(parents=True, exist_ok=True)
+            temp_csv = csv_path.with_suffix(csv_path.suffix + ".tmp")
+            with temp_csv.open("w", encoding="utf-8-sig", newline="") as handle:
+                writer = csv.DictWriter(handle, fieldnames=fields, delimiter=";")
+                writer.writeheader()
+                for row in rows:
+                    normalized = dict(row)
+                    if name_column != "Farbbezeichnung":
+                        normalized["Farbbezeichnung"] = row.get(name_column, "")
+                    writer.writerow({field: normalized.get(field, "") for field in fields})
+            os.replace(temp_csv, csv_path)
+
+        self.refresh_color_overview()
+        return self._api_result(True, result_message, 200)
+
+    def _parse_sk_assignments(self, row: dict[str, str]) -> list[dict[str, object]]:
+        raw = str(row.get("sk_assignments", "") or row.get("SK-Zuordnungen", "")).strip()
+        if not raw:
+            return []
+        try:
+            data = json.loads(raw)
+        except Exception:
+            return []
+        if not isinstance(data, list):
+            return []
+        assignments: list[dict[str, object]] = []
+        seen: set[str] = set()
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            sk_number = self._clean_sk_number(str(item.get("sk_number", "")))
+            if not sk_number:
+                continue
+            key = sk_number.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            assignments.append(
+                {
+                    "sk_number": sk_number,
+                    "printed": bool(item.get("printed")),
+                    "printed_at": str(item.get("printed_at") or ""),
+                    "approved": bool(item.get("approved")),
+                    "approved_at": str(item.get("approved_at") or ""),
+                    "template_updated": bool(item.get("template_updated")),
+                    "template_updated_at": str(item.get("template_updated_at") or ""),
+                }
+            )
+        return assignments
+
+    def _dump_sk_assignments(self, assignments: list[dict[str, object]]) -> str:
+        return json.dumps(assignments, ensure_ascii=False, separators=(",", ":"))
+
+    def _find_sk_assignment(
+        self,
+        assignments: list[dict[str, object]],
+        sk_number: str,
+    ) -> dict[str, object] | None:
+        for assignment in assignments:
+            if str(assignment.get("sk_number", "")).casefold() == sk_number.casefold():
+                return assignment
+        return None
+
+    def _clean_color_name(self, value: str) -> str:
+        return re.sub(r"\s+", " ", str(value)).strip()
+
+    def _clean_sk_number(self, value: str) -> str:
+        return re.sub(r"\s+", " ", str(value)).strip()
+
+    def _api_result(self, ok: bool, message: str, status: int = 200) -> dict:
+        return {"ok": ok, "message": message, "status": status}
+
     def _backup_color_overview_before_timestamp_migration(
         self,
         csv_path: Path,
@@ -867,6 +1072,24 @@ class ColorTableManager:
             self.logger.log(f"Backup vor Zeitstempel-Migration geschrieben: {backup_path}")
         except Exception as exc:
             self.logger.log(f"Backup vor Zeitstempel-Migration fehlgeschlagen: {exc}", "WARN")
+
+    def _backup_color_overview_before_sk_migration(
+        self,
+        csv_path: Path,
+        existing_fields: list[str],
+    ) -> None:
+        if not csv_path.exists():
+            return
+        if "sk_assignments" in set(existing_fields):
+            return
+        backup_path = csv_path.with_name(
+            f"{csv_path.stem}_backup_vor_sk_workflow_migration_{filename_stamp()}{csv_path.suffix}"
+        )
+        try:
+            shutil.copy2(csv_path, backup_path)
+            self.logger.log(f"Backup vor SK-Workflow-Migration geschrieben: {backup_path}")
+        except Exception as exc:
+            self.logger.log(f"Backup vor SK-Workflow-Migration fehlgeschlagen: {exc}", "WARN")
 
     def refresh_color_overview(self) -> None:
         single_names = self._single_color_names()
@@ -998,10 +1221,21 @@ class ColorTableManager:
         submit_url = self._color_request_submit_url()
         delete_url = submit_url.rsplit("/", 1)[0] + "/farbe-loeschen"
         status_url = submit_url.rsplit("/", 1)[0] + "/status"
+        sk_add_url = submit_url.rsplit("/", 1)[0] + "/sk-hinzufuegen"
+        sk_printed_url = submit_url.rsplit("/", 1)[0] + "/sk-gedruckt"
+        sk_approved_url = submit_url.rsplit("/", 1)[0] + "/sk-freigeben"
+        sk_template_url = submit_url.rsplit("/", 1)[0] + "/sk-uebernommen"
         submit_url_json = json.dumps(submit_url)
         delete_url_json = json.dumps(delete_url)
         status_url_json = json.dumps(status_url)
+        sk_add_url_json = json.dumps(sk_add_url)
+        sk_printed_url_json = json.dumps(sk_printed_url)
+        sk_approved_url_json = json.dumps(sk_approved_url)
+        sk_template_url_json = json.dumps(sk_template_url)
         body_rows = []
+        open_print_tests = 0
+        open_approvals = 0
+        open_template_updates = 0
         for row in rows:
             name = str(row.get("Farbbezeichnung", ""))
             status = row.get("Status", "")
@@ -1009,6 +1243,14 @@ class ColorTableManager:
             gedruckt_am = str(row.get("Gedruckt am", ""))
             abgeglichen_am = str(row.get("Abgeglichen am", "") or row.get("Letzter Abgleich", ""))
             cmyk = str(row.get("CMYK", ""))
+            assignments = self._parse_sk_assignments(row)
+            open_print_tests += sum(1 for item in assignments if not item.get("printed"))
+            open_approvals += sum(1 for item in assignments if item.get("printed") and not item.get("approved"))
+            open_template_updates += sum(
+                1
+                for item in assignments
+                if item.get("approved") and not item.get("template_updated")
+            )
             if "druckbar" in status:
                 css = "ok"
             elif "offen" in status:
@@ -1022,21 +1264,85 @@ class ColorTableManager:
             escaped_angelegt_am = html.escape(angelegt_am or "nicht erfasst")
             escaped_gedruckt_am = html.escape(gedruckt_am or "nicht erfasst")
             escaped_abgeglichen_am = html.escape(abgeglichen_am or "nicht erfasst")
-            escaped_cmyk = html.escape(cmyk)
+            escaped_cmyk = html.escape(cmyk or "nicht erfasst")
             button_name = html.escape(name, quote=True)
+            button_cmyk = html.escape(cmyk, quote=True)
+            if assignments:
+                printed_done = sum(1 for item in assignments if item.get("printed"))
+                approved_done = sum(1 for item in assignments if item.get("approved"))
+                template_done = sum(1 for item in assignments if item.get("template_updated"))
+                print_summary = f"{printed_done}/{len(assignments)} gedruckt"
+                approval_summary = f"{approved_done}/{len(assignments)} frei"
+                template_summary = f"{template_done}/{len(assignments)} übernommen"
+                detail_items = []
+                for assignment in assignments:
+                    sk_number = html.escape(str(assignment.get("sk_number", "")))
+                    sk_attr = html.escape(str(assignment.get("sk_number", "")), quote=True)
+                    if assignment.get("printed"):
+                        printed_html = "<span class=\"badge done\">Gedruckt</span>"
+                    else:
+                        printed_html = (
+                            f"<button type=\"button\" class=\"workflow\" data-action=\"printed\" "
+                            f"data-color=\"{button_name}\" data-sk=\"{sk_attr}\" data-cmyk=\"{button_cmyk}\">"
+                            "Test ausstehend</button>"
+                        )
+                    if assignment.get("approved"):
+                        approval_html = "<span class=\"badge done\">Freigegeben</span>"
+                    elif assignment.get("printed"):
+                        approval_html = (
+                            f"<button type=\"button\" class=\"workflow warn\" data-action=\"approve\" "
+                            f"data-color=\"{button_name}\" data-sk=\"{sk_attr}\" data-cmyk=\"{button_cmyk}\">"
+                            "Abnahme ausstehend</button>"
+                        )
+                    else:
+                        approval_html = "<span class=\"badge idle\">Erst drucken</span>"
+                    if assignment.get("template_updated"):
+                        template_html = "<span class=\"badge done\">Übernommen</span>"
+                    elif assignment.get("approved"):
+                        template_html = (
+                            f"<button type=\"button\" class=\"workflow danger\" data-action=\"template\" "
+                            f"data-color=\"{button_name}\" data-sk=\"{sk_attr}\" data-cmyk=\"{button_cmyk}\">"
+                            "Übernahme offen</button>"
+                        )
+                    else:
+                        template_html = "<span class=\"badge idle\">Wartet</span>"
+                    detail_items.append(
+                        "<div class=\"skItem\">"
+                        f"<strong>SK {sk_number}</strong>"
+                        f"<span>{printed_html}</span>"
+                        f"<span>{approval_html}</span>"
+                        f"<span>{template_html}</span>"
+                        "</div>"
+                    )
+                sk_html = (
+                    f"<details><summary>{len(assignments)} SK anzeigen</summary>"
+                    f"{''.join(detail_items)}</details>"
+                )
+            else:
+                print_summary = "keine SK"
+                approval_summary = "keine SK"
+                template_summary = "keine SK"
+                sk_html = "<span class=\"muted\">noch keine SK</span>"
             body_rows.append(
                 f"<tr class=\"{css}\">"
                 f"<td><span class=\"dot\" aria-hidden=\"true\"></span></td>"
                 f"<td class=\"name\">{escaped_name}</td>"
                 f"<td><button type=\"button\" class=\"copy\" data-name=\"{button_name}\">Kopieren</button></td>"
-                f"<td>{escaped_status}</td>"
-                f"<td>{escaped_angelegt_am}</td>"
-                f"<td>{escaped_gedruckt_am}</td>"
-                f"<td>{escaped_abgeglichen_am}</td>"
                 f"<td>{escaped_cmyk}</td>"
+                f"<td>{html.escape(print_summary)}</td>"
+                f"<td>{sk_html}<br><button type=\"button\" class=\"addSk\" data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\">SK hinzufügen</button></td>"
+                f"<td>{html.escape(approval_summary)}</td>"
+                f"<td>{html.escape(template_summary)}</td>"
+                f"<td class=\"history\"><span title=\"Angelegt am\">{escaped_angelegt_am}</span><br><span title=\"Gedruckt am\">{escaped_gedruckt_am}</span><br><span title=\"Abgeglichen am\">{escaped_abgeglichen_am}</span></td>"
                 f"<td class=\"adminOnly\"><button type=\"button\" class=\"delete\" data-name=\"{button_name}\">Löschen</button></td>"
                 f"</tr>"
             )
+
+        summary_html = (
+            f"<button type=\"button\" class=\"summaryPill\" data-filter=\"print\">{open_print_tests} Drucktests offen</button>"
+            f"<button type=\"button\" class=\"summaryPill\" data-filter=\"approval\">{open_approvals} Abnahmen offen</button>"
+            f"<button type=\"button\" class=\"summaryPill\" data-filter=\"template\">{open_template_updates} Übernahmen offen</button>"
+        )
 
         document = f"""<!doctype html>
 <html lang="de">
@@ -1047,6 +1353,8 @@ class ColorTableManager:
     body {{ font-family: Segoe UI, Arial, sans-serif; margin: 24px; color: #20242a; background: #f4f5f6; }}
     h1 {{ margin: 0 0 6px; font-size: 24px; }}
     .meta {{ margin: 0 0 18px; color: #626b75; }}
+    .summary {{ display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; }}
+    .summaryPill {{ padding: 7px 10px; background: #fff; }}
     .entry {{ display: flex; gap: 8px; margin: 0 0 18px; max-width: 720px; }}
     input {{ flex: 1; padding: 10px 12px; border: 1px solid #c8cdd3; font-size: 15px; }}
     button {{ border: 1px solid #b7c0ca; background: #d8e1ec; color: #1d3348; padding: 9px 12px; cursor: pointer; font-weight: 600; }}
@@ -1062,8 +1370,18 @@ class ColorTableManager:
     th {{ background: #e7e9ec; }}
     th.indicator, td:first-child {{ width: 34px; text-align: center; }}
     .name {{ font-weight: 600; }}
-    .copy {{ padding: 6px 9px; font-size: 12px; }}
-    td:nth-child(5), td:nth-child(6), td:nth-child(7), td:nth-child(8) {{ color: #626b75; white-space: nowrap; }}
+    .copy, .addSk, .workflow {{ padding: 6px 9px; font-size: 12px; }}
+    .addSk {{ margin-top: 7px; }}
+    td:nth-child(4), td:nth-child(5), td:nth-child(7), td:nth-child(8), .history {{ color: #626b75; white-space: nowrap; }}
+    details summary {{ cursor: pointer; color: #1d3348; font-weight: 700; }}
+    .skItem {{ display: grid; grid-template-columns: 90px minmax(110px, 1fr) minmax(120px, 1fr) minmax(120px, 1fr); gap: 8px; align-items: center; padding: 7px 0; border-top: 1px solid #eef1f4; }}
+    .badge {{ display: inline-block; padding: 5px 8px; border: 1px solid #c8cdd3; background: #eef1f4; font-size: 12px; font-weight: 700; }}
+    .badge.done {{ border-color: #2f8f4e; background: #e3f0e7; color: #1f5c35; }}
+    .badge.idle {{ color: #626b75; }}
+    .workflow.warn {{ background: #f0dfbc; color: #4a3510; }}
+    .workflow.danger {{ background: #e5c0c0; color: #3e1f1f; }}
+    .muted {{ color: #8c939b; }}
+    .history {{ font-size: 12px; }}
     .delete {{ padding: 6px 9px; font-size: 12px; background: #d8b7b7; color: #3e1f1f; }}
     .adminOnly {{ display: none; }}
     body.admin .adminOnly {{ display: table-cell; }}
@@ -1076,6 +1394,7 @@ class ColorTableManager:
 <body>
   <h1 id="title">MPRINT Farbübersicht</h1>
   <p class="meta">Automatisch aktualisiert: {html.escape(now_stamp())}</p>
+  <div class="summary">{summary_html}</div>
   <form class="entry" method="post" action="{html.escape(submit_url, quote=True)}" target="submitFrame">
     <input name="farbe" id="farbe" autocomplete="off" placeholder="Kundenfarbe eintragen">
     <button type="submit">Eintragen</button>
@@ -1084,7 +1403,7 @@ class ColorTableManager:
   <div id="entryStatus"></div>
   <iframe name="submitFrame" style="display:none"></iframe>
   <table>
-    <thead><tr><th class="indicator"></th><th>Farbbezeichnung</th><th></th><th>Status</th><th>Angelegt am</th><th>Gedruckt am</th><th>Abgeglichen am</th><th>CMYK</th><th class="adminOnly"></th></tr></thead>
+    <thead><tr><th class="indicator"></th><th>Kundenfarbe</th><th></th><th>CMYK</th><th>Druckstatus</th><th>SK-Nr.</th><th>Abnahme</th><th>Übernahme</th><th>Historie</th><th class="adminOnly"></th></tr></thead>
     <tbody>{''.join(body_rows)}</tbody>
   </table>
   <script>
@@ -1099,12 +1418,20 @@ class ColorTableManager:
     }}
     function responseTextOrError(response) {{
       return response.text().then(function(text) {{
+        var payload = null;
+        try {{
+          payload = text ? JSON.parse(text) : null;
+        }} catch (_error) {{
+          payload = null;
+        }}
+        var message = payload && payload.message ? payload.message : text;
         if (!response.ok) {{
-          var error = new Error(text || ('Servermeldung ' + response.status));
+          var error = new Error(message || ('Servermeldung ' + response.status));
           error.status = response.status;
+          error.payload = payload;
           throw error;
         }}
-        return text;
+        return payload || {{ ok: true, message: message }};
       }});
     }}
     function friendlyFetchError(error) {{
@@ -1145,6 +1472,22 @@ class ColorTableManager:
         window.setTimeout(function() {{ button.textContent = 'Kopieren'; }}, 1200);
       }});
     }});
+    function postHelper(url, data) {{
+      return fetchWithTimeout(url, {{
+        method: 'POST',
+        headers: {{ 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }},
+        body: new URLSearchParams(data).toString()
+      }}, 8000).then(responseTextOrError);
+    }}
+    function payloadMessage(payload, fallback) {{
+      return payload && payload.message ? payload.message : fallback;
+    }}
+    document.querySelectorAll('.summaryPill').forEach(function(button) {{
+      button.addEventListener('click', function() {{
+        document.querySelectorAll('details').forEach(function(details) {{ details.open = true; }});
+        document.getElementById('entryStatus').textContent = 'SK-Details geöffnet.';
+      }});
+    }});
     document.querySelectorAll('.delete').forEach(function(button) {{
       button.addEventListener('click', function() {{
         var name = button.getAttribute('data-name') || '';
@@ -1157,19 +1500,76 @@ class ColorTableManager:
           return;
         }}
         status.textContent = 'Eintrag wird gelöscht...';
-        fetchWithTimeout({delete_url_json}, {{
-          method: 'POST',
-          headers: {{ 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }},
-          body: new URLSearchParams({{ farbe: name }}).toString()
-        }}, 8000)
-        .then(responseTextOrError)
-        .then(function(text) {{
-          status.textContent = text || 'Eintrag gelöscht.';
+        postHelper({delete_url_json}, {{ farbe: name }})
+        .then(function(payload) {{
+          status.textContent = payloadMessage(payload, 'Eintrag gelöscht.');
           window.setTimeout(function() {{ window.location.reload(); }}, 700);
         }})
         .catch(function(error) {{
           status.textContent = 'Eintrag nicht gelöscht: ' + friendlyFetchError(error);
         }});
+      }});
+    }});
+    document.querySelectorAll('.addSk').forEach(function(button) {{
+      button.addEventListener('click', function() {{
+        var color = button.getAttribute('data-color') || '';
+        var cmyk = button.getAttribute('data-cmyk') || 'nicht erfasst';
+        var status = document.getElementById('entryStatus');
+        var sk = window.prompt('Kundenfarbe:\\n' + color + '\\n\\nCMYK:\\n' + cmyk + '\\n\\nSK-Nr.:');
+        if (sk === null) {{
+          return;
+        }}
+        sk = sk.trim();
+        if (!sk) {{
+          status.textContent = 'Bitte eine SK-Nr. eintragen.';
+          return;
+        }}
+        status.textContent = 'SK wird hinzugefügt...';
+        postHelper({sk_add_url_json}, {{ farbe: color, sk: sk }})
+          .then(function(payload) {{
+            status.textContent = payloadMessage(payload, 'SK hinzugefügt.');
+            window.setTimeout(function() {{ window.location.reload(); }}, 700);
+          }})
+          .catch(function(error) {{
+            status.textContent = 'SK nicht gespeichert: ' + friendlyFetchError(error);
+            checkConnection();
+          }});
+      }});
+    }});
+    document.querySelectorAll('.workflow').forEach(function(button) {{
+      button.addEventListener('click', function() {{
+        var action = button.getAttribute('data-action') || '';
+        var color = button.getAttribute('data-color') || '';
+        var sk = button.getAttribute('data-sk') || '';
+        var cmyk = button.getAttribute('data-cmyk') || 'nicht erfasst';
+        var status = document.getElementById('entryStatus');
+        var url = '';
+        var question = '';
+        if (action === 'printed') {{
+          url = {sk_printed_url_json};
+          question = 'Druck erfolgreich?\\n\\nKundenfarbe:\\n' + color + '\\n\\nSK-Nr.:\\n' + sk + '\\n\\nWurde dieser Eindruck mit der angegebenen Farbrezeptur erfolgreich auf der MJET gedruckt?';
+        }} else if (action === 'approve') {{
+          url = {sk_approved_url_json};
+          question = 'Druck freigeben?\\n\\nKundenfarbe:\\n' + color + '\\n\\nSK-Nr.:\\n' + sk + '\\n\\nCMYK:\\n' + cmyk + '\\n\\nDas Druckergebnis wurde geprüft und die verwendete Farbrezeptur kann für diesen Eindruck verwendet werden.';
+        }} else if (action === 'template') {{
+          url = {sk_template_url_json};
+          question = 'Eindruckvorlage / Portal aktualisiert?\\n\\nKundenfarbe:\\n' + color + '\\n\\nSK-Nr.:\\n' + sk + '\\n\\nFreigegebene Werte:\\n' + cmyk + '\\n\\nWurden die freigegebenen Farbwerte in der Eindruckvorlage dieser SK-Nr. übernommen oder zur Übernahme an das Portal weitergegeben?';
+        }} else {{
+          return;
+        }}
+        if (!window.confirm(question)) {{
+          return;
+        }}
+        status.textContent = 'Status wird gespeichert...';
+        postHelper(url, {{ farbe: color, sk: sk }})
+          .then(function(payload) {{
+            status.textContent = payloadMessage(payload, 'Status gespeichert.');
+            window.setTimeout(function() {{ window.location.reload(); }}, 700);
+          }})
+          .catch(function(error) {{
+            status.textContent = 'Status nicht gespeichert: ' + friendlyFetchError(error);
+            checkConnection();
+          }});
       }});
     }});
     (function() {{
@@ -1201,14 +1601,9 @@ class ColorTableManager:
         return;
       }}
       status.textContent = 'Eintrag wird gesendet...';
-      fetchWithTimeout({submit_url_json}, {{
-        method: 'POST',
-        headers: {{ 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }},
-        body: new URLSearchParams({{ farbe: value }}).toString()
-      }}, 8000)
-      .then(responseTextOrError)
-      .then(function(text) {{
-        status.textContent = text || 'Kundenfarbe eingetragen.';
+      postHelper({submit_url_json}, {{ farbe: value }})
+      .then(function(payload) {{
+        status.textContent = payloadMessage(payload, 'Kundenfarbe eingetragen.');
         input.value = '';
         checkConnection();
         window.setTimeout(function() {{ window.location.reload(); }}, 900);
@@ -1599,12 +1994,19 @@ class ColorRequestServer:
         class Handler(BaseHTTPRequestHandler):
             def do_OPTIONS(self) -> None:
                 self.send_response(204)
-                self._send_common_headers(0)
+                self._send_common_headers(0, "text/plain; charset=utf-8")
                 self.end_headers()
 
             def do_POST(self) -> None:
                 path = self.path.split("?", 1)[0]
-                if path not in {"/farbe", "/farbe-loeschen"}:
+                if path not in {
+                    "/farbe",
+                    "/farbe-loeschen",
+                    "/sk-hinzufuegen",
+                    "/sk-gedruckt",
+                    "/sk-freigeben",
+                    "/sk-uebernommen",
+                }:
                     self.send_error(404)
                     return
                 try:
@@ -1612,29 +2014,42 @@ class ColorRequestServer:
                     body = self.rfile.read(min(length, 8192)).decode("utf-8", errors="replace")
                     values = parse_qs(body)
                     color_name = values.get("farbe", [""])[0]
+                    sk_number = values.get("sk", [""])[0]
                     if path == "/farbe-loeschen":
                         if not color_name.strip():
-                            self._send_text("Keine Farbbezeichnung übergeben.", status=400)
+                            self._send_json({"ok": False, "message": "Keine Farbbezeichnung übergeben."}, status=400)
                             return
                         message = color_manager.delete_overview_color(color_name)
                         if message.startswith("Eintrag nicht gefunden"):
-                            self._send_text(message, status=404)
+                            self._send_json({"ok": False, "message": message}, status=404)
                             return
-                    else:
+                        self._send_json({"ok": True, "message": message})
+                        return
+                    if path == "/farbe":
                         if not color_name.strip():
-                            self._send_text("Bitte eine Farbbezeichnung eintragen.", status=400)
+                            self._send_json({"ok": False, "message": "Bitte eine Farbbezeichnung eintragen."}, status=400)
                             return
                         if len(re.sub(r"\s+", " ", color_name).strip()) > 160:
-                            self._send_text("Die Farbbezeichnung ist zu lang.", status=400)
+                            self._send_json({"ok": False, "message": "Die Farbbezeichnung ist zu lang."}, status=400)
                             return
                         message = color_manager.add_requested_color(color_name)
                         if message.startswith("Kundenfarbe ist bereits"):
-                            self._send_text(message, status=409)
+                            self._send_json({"ok": False, "message": message}, status=409)
                             return
-                    self._send_text(message)
+                        self._send_json({"ok": True, "message": message})
+                        return
+                    if path == "/sk-hinzufuegen":
+                        result = color_manager.add_sk_assignment(color_name, sk_number)
+                    elif path == "/sk-gedruckt":
+                        result = color_manager.mark_sk_printed(color_name, sk_number)
+                    elif path == "/sk-freigeben":
+                        result = color_manager.approve_sk_assignment(color_name, sk_number)
+                    else:
+                        result = color_manager.mark_template_updated(color_name, sk_number)
+                    self._send_json(result, status=int(result.get("status", 200)))
                 except Exception as exc:
                     logger.log(f"Kundenfarbe konnte nicht übernommen werden: {exc}", "ERROR")
-                    self._send_text(f"Fehler: {exc}", status=500)
+                    self._send_json({"ok": False, "message": f"Fehler: {exc}"}, status=500)
 
             def do_GET(self) -> None:
                 if self.path.split("?", 1)[0] == "/status":
@@ -1648,12 +2063,19 @@ class ColorRequestServer:
             def _send_text(self, text: str, status: int = 200) -> None:
                 data = text.encode("utf-8")
                 self.send_response(status)
-                self._send_common_headers(len(data))
+                self._send_common_headers(len(data), "text/plain; charset=utf-8")
                 self.end_headers()
                 self.wfile.write(data)
 
-            def _send_common_headers(self, length: int) -> None:
-                self.send_header("Content-Type", "text/plain; charset=utf-8")
+            def _send_json(self, payload: dict, status: int = 200) -> None:
+                data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+                self.send_response(status)
+                self._send_common_headers(len(data), "application/json; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(data)
+
+            def _send_common_headers(self, length: int, content_type: str) -> None:
+                self.send_header("Content-Type", content_type)
                 self.send_header("Access-Control-Allow-Origin", "*")
                 self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS, GET")
                 self.send_header("Access-Control-Allow-Headers", "Content-Type")
@@ -2940,6 +3362,7 @@ class MainApp:
         self.main_status_label.pack(fill="x", pady=(0, 10))
 
         self._button(self.normal_frame, "Farbabgleich starten", self.start_color_sync)
+        self._button(self.normal_frame, "Farbübersicht", self.open_color_overview)
         self._button(self.normal_frame, "Druckdaten-Ordner leeren", self.clean_output_manual)
         self._build_pdf_controls(self.normal_frame)
         self.cancel_output_button = self._button(
@@ -4059,6 +4482,29 @@ class MainApp:
             self.paths_text.insert("end", self._path_summary())
             self.paths_text.configure(state="disabled")
         self.last_sync_result = None
+
+    def open_color_overview(self) -> None:
+        configured = str(self.config.get("color_overview_html", "")).strip()
+        if not configured:
+            messagebox.showinfo(APP_NAME, "Die Farbübersicht wurde noch nicht erstellt.")
+            return
+        path = Path(configured)
+        try:
+            if not path.exists():
+                parent = path.parent
+                if str(parent) and not parent.exists():
+                    messagebox.showwarning(APP_NAME, "Die Farbübersicht ist derzeit nicht erreichbar.")
+                else:
+                    messagebox.showinfo(APP_NAME, "Die Farbübersicht wurde noch nicht erstellt.")
+                return
+            if path.is_absolute():
+                webbrowser.open(path.resolve().as_uri())
+            else:
+                webbrowser.open(str(path.resolve()))
+            self.main_status_label.configure(text="Farbübersicht geöffnet")
+        except Exception as exc:
+            self.logger.log(f"Farbübersicht konnte nicht geöffnet werden: {exc}", "ERROR")
+            messagebox.showwarning(APP_NAME, "Die Farbübersicht ist derzeit nicht erreichbar.")
 
     def open_path(self, value: str | os.PathLike[str]) -> None:
         path = Path(value)
