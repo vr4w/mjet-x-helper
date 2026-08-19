@@ -81,6 +81,7 @@ DEFAULT_CONFIG = {
     "color_overview_csv": r"work\MPRINT_Farbuebersicht_daten.csv",
     "legacy_color_overview_csv": r"Z:\_MPRINT_4c\MPRINT_Farbuebersicht.csv",
     "color_overview_html": r"Z:\_MPRINT_4c\MPRINT_Farbuebersicht.html",
+    "color_export_json": r"export\mprint_colors.json",
     "color_request_server_enabled": True,
     "color_request_server_host": "0.0.0.0",
     "color_request_server_port": 8765,
@@ -653,6 +654,7 @@ class ColorTableManager:
         existing_rows, existing_fields = self._read_color_overview_with_legacy(csv_path)
         name_column = self._find_name_column(existing_fields) or "Farbbezeichnung"
         generated_fields = [
+            "color_id",
             "Farbbezeichnung",
             "Status",
             "Angelegt am",
@@ -674,6 +676,9 @@ class ColorTableManager:
             "approved",
             "approved_at",
             "transfer",
+            "source",
+            "machine_values",
+            "history_events",
         ]
         extra_fields = [
             field
@@ -695,6 +700,8 @@ class ColorTableManager:
             row_lookup.setdefault(key, row)
             display_names.setdefault(key, raw_name)
 
+        id_lookup = self._existing_color_ids(existing_rows, name_column)
+        next_color_number = self._next_color_id_number_from_values(id_lookup.values())
         for name in single_names + master_names:
             key = name.casefold()
             display_names[key] = name
@@ -724,6 +731,10 @@ class ColorTableManager:
                 source = "MPRINT"
             else:
                 source = "Vorstufe"
+            if in_single or in_master:
+                technical_source = "MPRINT"
+            else:
+                technical_source = self._technical_color_source(existing.get("source", "") or source)
 
             legacy_created_at = (
                 existing.get("legacy_created_at", "").strip()
@@ -743,10 +754,30 @@ class ColorTableManager:
             cmyk = str(info.get("cmyk", "") or existing.get("CMYK", "")).strip()
             sk_assignments = self._parse_sk_assignments(existing)
             printed, printed_at, approved, approved_at, transfer = self._color_workflow_from_row(existing, sk_assignments)
+            color_id = existing.get("color_id", "").strip() or id_lookup.get(key, "")
+            if not color_id:
+                color_id = self._format_color_id(next_color_number)
+                next_color_number += 1
+            history_events = self._merge_history_events(
+                existing.get("history_events", ""),
+                printed=printed,
+                printed_at=printed_at,
+                approved=approved,
+                approved_at=approved_at,
+                transfer=transfer,
+            )
+            machine_values = self._machine_values_for_row(
+                cmyk,
+                technical_source,
+                printed=printed,
+                approved=approved,
+                transfer=transfer,
+            )
 
             output_row = {field: existing.get(field, "") for field in extra_fields}
             output_row.update(
                 {
+                    "color_id": color_id,
                     "Farbbezeichnung": name,
                     "Status": status,
                     "Angelegt am": created_at,
@@ -768,6 +799,9 @@ class ColorTableManager:
                     "approved": "ja" if approved else "nein",
                     "approved_at": approved_at,
                     "transfer": self._dump_transfer(transfer),
+                    "source": technical_source,
+                    "machine_values": self._dump_machine_values(machine_values),
+                    "history_events": self._dump_history_events(history_events),
                 }
             )
             rows.append(output_row)
@@ -777,6 +811,7 @@ class ColorTableManager:
             self._backup_color_overview_before_timestamp_migration(csv_path, existing_fields)
             self._backup_color_overview_before_sk_migration(csv_path, existing_fields)
             self._backup_color_overview_before_transfer_migration(csv_path, existing_fields)
+            self._backup_color_overview_before_router_migration(csv_path, existing_fields)
             temp_csv = csv_path.with_suffix(csv_path.suffix + ".tmp")
             with temp_csv.open("w", encoding="utf-8-sig", newline="") as handle:
                 writer = csv.DictWriter(handle, fieldnames=fieldnames, delimiter=";")
@@ -786,6 +821,7 @@ class ColorTableManager:
             self.logger.log(f"Interne Farbdaten geschrieben: {csv_path}")
 
             self._write_color_overview_html(html_path, rows)
+            self._write_color_export(rows)
         return None
 
     def add_requested_color(self, color_name: str) -> str:
@@ -805,7 +841,21 @@ class ColorTableManager:
                 name_column = "Farbbezeichnung"
             if "Quelle" not in fields:
                 fields.append("Quelle")
-            for field in ("created_at", "last_printed_at", "last_synced_at", "sk_assignments", "printed", "printed_at", "approved", "approved_at", "transfer"):
+            for field in (
+                "color_id",
+                "created_at",
+                "last_printed_at",
+                "last_synced_at",
+                "sk_assignments",
+                "printed",
+                "printed_at",
+                "approved",
+                "approved_at",
+                "transfer",
+                "source",
+                "machine_values",
+                "history_events",
+            ):
                 if field not in fields:
                     fields.append(field)
 
@@ -815,8 +865,10 @@ class ColorTableManager:
             }
             if cleaned.casefold() not in existing_keys:
                 created_at = now_stamp()
+                color_id = self._format_color_id(self._next_color_id_number(rows))
                 rows.append(
                     {
+                        "color_id": color_id,
                         "Farbbezeichnung": cleaned,
                         "Quelle": "Vorstufe",
                         "created_at": created_at,
@@ -828,6 +880,9 @@ class ColorTableManager:
                         "approved": "nein",
                         "approved_at": "",
                         "transfer": self._dump_transfer(self._empty_transfer()),
+                        "source": "PREPRESS",
+                        "machine_values": "[]",
+                        "history_events": "[]",
                     }
                 )
                 csv_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1015,7 +1070,7 @@ class ColorTableManager:
             if "Farbbezeichnung" not in fields:
                 fields = ["Farbbezeichnung"] + [field for field in fields if field != name_column]
                 name_column = "Farbbezeichnung"
-            for field in ("printed", "printed_at", "approved", "approved_at", "transfer"):
+            for field in ("printed", "printed_at", "approved", "approved_at", "transfer", "history_events", "machine_values"):
                 if field not in fields:
                     fields.append(field)
 
@@ -1216,6 +1271,198 @@ class ColorTableManager:
             entries.append(f"{at} - {method}")
         return entries
 
+    def _format_color_id(self, number: int) -> str:
+        return f"CLR-{max(1, int(number)):06d}"
+
+    def _next_color_id_number(self, rows: list[dict[str, str]]) -> int:
+        highest = 0
+        for row in rows:
+            match = re.match(r"^CLR-(\d+)$", str(row.get("color_id", "")).strip(), re.IGNORECASE)
+            if match:
+                highest = max(highest, int(match.group(1)))
+        return highest + 1
+
+    def _next_color_id_number_from_values(self, values: object) -> int:
+        highest = 0
+        for value in values:
+            match = re.match(r"^CLR-(\d+)$", str(value).strip(), re.IGNORECASE)
+            if match:
+                highest = max(highest, int(match.group(1)))
+        return highest + 1
+
+    def _existing_color_ids(self, rows: list[dict[str, str]], name_column: str) -> dict[str, str]:
+        ids: dict[str, str] = {}
+        used: set[str] = set()
+        next_number = self._next_color_id_number(rows)
+        for row in rows:
+            name = self._clean_color_name(row.get(name_column) or row.get("Farbbezeichnung") or "")
+            if not name:
+                continue
+            color_id = str(row.get("color_id", "")).strip()
+            if not re.match(r"^CLR-\d+$", color_id, re.IGNORECASE) or color_id in used:
+                color_id = self._format_color_id(next_number)
+                next_number += 1
+            used.add(color_id)
+            ids[name.casefold()] = color_id
+        return ids
+
+    def _technical_color_source(self, source_text: str) -> str:
+        text = str(source_text or "").strip().upper()
+        if text in {"MPRINT", "PANTONE_REFERENCE", "HKS_REFERENCE", "PREPRESS"}:
+            return text
+        if "PANTONE" in text:
+            return "PANTONE_REFERENCE"
+        if "HKS" in text:
+            return "HKS_REFERENCE"
+        if "MPRINT" in text:
+            return "MPRINT"
+        return "PREPRESS"
+
+    def _parse_cmyk_values(self, cmyk: str) -> dict[str, int] | None:
+        parts = re.findall(r"-?\d+(?:[.,]\d+)?", str(cmyk or ""))
+        if len(parts) < 4:
+            return None
+        values = [max(0, min(100, int(round(float(part.replace(",", ".")))))) for part in parts[:4]]
+        return {"c": values[0], "m": values[1], "y": values[2], "k": values[3]}
+
+    def _machine_values_for_row(
+        self,
+        cmyk: str,
+        source: str,
+        printed: bool,
+        approved: bool,
+        transfer: dict[str, object],
+    ) -> list[dict[str, object]]:
+        values = self._parse_cmyk_values(cmyk)
+        if source != "MPRINT" or values is None:
+            return []
+        if approved:
+            status = "approved"
+        elif printed:
+            status = "printed"
+        elif transfer.get("completed"):
+            status = "transfer_completed"
+        else:
+            status = "pending"
+        return [
+            {
+                "machine": "MJET_X",
+                **values,
+                "status": status,
+            }
+        ]
+
+    def _parse_machine_values(self, raw: object) -> list[dict[str, object]]:
+        if isinstance(raw, list):
+            data = raw
+        else:
+            text = str(raw or "").strip()
+            if not text:
+                return []
+            try:
+                data = json.loads(text)
+            except Exception:
+                return []
+        values: list[dict[str, object]] = []
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            cmyk = {
+                "c": self._clamp_percent_value(item.get("c", 0)),
+                "m": self._clamp_percent_value(item.get("m", 0)),
+                "y": self._clamp_percent_value(item.get("y", 0)),
+                "k": self._clamp_percent_value(item.get("k", 0)),
+            }
+            values.append(
+                {
+                    "machine": str(item.get("machine") or "MJET_X"),
+                    **cmyk,
+                    "status": str(item.get("status") or "pending"),
+                }
+            )
+        return values
+
+    def _dump_machine_values(self, values: list[dict[str, object]]) -> str:
+        return json.dumps(self._parse_machine_values(values), ensure_ascii=False, separators=(",", ":"))
+
+    def _merge_history_events(
+        self,
+        raw: object,
+        printed: bool,
+        printed_at: str,
+        approved: bool,
+        approved_at: str,
+        transfer: dict[str, object],
+    ) -> list[dict[str, str]]:
+        events = self._parse_history_events(raw)
+        if printed:
+            events.append({"event": "printed", "timestamp": self._event_timestamp(printed_at), "user": ""})
+        if approved:
+            events.append({"event": "approved", "timestamp": self._event_timestamp(approved_at), "user": "Andreas"})
+        if transfer.get("completed"):
+            completed_at = self._event_timestamp(str(transfer.get("completed_at") or ""))
+            user = str(transfer.get("completed_by") or "")
+            if transfer.get("template_updated"):
+                events.append({"event": "template_updated", "timestamp": completed_at, "user": user})
+            if transfer.get("portal_informed"):
+                events.append({"event": "portal_informed", "timestamp": completed_at, "user": user})
+        return self._dedupe_history_events(events)
+
+    def _parse_history_events(self, raw: object) -> list[dict[str, str]]:
+        if isinstance(raw, list):
+            data = raw
+        else:
+            text = str(raw or "").strip()
+            if not text:
+                return []
+            try:
+                data = json.loads(text)
+            except Exception:
+                return []
+        events: list[dict[str, str]] = []
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            event = str(item.get("event") or "").strip()
+            timestamp = self._event_timestamp(str(item.get("timestamp") or ""))
+            if not event:
+                continue
+            events.append(
+                {
+                    "event": event,
+                    "timestamp": timestamp,
+                    "user": str(item.get("user") or ""),
+                }
+            )
+        return events
+
+    def _dedupe_history_events(self, events: list[dict[str, str]]) -> list[dict[str, str]]:
+        unique: list[dict[str, str]] = []
+        seen: set[tuple[str, str, str]] = set()
+        for event in events:
+            key = (event.get("event", ""), event.get("timestamp", ""), event.get("user", ""))
+            if key in seen:
+                continue
+            seen.add(key)
+            unique.append(event)
+        return unique
+
+    def _dump_history_events(self, events: list[dict[str, str]]) -> str:
+        return json.dumps(self._dedupe_history_events(events), ensure_ascii=False, separators=(",", ":"))
+
+    def _event_timestamp(self, value: str) -> str:
+        text = str(value or "").strip()
+        if not text:
+            return ""
+        return text.replace(" ", "T", 1)
+
+    def _clamp_percent_value(self, value: object) -> int:
+        try:
+            number = int(round(float(str(value).replace(",", "."))))
+        except Exception:
+            number = 0
+        return max(0, min(100, number))
+
     def _parse_sk_assignments(self, row: dict[str, str]) -> list[dict[str, object]]:
         raw = str(row.get("sk_assignments", "") or row.get("SK-Zuordnungen", "")).strip()
         if not raw:
@@ -1329,6 +1576,25 @@ class ColorTableManager:
         except Exception as exc:
             self.logger.log(f"Backup vor Übernahme-Workflow-Migration fehlgeschlagen: {exc}", "WARN")
 
+    def _backup_color_overview_before_router_migration(
+        self,
+        csv_path: Path,
+        existing_fields: list[str],
+    ) -> None:
+        if not csv_path.exists():
+            return
+        required = {"color_id", "source", "machine_values", "history_events"}
+        if required.issubset(set(existing_fields)):
+            return
+        backup_path = csv_path.with_name(
+            f"{csv_path.stem}_backup_vor_router_export_migration_{filename_stamp()}{csv_path.suffix}"
+        )
+        try:
+            shutil.copy2(csv_path, backup_path)
+            self.logger.log(f"Backup vor Router-Export-Migration geschrieben: {backup_path}")
+        except Exception as exc:
+            self.logger.log(f"Backup vor Router-Export-Migration fehlgeschlagen: {exc}", "WARN")
+
     def refresh_color_overview(self) -> None:
         single_names = self._single_color_names()
         master_path = as_path(self.config["master_cct"])
@@ -1435,6 +1701,79 @@ class ColorTableManager:
         reader = csv.DictReader(text.splitlines(), delimiter=delimiter)
         rows = [{key: value for key, value in row.items() if key} for row in reader]
         return rows, list(reader.fieldnames or [])
+
+    def export_color_records(self) -> list[dict[str, object]]:
+        rows, _fields = self._read_color_overview_with_legacy(self._overview_csv_path())
+        return self._color_export_records(rows)
+
+    def _color_export_path(self) -> Path:
+        configured = str(self.config.get("color_export_json", "")).strip()
+        if not configured:
+            return APP_DIR / "export" / "mprint_colors.json"
+        path = Path(configured)
+        if path.is_absolute() or re.match(r"^[A-Za-z]:[\\/]", configured):
+            return path
+        return APP_DIR / path
+
+    def _write_color_export(self, rows: list[dict[str, str]]) -> None:
+        export_path = self._color_export_path()
+        try:
+            export_path.parent.mkdir(parents=True, exist_ok=True)
+            temp_path = export_path.with_suffix(export_path.suffix + ".tmp")
+            temp_path.write_text(
+                json.dumps(self._color_export_records(rows), ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            os.replace(temp_path, export_path)
+            self.logger.log(f"Farb-Export geschrieben: {export_path}")
+        except Exception as exc:
+            self.logger.log(f"Farb-Export konnte nicht geschrieben werden: {exc}", "WARN")
+
+    def _color_export_records(self, rows: list[dict[str, str]]) -> list[dict[str, object]]:
+        records: list[dict[str, object]] = []
+        for row in rows:
+            assignments = self._parse_sk_assignments(row)
+            printed, printed_at, approved, approved_at, transfer = self._color_workflow_from_row(row, assignments)
+            cmyk = self._parse_cmyk_values(str(row.get("CMYK", "")))
+            source = self._technical_color_source(row.get("source") or row.get("Quelle", ""))
+            machine_values = self._parse_machine_values(row.get("machine_values", ""))
+            if not machine_values:
+                machine_values = self._machine_values_for_row(
+                    str(row.get("CMYK", "")),
+                    source,
+                    printed=printed,
+                    approved=approved,
+                    transfer=transfer,
+                )
+            history = self._merge_history_events(
+                row.get("history_events", ""),
+                printed=printed,
+                printed_at=printed_at,
+                approved=approved,
+                approved_at=approved_at,
+                transfer=transfer,
+            )
+            records.append(
+                {
+                    "color_id": str(row.get("color_id", "")).strip(),
+                    "name": str(row.get("Farbbezeichnung", "")).strip(),
+                    "source": source,
+                    "cmyk": cmyk or {"c": None, "m": None, "y": None, "k": None},
+                    "status": {
+                        "printed": bool(printed),
+                        "approved": bool(approved),
+                        "transfer_completed": bool(transfer.get("completed")),
+                    },
+                    "affected_templates": [
+                        str(item.get("sk_number", ""))
+                        for item in assignments
+                        if str(item.get("sk_number", "")).strip()
+                    ],
+                    "machine_values": machine_values,
+                    "history": history,
+                }
+            )
+        return records
 
     def _find_name_column(self, fields: list[str]) -> str | None:
         preferred = {
@@ -2480,8 +2819,16 @@ class ColorRequestServer:
                     self._send_json({"ok": False, "message": f"Fehler: {exc}"}, status=500)
 
             def do_GET(self) -> None:
-                if self.path.split("?", 1)[0] == "/status":
+                path = self.path.split("?", 1)[0]
+                if path == "/status":
                     self._send_text(f"{APP_NAME} bereit")
+                    return
+                if path == "/api/colors":
+                    try:
+                        self._send_json(color_manager.export_color_records())
+                    except Exception as exc:
+                        logger.log(f"Farb-API konnte nicht gelesen werden: {exc}", "ERROR")
+                        self._send_json({"ok": False, "message": f"Fehler: {exc}"}, status=500)
                     return
                 self.send_error(404)
 
@@ -2495,7 +2842,7 @@ class ColorRequestServer:
                 self.end_headers()
                 self.wfile.write(data)
 
-            def _send_json(self, payload: dict, status: int = 200) -> None:
+            def _send_json(self, payload: object, status: int = 200) -> None:
                 data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
                 self.send_response(status)
                 self._send_common_headers(len(data), "application/json; charset=utf-8")
