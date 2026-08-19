@@ -3,9 +3,14 @@ from __future__ import annotations
 import re
 import tkinter as tk
 import xml.etree.ElementTree as ET
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from tkinter import ttk
+
+
+APP_DIR = Path(__file__).resolve().parent
+DEFAULT_REFERENCE_JSON = APP_DIR / "data" / "reference_colors.json"
 
 
 def cmyk_to_rgb(c: int | float, m: int | float, y: int | float, k: int | float) -> tuple[int, int, int]:
@@ -38,6 +43,7 @@ def rgb_to_hex(rgb: tuple[int, int, int]) -> str:
 def normalize_reference_query(value: str) -> tuple[str, str, str]:
     text = re.sub(r"\s+", " ", value.strip().upper())
     text = re.sub(r"\bPANTONE\b", "", text).strip()
+    text = re.sub(r"\bHKS\b", "", text).strip()
     number_match = re.search(r"\d+", text)
     search_number = number_match.group(0) if number_match else ""
     remainder = text
@@ -51,6 +57,7 @@ def normalize_reference_query(value: str) -> tuple[str, str, str]:
 
 @dataclass(frozen=True)
 class ReferenceColor:
+    system: str
     name: str
     search_number: str
     variant: str
@@ -62,6 +69,18 @@ class ReferenceColor:
     @property
     def cmyk_text(self) -> str:
         return f"C {self.c} % / M {self.m} % / Y {self.y} % / K {self.k} %"
+
+    @property
+    def origin_label(self) -> str:
+        if self.system == "MPRINT":
+            return "MPRINT"
+        return f"{self.system} Referenz"
+
+    @property
+    def origin_note(self) -> str:
+        if self.system == "MPRINT":
+            return "Produktionswert – bereits verwendet"
+        return "Referenzwert – nicht maschinell geprüft"
 
 
 class LocalColorReferenceProvider:
@@ -78,8 +97,11 @@ class LocalColorReferenceProvider:
         normalized, search_number, variant = normalize_reference_query(query)
         if not normalized:
             return []
+        system_filter = self._system_filter(query)
         matches: list[ReferenceColor] = []
         for color in self.colors():
+            if system_filter and color.system != system_filter:
+                continue
             name_normalized, color_number, color_variant = normalize_reference_query(color.name)
             if search_number:
                 if color.search_number != search_number and color_number != search_number:
@@ -96,15 +118,21 @@ class LocalColorReferenceProvider:
     def _load_colors(self) -> list[ReferenceColor]:
         candidates = self._candidate_files()
         colors: list[ReferenceColor] = []
-        seen: set[str] = set()
+        seen: set[tuple[str, str]] = set()
         for path in candidates:
             for color in self._read_color_file(path):
-                key = color.name.casefold()
+                key = (color.system, color.name.casefold())
                 if key in seen:
                     continue
                 seen.add(key)
                 colors.append(color)
-        colors.sort(key=lambda item: item.name.casefold())
+        for color in self._read_offline_reference_file():
+            key = (color.system, color.name.casefold())
+            if key in seen:
+                continue
+            seen.add(key)
+            colors.append(color)
+        colors.sort(key=lambda item: (self._system_sort(item.system), item.name.casefold()))
         return colors
 
     def _candidate_files(self) -> list[Path]:
@@ -130,9 +158,57 @@ class LocalColorReferenceProvider:
             values = _entry_cmyk(entry)
             if not name or values is None:
                 continue
+            name = _normalize_mprint_name(name, path)
             _, search_number, variant = normalize_reference_query(name)
-            colors.append(ReferenceColor(name, search_number, variant, *values))
+            colors.append(ReferenceColor("MPRINT", name, search_number, variant, *values))
         return colors
+
+    def _read_offline_reference_file(self) -> list[ReferenceColor]:
+        path = Path(str(self.config.get("reference_colors_json", ""))).expanduser()
+        if not str(path) or not path.exists():
+            path = DEFAULT_REFERENCE_JSON
+        if not path.exists():
+            return []
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            return []
+        colors: list[ReferenceColor] = []
+        for item in payload.get("colors", []):
+            if not isinstance(item, dict):
+                continue
+            system = str(item.get("system", "")).upper().strip()
+            if system not in {"PANTONE", "HKS"}:
+                continue
+            name = str(item.get("name", "")).strip()
+            number = str(item.get("number", "")).strip()
+            variant = str(item.get("variant", "")).upper().strip()
+            if not name or not number:
+                continue
+            colors.append(
+                ReferenceColor(
+                    system,
+                    name,
+                    number,
+                    variant,
+                    _clamp_percent(item.get("c", 0)),
+                    _clamp_percent(item.get("m", 0)),
+                    _clamp_percent(item.get("y", 0)),
+                    _clamp_percent(item.get("k", 0)),
+                )
+            )
+        return colors
+
+    def _system_filter(self, query: str) -> str:
+        upper = query.upper()
+        if re.search(r"\bPANTONE\b", upper):
+            return "PANTONE"
+        if re.search(r"\bHKS\b", upper):
+            return "HKS"
+        return ""
+
+    def _system_sort(self, system: str) -> int:
+        return {"MPRINT": 0, "PANTONE": 1, "HKS": 2}.get(system, 9)
 
 
 def _entry_cmyk(entry: ET.Element) -> tuple[int, int, int, int] | None:
@@ -158,6 +234,14 @@ def _local_name(tag: str) -> str:
     if "}" in tag:
         return tag.rsplit("}", 1)[1]
     return tag
+
+
+def _normalize_mprint_name(name: str, path: Path) -> str:
+    generic_names = {"eindruckfarbe", "eindruckfarbe2", "test", "custom", "sonderfarbe"}
+    file_name = path.stem.strip()
+    if file_name and name.casefold() in generic_names and file_name.casefold() != name.casefold():
+        return file_name
+    return name
 
 
 class ColorMixerWindow:
@@ -234,6 +318,8 @@ class ColorMixerWindow:
         self.reference_status.grid(row=2, column=0, sticky="w", pady=(6, 0))
         self.selected_label = ttk.Label(search_box, text="Ausgangspunkt: -")
         self.selected_label.grid(row=3, column=0, sticky="w", pady=(4, 0))
+        self.selected_note = ttk.Label(search_box, text="")
+        self.selected_note.grid(row=4, column=0, sticky="w", pady=(2, 0))
 
     def _build_slider_row(self, parent: ttk.Frame, channel: str, row: int) -> None:
         ttk.Label(parent, text=channel, width=2).grid(row=row, column=0, sticky="w", pady=4)
@@ -267,7 +353,9 @@ class ColorMixerWindow:
         if current != value:
             self.values[channel].set(value)
         if self.selected_reference:
-            self.selected_label.configure(text=f"Ausgangspunkt: {self.selected_reference.name} · manuell angepasst")
+            self.selected_label.configure(
+                text=f"Ausgangspunkt: {self.selected_reference.origin_label} · {self.selected_reference.name} · manuell angepasst"
+            )
         self.update_preview()
 
     def update_preview(self) -> None:
@@ -290,7 +378,8 @@ class ColorMixerWindow:
         self.reference_matches = self.provider.search(query)
         self.result_list.delete(0, "end")
         for color in self.reference_matches:
-            self.result_list.insert("end", f"{color.name}   {color.cmyk_text}")
+            marker = "MPRINT" if color.system == "MPRINT" else f"{color.system} Referenz"
+            self.result_list.insert("end", f"{marker} · {color.name} · {color.cmyk_text}")
         if query.strip() and not self.reference_matches:
             self.reference_status.configure(text="Keine passende lokale Referenzfarbe gefunden")
         else:
@@ -304,7 +393,8 @@ class ColorMixerWindow:
         self.selected_reference = color
         for channel, value in zip(("C", "M", "Y", "K"), (color.c, color.m, color.y, color.k)):
             self.values[channel].set(value)
-        self.selected_label.configure(text=f"Ausgangspunkt: {color.name}")
+        self.selected_label.configure(text=f"Ausgangspunkt: {color.origin_label} · {color.name}")
+        self.selected_note.configure(text=color.origin_note)
         self.update_preview()
 
     def reset(self) -> None:
@@ -316,4 +406,5 @@ class ColorMixerWindow:
         self.result_list.delete(0, "end")
         self.reference_status.configure(text=f"{len(self.provider.colors())} lokale Referenzfarben verfügbar")
         self.selected_label.configure(text="Ausgangspunkt: -")
+        self.selected_note.configure(text="")
         self.update_preview()

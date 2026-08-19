@@ -342,7 +342,7 @@ class ColorTableManager:
             self.logger.log(f"{color_file.name}: {len(entries)} ColorEntry-Einträge")
 
             for entry in entries:
-                name = self._color_entry_name(entry)
+                name = self._normalize_entry_name_for_file(entry, color_file)
                 content = self._entry_signature(entry)
                 if name in seen_by_name:
                     previous_content, previous_index, previous_file, previous_mtime = seen_by_name[name]
@@ -488,8 +488,9 @@ class ColorTableManager:
             for entry in tree.getroot().iter():
                 if local_name(entry.tag) != "ColorEntry":
                     continue
-                name = self._color_entry_name(entry)
-                signature = self._entry_signature(entry)
+                normalized_entry = copy.deepcopy(entry)
+                name = self._normalize_entry_name_for_file(normalized_entry, color_file)
+                signature = self._entry_signature(normalized_entry)
                 if name in single_signatures:
                     if single_signatures[name] != signature:
                         warnings.append(f"Doppelte Farbe: {name} - bitte prüfen.")
@@ -604,6 +605,18 @@ class ColorTableManager:
         content = ET.tostring(entry, encoding="unicode")
         compact = re.sub(r"\s+", " ", content).strip()
         return compact[:80] or f"ColorEntry-{id(entry)}"
+
+    def _normalize_entry_name_for_file(self, entry: ET.Element, color_file: Path) -> str:
+        name = self._color_entry_name(entry)
+        file_name = color_file.stem.strip()
+        generic_names = {"eindruckfarbe", "eindruckfarbe2", "test", "custom", "sonderfarbe"}
+        if file_name and name.casefold() in generic_names and file_name.casefold() != name.casefold():
+            entry.set("Name", file_name)
+            self.logger.log(
+                f"Generischer Farbname '{name}' aus {color_file.name} als '{file_name}' übernommen."
+            )
+            return file_name
+        return name
 
     def _entry_signature(self, entry: ET.Element) -> str:
         def normalize(node: ET.Element) -> tuple:
@@ -1117,12 +1130,13 @@ class ColorTableManager:
             for entry in tree.getroot().iter():
                 if local_name(entry.tag) != "ColorEntry":
                     continue
-                name = self._color_entry_name(entry)
+                normalized_entry = copy.deepcopy(entry)
+                name = self._normalize_entry_name_for_file(normalized_entry, color_file)
                 key = name.casefold()
                 if key not in info_by_key:
                     info_by_key[key] = {
                         "name": name,
-                        "cmyk": self._color_entry_cmyk(entry),
+                        "cmyk": self._color_entry_cmyk(normalized_entry),
                     }
         return info_by_key
 
@@ -1311,9 +1325,9 @@ class ColorTableManager:
                     detail_items.append(
                         "<div class=\"skItem\">"
                         f"<strong>SK {sk_number}</strong>"
-                        f"<span>{printed_html}</span>"
-                        f"<span>{approval_html}</span>"
-                        f"<span>{template_html}</span>"
+                        f"<span class=\"printedSlot\">{printed_html}</span>"
+                        f"<span class=\"approvalSlot\">{approval_html}</span>"
+                        f"<span class=\"templateSlot\">{template_html}</span>"
                         "</div>"
                     )
                 sk_html = (
@@ -1391,6 +1405,13 @@ class ColorTableManager:
     tr.ok .dot {{ background: #2f8f4e; }}
     tr.wait .dot {{ background: #c9901a; }}
     tr.new .dot, tr.warn .dot {{ background: #bd3f3f; }}
+    .dialogBackdrop {{ position: fixed; inset: 0; background: rgba(32, 36, 42, 0.28); display: none; align-items: center; justify-content: center; z-index: 10; }}
+    .dialogBackdrop.open {{ display: flex; }}
+    .dialogBox {{ width: min(420px, calc(100vw - 32px)); background: #fff; border: 1px solid #b7c0ca; box-shadow: 0 18px 45px rgba(0, 0, 0, 0.22); padding: 16px; }}
+    .dialogBox h2 {{ margin: 0 0 12px; font-size: 20px; }}
+    .dialogBody {{ color: #20242a; line-height: 1.45; }}
+    .dialogBody input {{ width: 100%; box-sizing: border-box; margin-top: 6px; }}
+    .dialogActions {{ display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }}
   </style>
 </head>
 <body>
@@ -1408,6 +1429,16 @@ class ColorTableManager:
     <thead><tr><th class="indicator"></th><th>Kundenfarbe</th><th></th><th>CMYK</th><th>Druckstatus</th><th>SK-Nr.</th><th>Abnahme</th><th>Übernahme</th><th>Historie</th><th class="adminOnly"></th></tr></thead>
     <tbody>{''.join(body_rows)}</tbody>
   </table>
+  <div id="dialogBackdrop" class="dialogBackdrop" role="dialog" aria-modal="true">
+    <div class="dialogBox">
+      <h2 id="dialogTitle"></h2>
+      <div id="dialogBody" class="dialogBody"></div>
+      <div class="dialogActions">
+        <button type="button" id="dialogCancel">Abbrechen</button>
+        <button type="button" id="dialogOk"></button>
+      </div>
+    </div>
+  </div>
   <script>
     function fetchWithTimeout(url, options, timeoutMs) {{
       if (!window.AbortController) {{
@@ -1484,6 +1515,124 @@ class ColorTableManager:
     function payloadMessage(payload, fallback) {{
       return payload && payload.message ? payload.message : fallback;
     }}
+    function escapeHtml(value) {{
+      return String(value || '').replace(/[&<>"']/g, function(char) {{
+        return {{ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }}[char];
+      }});
+    }}
+    function showDialog(options) {{
+      return new Promise(function(resolve) {{
+        var backdrop = document.getElementById('dialogBackdrop');
+        var title = document.getElementById('dialogTitle');
+        var body = document.getElementById('dialogBody');
+        var cancel = document.getElementById('dialogCancel');
+        var ok = document.getElementById('dialogOk');
+        title.textContent = options.title || '';
+        body.innerHTML = options.body || '';
+        ok.textContent = options.okText || 'OK';
+        backdrop.classList.add('open');
+        var input = body.querySelector('input');
+        function cleanup(value) {{
+          backdrop.classList.remove('open');
+          cancel.onclick = null;
+          ok.onclick = null;
+          document.removeEventListener('keydown', onKey);
+          resolve(value);
+        }}
+        function onKey(event) {{
+          if (event.key === 'Escape') {{
+            event.preventDefault();
+            cleanup(null);
+          }} else if (event.key === 'Enter') {{
+            event.preventDefault();
+            cleanup(input ? input.value : true);
+          }}
+        }}
+        cancel.onclick = function() {{ cleanup(null); }};
+        ok.onclick = function() {{ cleanup(input ? input.value : true); }};
+        document.addEventListener('keydown', onKey);
+        window.setTimeout(function() {{ (input || ok).focus(); }}, 0);
+      }});
+    }}
+    function findColorRow(color) {{
+      var buttons = document.querySelectorAll('.addSk[data-color]');
+      for (var i = 0; i < buttons.length; i += 1) {{
+        if ((buttons[i].getAttribute('data-color') || '') === color) {{
+          return buttons[i].closest('tr');
+        }}
+      }}
+      return null;
+    }}
+    function updateSummaries() {{
+      var printOpen = document.querySelectorAll('.workflow[data-action="printed"]').length;
+      var approvalOpen = document.querySelectorAll('.workflow[data-action="approve"]').length;
+      var templateOpen = document.querySelectorAll('.workflow[data-action="template"]').length;
+      var pills = document.querySelectorAll('.summaryPill');
+      if (pills[0]) pills[0].textContent = printOpen + ' Drucktests offen';
+      if (pills[1]) pills[1].textContent = approvalOpen + ' Abnahmen offen';
+      if (pills[2]) pills[2].textContent = templateOpen + ' Übernahmen offen';
+    }}
+    function updateRowCounts(row) {{
+      if (!row) return;
+      var items = row.querySelectorAll('.skItem');
+      var printedDone = row.querySelectorAll('.skItem .printedSlot .badge.done').length;
+      var approvedDone = row.querySelectorAll('.skItem .approvalSlot .badge.done').length;
+      var templateDone = row.querySelectorAll('.skItem .templateSlot .badge.done').length;
+      if (row.cells[4]) row.cells[4].textContent = items.length ? printedDone + '/' + items.length + ' gedruckt' : 'keine SK';
+      if (row.cells[6]) row.cells[6].textContent = items.length ? approvedDone + '/' + items.length + ' frei' : 'keine SK';
+      if (row.cells[7]) row.cells[7].textContent = items.length ? templateDone + '/' + items.length + ' übernommen' : 'keine SK';
+      var summary = row.querySelector('details summary');
+      if (summary) summary.textContent = items.length + ' SK anzeigen';
+      updateSummaries();
+    }}
+    function bindWorkflowButton(button) {{
+      button.addEventListener('click', handleWorkflowClick);
+    }}
+    function createWorkflowButton(action, color, sk, cmyk, text, className) {{
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = className || 'workflow';
+      button.dataset.action = action;
+      button.dataset.color = color;
+      button.dataset.sk = sk;
+      button.dataset.cmyk = cmyk || '';
+      button.textContent = text;
+      bindWorkflowButton(button);
+      return button;
+    }}
+    function makeBadge(text, className) {{
+      var badge = document.createElement('span');
+      badge.className = className || 'badge done';
+      badge.textContent = text;
+      return badge;
+    }}
+    function ensureDetails(row) {{
+      var cell = row.cells[5];
+      var details = cell.querySelector('details');
+      if (details) return details;
+      cell.querySelector('.muted')?.remove();
+      details = document.createElement('details');
+      details.open = true;
+      var summary = document.createElement('summary');
+      summary.textContent = '0 SK anzeigen';
+      details.appendChild(summary);
+      cell.insertBefore(details, cell.firstChild);
+      return details;
+    }}
+    function appendSkRow(color, sk, cmyk) {{
+      var row = findColorRow(color);
+      if (!row) return;
+      var details = ensureDetails(row);
+      var item = document.createElement('div');
+      item.className = 'skItem';
+      item.innerHTML = '<strong>SK ' + escapeHtml(sk) + '</strong><span class="printedSlot"></span><span class="approvalSlot"></span><span class="templateSlot"></span>';
+      item.querySelector('.printedSlot').appendChild(createWorkflowButton('printed', color, sk, cmyk, 'Test ausstehend', 'workflow'));
+      item.querySelector('.approvalSlot').appendChild(makeBadge('Erst drucken', 'badge idle'));
+      item.querySelector('.templateSlot').appendChild(makeBadge('Wartet', 'badge idle'));
+      details.appendChild(item);
+      details.open = true;
+      updateRowCounts(row);
+    }}
     document.querySelectorAll('.summaryPill').forEach(function(button) {{
       button.addEventListener('click', function() {{
         document.querySelectorAll('details').forEach(function(details) {{ details.open = true; }});
@@ -1517,63 +1666,97 @@ class ColorTableManager:
         var color = button.getAttribute('data-color') || '';
         var cmyk = button.getAttribute('data-cmyk') || 'nicht erfasst';
         var status = document.getElementById('entryStatus');
-        var sk = window.prompt('Kundenfarbe:\\n' + color + '\\n\\nCMYK:\\n' + cmyk + '\\n\\nSK-Nr.:');
-        if (sk === null) {{
-          return;
-        }}
-        sk = sk.trim();
-        if (!sk) {{
-          status.textContent = 'Bitte eine SK-Nr. eintragen.';
-          return;
-        }}
-        status.textContent = 'SK wird hinzugefügt...';
-        postHelper({sk_add_url_json}, {{ farbe: color, sk: sk }})
-          .then(function(payload) {{
-            status.textContent = payloadMessage(payload, 'SK hinzugefügt.');
-            window.setTimeout(function() {{ window.location.reload(); }}, 700);
-          }})
-          .catch(function(error) {{
-            status.textContent = 'SK nicht gespeichert: ' + friendlyFetchError(error);
-            checkConnection();
-          }});
+        showDialog({{
+          title: 'SK hinzufügen',
+          body: '<p><strong>Farbe:</strong><br>' + escapeHtml(color) + '</p><p><strong>CMYK:</strong><br>' + escapeHtml(cmyk) + '</p><label>SK-Nr.<input id="skInput" autocomplete="off"></label>',
+          okText: 'Hinzufügen'
+        }}).then(function(sk) {{
+          if (sk === null) {{
+            return;
+          }}
+          sk = String(sk).trim();
+          if (!sk) {{
+            status.textContent = 'Bitte eine SK-Nr. eintragen.';
+            return;
+          }}
+          status.textContent = 'SK wird hinzugefügt...';
+          postHelper({sk_add_url_json}, {{ farbe: color, sk: sk }})
+            .then(function(payload) {{
+              status.textContent = payloadMessage(payload, 'SK hinzugefügt.');
+              appendSkRow(color, sk, cmyk);
+            }})
+            .catch(function(error) {{
+              status.textContent = 'SK nicht gespeichert: ' + friendlyFetchError(error);
+              checkConnection();
+            }});
+        }});
       }});
     }});
-    document.querySelectorAll('.workflow').forEach(function(button) {{
-      button.addEventListener('click', function() {{
+    function handleWorkflowClick() {{
+        var button = this;
         var action = button.getAttribute('data-action') || '';
         var color = button.getAttribute('data-color') || '';
         var sk = button.getAttribute('data-sk') || '';
         var cmyk = button.getAttribute('data-cmyk') || 'nicht erfasst';
         var status = document.getElementById('entryStatus');
         var url = '';
-        var question = '';
+        var dialog = null;
         if (action === 'printed') {{
           url = {sk_printed_url_json};
-          question = 'Druck erfolgreich?\\n\\nKundenfarbe:\\n' + color + '\\n\\nSK-Nr.:\\n' + sk + '\\n\\nWurde dieser Eindruck mit der angegebenen Farbrezeptur erfolgreich auf der MJET gedruckt?';
+          dialog = {{
+            title: 'Druck erfolgreich?',
+            body: '<p><strong>Farbe:</strong><br>' + escapeHtml(color) + '</p><p><strong>SK:</strong><br>' + escapeHtml(sk) + '</p><p>Wurde dieser Eindruck erfolgreich gedruckt?</p>',
+            okText: 'Ja, gedruckt'
+          }};
         }} else if (action === 'approve') {{
           url = {sk_approved_url_json};
-          question = 'Druck freigeben?\\n\\nKundenfarbe:\\n' + color + '\\n\\nSK-Nr.:\\n' + sk + '\\n\\nCMYK:\\n' + cmyk + '\\n\\nDas Druckergebnis wurde geprüft und die verwendete Farbrezeptur kann für diesen Eindruck verwendet werden.';
+          dialog = {{
+            title: 'Druck freigeben?',
+            body: '<p><strong>Farbe:</strong><br>' + escapeHtml(color) + '</p><p><strong>SK:</strong><br>' + escapeHtml(sk) + '</p><p><strong>CMYK:</strong><br>' + escapeHtml(cmyk) + '</p><p>Das Druckergebnis wurde geprüft und die Farbrezeptur kann verwendet werden.</p>',
+            okText: 'Ja, freigeben'
+          }};
         }} else if (action === 'template') {{
           url = {sk_template_url_json};
-          question = 'Eindruckvorlage / Portal aktualisiert?\\n\\nKundenfarbe:\\n' + color + '\\n\\nSK-Nr.:\\n' + sk + '\\n\\nFreigegebene Werte:\\n' + cmyk + '\\n\\nWurden die freigegebenen Farbwerte in der Eindruckvorlage dieser SK-Nr. übernommen oder zur Übernahme an das Portal weitergegeben?';
+          dialog = {{
+            title: 'Vorlage aktualisiert?',
+            body: '<p><strong>Farbe:</strong><br>' + escapeHtml(color) + '</p><p><strong>SK:</strong><br>' + escapeHtml(sk) + '</p><p><strong>Freigegebene Werte:</strong><br>' + escapeHtml(cmyk) + '</p><p>Wurden die Farbwerte in der Eindruckvorlage übernommen oder an das Portal weitergegeben?</p>',
+            okText: 'Ja, erledigt'
+          }};
         }} else {{
           return;
         }}
-        if (!window.confirm(question)) {{
-          return;
-        }}
-        status.textContent = 'Status wird gespeichert...';
-        postHelper(url, {{ farbe: color, sk: sk }})
-          .then(function(payload) {{
-            status.textContent = payloadMessage(payload, 'Status gespeichert.');
-            window.setTimeout(function() {{ window.location.reload(); }}, 700);
-          }})
-          .catch(function(error) {{
-            status.textContent = 'Status nicht gespeichert: ' + friendlyFetchError(error);
-            checkConnection();
-          }});
-      }});
-    }});
+        showDialog(dialog).then(function(confirmed) {{
+          if (!confirmed) {{
+            return;
+          }}
+          status.textContent = 'Status wird gespeichert...';
+          postHelper(url, {{ farbe: color, sk: sk }})
+            .then(function(payload) {{
+              var item = button.closest('.skItem');
+              var row = button.closest('tr');
+              status.textContent = payloadMessage(payload, 'Status gespeichert.');
+              if (action === 'printed') {{
+                button.replaceWith(makeBadge('Gedruckt', 'badge done'));
+                var approvalSlot = item.querySelector('.approvalSlot');
+                approvalSlot.innerHTML = '';
+                approvalSlot.appendChild(createWorkflowButton('approve', color, sk, cmyk, 'Abnahme ausstehend', 'workflow warn'));
+              }} else if (action === 'approve') {{
+                button.replaceWith(makeBadge('Freigegeben', 'badge done'));
+                var templateSlot = item.querySelector('.templateSlot');
+                templateSlot.innerHTML = '';
+                templateSlot.appendChild(createWorkflowButton('template', color, sk, cmyk, 'Übernahme offen', 'workflow danger'));
+              }} else if (action === 'template') {{
+                button.replaceWith(makeBadge('Übernommen', 'badge done'));
+              }}
+              updateRowCounts(row);
+            }})
+            .catch(function(error) {{
+              status.textContent = 'Status nicht gespeichert: ' + friendlyFetchError(error);
+              checkConnection();
+            }});
+        }});
+    }}
+    document.querySelectorAll('.workflow').forEach(bindWorkflowButton);
     (function() {{
       var clicks = 0;
       var timer = null;

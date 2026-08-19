@@ -30,6 +30,7 @@ Name: "startup"; Description: "MJET-X Helper automatisch mit Windows starten"; G
 
 [Files]
 Source: "dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "data\reference_colors.json"; DestDir: "{app}\data"; Flags: ignoreversion
 Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "helper_config.example.json"; DestDir: "{app}"; Flags: ignoreversion
 

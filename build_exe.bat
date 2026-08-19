@@ -85,6 +85,7 @@ echo Baue MJETXHelper.exe...
   --hidden-import PIL.ImageChops ^
   --hidden-import PIL.ImageFilter ^
   --hidden-import PIL.PngImagePlugin ^
+  --add-data "data\reference_colors.json;data" ^
   main.py
 if errorlevel 1 goto build_failed
 
