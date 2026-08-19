@@ -29,6 +29,8 @@ from tkinter import filedialog, messagebox, ttk
 from urllib.parse import parse_qs
 from urllib.request import urlopen
 
+from color_mixer import ColorMixerWindow
+
 
 APP_NAME = "MJET-X Helper"
 APP_VERSION = "1.1.2"
@@ -3285,6 +3287,7 @@ class MainApp:
         self.pdf_reduce_cancel_event = threading.Event()
         self.last_sync_result: SyncResult | None = None
         self.last_auto_clean_at = 0.0
+        self.color_mixer_window: ColorMixerWindow | None = None
 
         self.logger.add_callback(self._on_log_line)
         self._configure_root()
@@ -3363,6 +3366,7 @@ class MainApp:
 
         self._button(self.normal_frame, "Farbabgleich starten", self.start_color_sync)
         self._button(self.normal_frame, "Farbübersicht", self.open_color_overview)
+        self._button(self.normal_frame, "Farbmischer", self.open_color_mixer)
         self._button(self.normal_frame, "Druckdaten-Ordner leeren", self.clean_output_manual)
         self._build_pdf_controls(self.normal_frame)
         self.cancel_output_button = self._button(
@@ -4505,6 +4509,17 @@ class MainApp:
         except Exception as exc:
             self.logger.log(f"Farbübersicht konnte nicht geöffnet werden: {exc}", "ERROR")
             messagebox.showwarning(APP_NAME, "Die Farbübersicht ist derzeit nicht erreichbar.")
+
+    def open_color_mixer(self) -> None:
+        try:
+            if self.color_mixer_window and self.color_mixer_window.exists():
+                self.color_mixer_window.show()
+                return
+            self.color_mixer_window = ColorMixerWindow(self.root, self.config)
+            self.main_status_label.configure(text="Farbmischer geöffnet")
+        except Exception as exc:
+            self.logger.log(f"Farbmischer konnte nicht geöffnet werden: {exc}", "ERROR")
+            messagebox.showerror(APP_NAME, f"Farbmischer konnte nicht geöffnet werden:\n{exc}")
 
     def open_path(self, value: str | os.PathLike[str]) -> None:
         path = Path(value)

@@ -29,6 +29,25 @@ produktiv genutzt oder weitergegeben wird.
 6. Dieselbe SK erneut eintragen und die Doppelungs-Meldung pruefen.
 7. Eine zweite SK zur gleichen Farbe hinzufuegen.
 
+## Farbmischer
+
+1. Im Helper auf `Farbmischer` klicken.
+2. Pruefen, ob ein separates Fenster oeffnet und der Helper weiter bedienbar
+   bleibt.
+3. Noch einmal auf `Farbmischer` klicken und pruefen, dass kein Stapel
+   identischer Fenster entsteht.
+4. C, M, Y und K-Regler bewegen.
+5. Pruefen, ob Prozentwerte und Farbfeld sofort reagieren.
+6. Zahlenfelder testen und pruefen, ob nur Werte von 0 bis 100 bleiben.
+7. `Zuruecksetzen` klicken und pruefen, ob alle Werte wieder 0 sind.
+8. Nach einer lokalen Referenzfarbe suchen, zum Beispiel nach einer vorhandenen
+   Kundenfarbe aus den MJET-Farbtabellen.
+9. Treffer anklicken und pruefen, ob die CMYK-Werte in die Regler uebernommen
+   werden.
+10. Danach Regler manuell veraendern und pruefen, ob die Vorschau weiter
+    reagiert.
+11. Fenster schliessen und erneut oeffnen.
+
 ## Druck, Freigabe, Uebernahme
 
 1. Eine SK als gedruckt markieren.
