@@ -31,7 +31,7 @@ from urllib.request import urlopen
 
 
 APP_NAME = "MJET-X Helper"
-APP_VERSION = "1.1.1"
+APP_VERSION = "1.1.2"
 APP_AUTHOR = "AE / Marvin Schöffel"
 APP_CONTACT = "ms@graphic-druck.de"
 CONFIG_NAME = "helper_config.json"
