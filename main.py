@@ -5,6 +5,7 @@ import copy
 import csv
 import ctypes
 import datetime as dt
+import fnmatch
 import html
 import json
 import operator
@@ -82,6 +83,7 @@ DEFAULT_CONFIG = {
     "legacy_color_overview_csv": r"Z:\_MPRINT_4c\MPRINT_Farbuebersicht.csv",
     "color_overview_html": r"Z:\_MPRINT_4c\MPRINT_Farbuebersicht.html",
     "color_export_json": r"export\mprint_colors.json",
+    "hidden_colors_json": r"config\hidden_colors.json",
     "color_request_server_enabled": True,
     "color_request_server_host": "0.0.0.0",
     "color_request_server_port": 8765,
@@ -820,7 +822,7 @@ class ColorTableManager:
             os.replace(temp_csv, csv_path)
             self.logger.log(f"Interne Farbdaten geschrieben: {csv_path}")
 
-            self._write_color_overview_html(html_path, rows)
+            self._write_color_overview_html(html_path, self._visible_overview_rows(rows))
             self._write_color_export(rows)
         return None
 
@@ -974,45 +976,23 @@ class ColorTableManager:
             ),
         )
 
-    def delete_overview_color(self, color_name: str) -> str:
+    def hide_overview_color(self, color_name: str) -> str:
         cleaned = re.sub(r"\s+", " ", color_name).strip()
         if not cleaned:
             return "Keine Farbbezeichnung übergeben."
 
-        csv_path = self._overview_csv_path()
+        hidden_path = self._hidden_colors_path()
         with self.overview_lock:
-            rows, fields = self._read_color_overview_with_legacy(csv_path)
-            name_column = self._find_name_column(fields) or "Farbbezeichnung"
-            remaining_rows = []
-            removed = 0
-            for row in rows:
-                raw_name = (row.get(name_column) or row.get("Farbbezeichnung") or "").strip()
-                if raw_name.casefold() == cleaned.casefold():
-                    removed += 1
-                    continue
-                remaining_rows.append(row)
-
-            if removed:
-                if "Farbbezeichnung" not in fields:
-                    fields = ["Farbbezeichnung"] + [field for field in fields if field != name_column]
-                    name_column = "Farbbezeichnung"
-                csv_path.parent.mkdir(parents=True, exist_ok=True)
-                temp_csv = csv_path.with_suffix(csv_path.suffix + ".tmp")
-                with temp_csv.open("w", encoding="utf-8-sig", newline="") as handle:
-                    writer = csv.DictWriter(handle, fieldnames=fields, delimiter=";")
-                    writer.writeheader()
-                    for row in remaining_rows:
-                        normalized = dict(row)
-                        if name_column != "Farbbezeichnung":
-                            normalized["Farbbezeichnung"] = row.get(name_column, "")
-                        writer.writerow({field: normalized.get(field, "") for field in fields})
-                os.replace(temp_csv, csv_path)
-                self.logger.log(f"Farbübersicht-Eintrag gelöscht: {cleaned}")
+            hidden = self._read_hidden_colors()
+            if any(item.casefold() == cleaned.casefold() for item in hidden):
+                return f"Farbe ist bereits ausgeblendet: {cleaned}"
+            self._backup_hidden_colors_before_change(hidden_path, hidden)
+            hidden.append(cleaned)
+            self._write_hidden_colors(hidden)
+            self.logger.log(f"Farbe aus Übersicht ausgeblendet: {cleaned}")
 
         self.refresh_color_overview()
-        if removed:
-            return f"Eintrag gelöscht: {cleaned}"
-        return f"Eintrag nicht gefunden oder wird von Einzelfarben/Master wieder erzeugt: {cleaned}"
+        return f"Farbe ausgeblendet: {cleaned}"
 
     def _update_sk_assignment(self, color_name: str, sk_number: str | None, update: callable) -> dict:
         csv_path = self._overview_csv_path()
@@ -1775,6 +1755,98 @@ class ColorTableManager:
             )
         return records
 
+    def _hidden_colors_path(self) -> Path:
+        configured = str(self.config.get("hidden_colors_json", "")).strip()
+        if not configured:
+            return APP_DIR / "config" / "hidden_colors.json"
+        path = Path(configured)
+        if path.is_absolute() or re.match(r"^[A-Za-z]:[\\/]", configured):
+            return path
+        return APP_DIR / path
+
+    def _read_hidden_colors(self) -> list[str]:
+        path = self._hidden_colors_path()
+        if not path.exists():
+            return []
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            self.logger.log(f"Ausblend-Liste konnte nicht gelesen werden: {exc}", "WARN")
+            return []
+        raw_items = payload.get("hidden_colors", []) if isinstance(payload, dict) else []
+        if not isinstance(raw_items, list):
+            return []
+        hidden: list[str] = []
+        seen: set[str] = set()
+        for item in raw_items:
+            value = self._clean_color_name(str(item))
+            key = value.casefold()
+            if not value or key in seen:
+                continue
+            seen.add(key)
+            hidden.append(value)
+        return hidden
+
+    def _write_hidden_colors(self, hidden: list[str]) -> None:
+        path = self._hidden_colors_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        cleaned: list[str] = []
+        seen: set[str] = set()
+        for item in hidden:
+            value = self._clean_color_name(str(item))
+            key = value.casefold()
+            if not value or key in seen:
+                continue
+            seen.add(key)
+            cleaned.append(value)
+        temp_path = path.with_suffix(path.suffix + ".tmp")
+        temp_path.write_text(
+            json.dumps({"hidden_colors": cleaned}, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        os.replace(temp_path, path)
+
+    def _backup_hidden_colors_before_change(self, hidden_path: Path, hidden: list[str]) -> None:
+        hidden_path.parent.mkdir(parents=True, exist_ok=True)
+        backup_path = hidden_path.with_name(
+            f"{hidden_path.stem}_backup_vor_aenderung_{filename_stamp()}{hidden_path.suffix}"
+        )
+        try:
+            if hidden_path.exists():
+                shutil.copy2(hidden_path, backup_path)
+            else:
+                backup_path.write_text(
+                    json.dumps({"hidden_colors": hidden}, ensure_ascii=False, indent=2),
+                    encoding="utf-8",
+                )
+            self.logger.log(f"Backup vor Ausblend-Änderung geschrieben: {backup_path}")
+        except Exception as exc:
+            self.logger.log(f"Backup vor Ausblend-Änderung fehlgeschlagen: {exc}", "WARN")
+
+    def _visible_overview_rows(self, rows: list[dict[str, str]]) -> list[dict[str, str]]:
+        hidden = self._read_hidden_colors()
+        if not hidden:
+            return rows
+        return [
+            row
+            for row in rows
+            if not self._is_hidden_color(str(row.get("Farbbezeichnung", "")), hidden)
+        ]
+
+    def _is_hidden_color(self, color_name: str, hidden: list[str]) -> bool:
+        normalized = self._clean_color_name(color_name).casefold()
+        if not normalized:
+            return False
+        for rule in hidden:
+            pattern = self._clean_color_name(rule).casefold()
+            if not pattern:
+                continue
+            if "*" in pattern and fnmatch.fnmatchcase(normalized, pattern):
+                return True
+            if normalized == pattern:
+                return True
+        return False
+
     def _find_name_column(self, fields: list[str]) -> str | None:
         preferred = {
             "farbbezeichnung",
@@ -1797,14 +1869,14 @@ class ColorTableManager:
         rows: list[dict[str, str]],
     ) -> None:
         submit_url = self._color_request_submit_url()
-        delete_url = submit_url.rsplit("/", 1)[0] + "/farbe-loeschen"
+        hide_url = submit_url.rsplit("/", 1)[0] + "/farbe-ausblenden"
         status_url = submit_url.rsplit("/", 1)[0] + "/status"
         sk_add_url = submit_url.rsplit("/", 1)[0] + "/sk-hinzufuegen"
         sk_printed_url = submit_url.rsplit("/", 1)[0] + "/sk-gedruckt"
         sk_approved_url = submit_url.rsplit("/", 1)[0] + "/sk-freigeben"
         sk_template_url = submit_url.rsplit("/", 1)[0] + "/sk-uebernommen"
         submit_url_json = json.dumps(submit_url)
-        delete_url_json = json.dumps(delete_url)
+        hide_url_json = json.dumps(hide_url)
         status_url_json = json.dumps(status_url)
         sk_add_url_json = json.dumps(sk_add_url)
         sk_printed_url_json = json.dumps(sk_printed_url)
@@ -1913,7 +1985,7 @@ class ColorTableManager:
                 f"<td>{approval_summary}</td>"
                 f"<td>{template_summary}</td>"
                 f"<td class=\"history\"><strong>Historie</strong><br>{history_html}<br><span title=\"Angelegt am\">Angelegt: {escaped_angelegt_am}</span><br><span title=\"Abgeglichen am\">Abgleich: {escaped_abgeglichen_am}</span></td>"
-                f"<td class=\"adminOnly\"><button type=\"button\" class=\"delete\" data-name=\"{button_name}\">Löschen</button></td>"
+                f"<td class=\"adminOnly\"><button type=\"button\" class=\"hideColor\" data-name=\"{button_name}\">Ausblenden</button></td>"
                 f"</tr>"
             )
 
@@ -1965,7 +2037,7 @@ class ColorTableManager:
     .workflow.danger {{ background: #e5c0c0; color: #3e1f1f; }}
     .muted {{ color: #8c939b; }}
     .history {{ font-size: 12px; }}
-    .delete {{ padding: 6px 9px; font-size: 12px; background: #d8b7b7; color: #3e1f1f; }}
+    .hideColor {{ padding: 6px 9px; font-size: 12px; background: #f0dfbc; color: #4a3510; }}
     .adminOnly {{ display: none; }}
     body.admin .adminOnly {{ display: table-cell; }}
     .dot {{ display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: #8c939b; }}
@@ -1990,7 +2062,7 @@ class ColorTableManager:
   <p class="meta">Automatisch aktualisiert: {html.escape(now_stamp())}</p>
   <div class="searchBar">
     <label for="colorSearch">Farbsuche</label>
-    <input type="search" id="colorSearch" autocomplete="off" placeholder="VOGT">
+    <input type="search" id="colorSearch" autocomplete="off" placeholder="Farbname suchen...">
   </div>
   <div class="summary">{summary_html}</div>
   <form class="entry" method="post" action="{html.escape(submit_url, quote=True)}" target="submitFrame">
@@ -2238,25 +2310,25 @@ class ColorTableManager:
         document.getElementById('entryStatus').textContent = 'SK-Details geöffnet.';
       }});
     }});
-    document.querySelectorAll('.delete').forEach(function(button) {{
+    document.querySelectorAll('.hideColor').forEach(function(button) {{
       button.addEventListener('click', function() {{
         var name = button.getAttribute('data-name') || '';
         var status = document.getElementById('entryStatus');
         if (!window.fetch) {{
-          status.textContent = 'Löschen braucht einen aktuellen Browser.';
+          status.textContent = 'Ausblenden braucht einen aktuellen Browser.';
           return;
         }}
-        if (!window.confirm('Eintrag wirklich löschen?\\n\\n' + name)) {{
+        if (!window.confirm('Farbe aus der Übersicht ausblenden?\\n\\n' + name)) {{
           return;
         }}
-        status.textContent = 'Eintrag wird gelöscht...';
-        postHelper({delete_url_json}, {{ farbe: name }})
+        status.textContent = 'Farbe wird ausgeblendet...';
+        postHelper({hide_url_json}, {{ farbe: name }})
         .then(function(payload) {{
-          status.textContent = payloadMessage(payload, 'Eintrag gelöscht.');
+          status.textContent = payloadMessage(payload, 'Farbe ausgeblendet.');
           window.setTimeout(function() {{ window.location.reload(); }}, 700);
         }})
         .catch(function(error) {{
-          status.textContent = 'Eintrag nicht gelöscht: ' + friendlyFetchError(error);
+          status.textContent = 'Farbe nicht ausgeblendet: ' + friendlyFetchError(error);
         }});
       }});
     }});
@@ -2382,7 +2454,7 @@ class ColorTableManager:
         if (clicks >= 5) {{
           document.body.classList.toggle('admin');
           document.getElementById('entryStatus').textContent = document.body.classList.contains('admin')
-            ? 'Adminmodus aktiv: Einträge können gelöscht werden.'
+            ? 'Adminmodus aktiv: Einträge können ausgeblendet werden.'
             : '';
           clicks = 0;
         }}
@@ -2802,6 +2874,7 @@ class ColorRequestServer:
                 if path not in {
                     "/farbe",
                     "/farbe-loeschen",
+                    "/farbe-ausblenden",
                     "/sk-hinzufuegen",
                     "/sk-gedruckt",
                     "/sk-freigeben",
@@ -2819,14 +2892,11 @@ class ColorRequestServer:
                     portal_informed = bool(values.get("portal_informed", [""])[0].strip())
                     completed_by = values.get("completed_by", [""])[0]
                     note = values.get("note", [""])[0]
-                    if path == "/farbe-loeschen":
+                    if path in {"/farbe-loeschen", "/farbe-ausblenden"}:
                         if not color_name.strip():
                             self._send_json({"ok": False, "message": "Keine Farbbezeichnung übergeben."}, status=400)
                             return
-                        message = color_manager.delete_overview_color(color_name)
-                        if message.startswith("Eintrag nicht gefunden"):
-                            self._send_json({"ok": False, "message": message}, status=404)
-                            return
+                        message = color_manager.hide_overview_color(color_name)
                         self._send_json({"ok": True, "message": message})
                         return
                     if path == "/farbe":
