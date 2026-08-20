@@ -926,6 +926,7 @@ class ColorTableManager:
                 approved=approved,
                 approved_at=approved_at,
                 transfer=transfer,
+                assignments=sk_assignments,
             )
             if correction_event:
                 history_events.append(correction_event)
@@ -1087,6 +1088,11 @@ class ColorTableManager:
                     "approved_at": "",
                     "template_updated": False,
                     "template_updated_at": "",
+                    "portal_informed": False,
+                    "transfer_completed": False,
+                    "transfer_completed_at": "",
+                    "transfer_completed_by": "",
+                    "transfer_note": "",
                 }
             )
             row["sk_assignments"] = self._dump_sk_assignments(assignments)
@@ -1126,11 +1132,16 @@ class ColorTableManager:
             return self._api_result(False, "Keine Kundenfarbe übergeben.", 400)
         if not template_updated and not portal_informed:
             return self._api_result(False, "Bitte mindestens eine Übernahmeart auswählen.", 400)
-        return self._update_color_workflow(
+        cleaned_sk = self._clean_sk_number(sk_number)
+        if not cleaned_sk:
+            return self._api_result(False, "Bitte eine SK-Nr. auswählen.", 400)
+        return self._update_sk_assignment(
             cleaned_color,
-            lambda row, assignments: self._set_color_transfer(
+            cleaned_sk,
+            lambda row, assignments: self._set_sk_transfer(
                 row,
                 assignments,
+                sk_number=cleaned_sk,
                 template_updated=template_updated,
                 portal_informed=portal_informed,
                 completed_by=self._clean_color_name(completed_by),
@@ -1282,10 +1293,11 @@ class ColorTableManager:
         row["transfer"] = self._dump_transfer(transfer)
         return True, "Farbe wurde freigegeben."
 
-    def _set_color_transfer(
+    def _set_sk_transfer(
         self,
         row: dict[str, str],
         assignments: list[dict[str, object]],
+        sk_number: str,
         template_updated: bool,
         portal_informed: bool,
         completed_by: str,
@@ -1294,22 +1306,24 @@ class ColorTableManager:
         printed, printed_at, approved, approved_at, transfer = self._color_workflow_from_row(row, assignments)
         if not approved:
             return False, "Die Farbe muss zuerst freigegeben werden."
-        transfer.update(
-            {
-                "completed": True,
-                "template_updated": bool(template_updated),
-                "portal_informed": bool(portal_informed),
-                "completed_at": now_stamp(),
-                "completed_by": completed_by,
-                "note": note,
-            }
-        )
+        assignment = self._find_sk_assignment(assignments, sk_number)
+        if assignment is None:
+            return False, f"SK nicht gefunden: {sk_number}"
+        completed_at = now_stamp()
+        assignment["transfer_completed"] = True
+        assignment["template_updated"] = bool(template_updated)
+        assignment["portal_informed"] = bool(portal_informed)
+        assignment["transfer_completed_at"] = completed_at
+        assignment["template_updated_at"] = completed_at if template_updated else ""
+        assignment["transfer_completed_by"] = completed_by
+        assignment["transfer_note"] = note
         row["printed"] = "ja" if printed else "nein"
         row["printed_at"] = printed_at
         row["approved"] = "ja"
         row["approved_at"] = approved_at or now_stamp()
-        row["transfer"] = self._dump_transfer(transfer)
-        return True, "Farbübernahme wurde gespeichert."
+        row["sk_assignments"] = self._dump_sk_assignments(assignments)
+        row["transfer"] = self._dump_transfer(self._aggregate_assignment_transfer(assignments, transfer))
+        return True, f"Übernahme für SK {sk_number} wurde gespeichert."
 
     def _color_workflow_from_row(
         self,
@@ -1328,11 +1342,19 @@ class ColorTableManager:
         if not approved_at:
             approved_at = self._first_assignment_time(assignments, "approved_at")
         transfer = self._parse_transfer(row.get("transfer", ""))
-        if legacy_transfer and not transfer.get("completed"):
-            transfer["completed"] = True
-            transfer["template_updated"] = True
-            transfer["portal_informed"] = False
-            transfer["completed_at"] = self._first_assignment_time(assignments, "template_updated_at")
+        has_assignment_transfer_state = any(bool(item.get("_transfer_state_present")) for item in assignments)
+        has_completed_assignment = any(bool(self._assignment_transfer(item).get("completed")) for item in assignments)
+        if transfer.get("completed") and assignments and not has_assignment_transfer_state and not has_completed_assignment:
+            self._apply_legacy_color_transfer_to_assignments(assignments, transfer)
+        elif legacy_transfer and not has_assignment_transfer_state:
+            legacy = self._empty_transfer()
+            legacy["completed"] = True
+            legacy["template_updated"] = True
+            legacy["portal_informed"] = False
+            legacy["completed_at"] = self._first_assignment_time(assignments, "template_updated_at")
+            self._apply_legacy_color_transfer_to_assignments(assignments, legacy)
+            transfer = legacy
+        transfer = self._aggregate_assignment_transfer(assignments, transfer)
         return printed, printed_at, approved, approved_at, transfer
 
     def _first_assignment_time(self, assignments: list[dict[str, object]], field: str) -> str:
@@ -1394,23 +1416,81 @@ class ColorTableManager:
             return "nicht erfasst"
         return "offen"
 
+    def _apply_legacy_color_transfer_to_assignments(
+        self,
+        assignments: list[dict[str, object]],
+        transfer: dict[str, object],
+    ) -> None:
+        if not assignments or not transfer.get("completed"):
+            return
+        for assignment in assignments:
+            if assignment.get("transfer_completed"):
+                continue
+            assignment["transfer_completed"] = True
+            assignment["template_updated"] = bool(transfer.get("template_updated"))
+            assignment["portal_informed"] = bool(transfer.get("portal_informed"))
+            assignment["transfer_completed_at"] = str(transfer.get("completed_at") or "")
+            assignment["template_updated_at"] = str(transfer.get("completed_at") or "")
+            assignment["transfer_completed_by"] = str(transfer.get("completed_by") or "")
+            assignment["transfer_note"] = str(transfer.get("note") or "")
+
+    def _assignment_transfer(self, assignment: dict[str, object]) -> dict[str, object]:
+        transfer = self._empty_transfer()
+        transfer["completed"] = bool(assignment.get("transfer_completed") or assignment.get("template_updated"))
+        transfer["template_updated"] = bool(assignment.get("template_updated"))
+        transfer["portal_informed"] = bool(assignment.get("portal_informed"))
+        transfer["completed_at"] = str(
+            assignment.get("transfer_completed_at") or assignment.get("template_updated_at") or ""
+        )
+        transfer["completed_by"] = str(assignment.get("transfer_completed_by") or "")
+        transfer["note"] = str(assignment.get("transfer_note") or "")
+        return transfer
+
+    def _aggregate_assignment_transfer(
+        self,
+        assignments: list[dict[str, object]],
+        fallback: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        transfer = self._empty_transfer()
+        if not assignments:
+            return self._parse_transfer(fallback or transfer)
+        completed = [self._assignment_transfer(item) for item in assignments if self._assignment_transfer(item).get("completed")]
+        if not completed:
+            return transfer
+        transfer["completed"] = len(completed) == len(assignments)
+        transfer["template_updated"] = any(bool(item.get("template_updated")) for item in completed)
+        transfer["portal_informed"] = any(bool(item.get("portal_informed")) for item in completed)
+        transfer["completed_at"] = str(completed[-1].get("completed_at") or "")
+        transfer["completed_by"] = str(completed[-1].get("completed_by") or "")
+        transfer["note"] = str(completed[-1].get("note") or "")
+        return transfer
+
+    def _transfer_counts(self, assignments: list[dict[str, object]]) -> tuple[int, int]:
+        total = len(assignments)
+        completed = sum(1 for item in assignments if self._assignment_transfer(item).get("completed"))
+        return completed, total
+
     def _workflow_history(
         self,
         printed: bool,
         printed_at: str,
         approved: bool,
         approved_at: str,
-        transfer: dict[str, object],
+        assignments: list[dict[str, object]] | None = None,
     ) -> list[str]:
         entries: list[str] = []
         if printed:
             entries.append(f"{printed_at or 'Datum nicht erfasst'} - Gedruckt")
         if approved:
             entries.append(f"{approved_at or 'Datum nicht erfasst'} - Andreas freigegeben")
-        if transfer.get("completed"):
+        for assignment in assignments or []:
+            transfer = self._assignment_transfer(assignment)
+            if not transfer.get("completed"):
+                continue
             method = self._transfer_method_text(transfer)
             at = str(transfer.get("completed_at") or "Datum nicht erfasst")
-            entries.append(f"{at} - {method}")
+            sk_number = str(assignment.get("sk_number") or "").strip()
+            entries.append(f"{at} - SK {sk_number}: {method}")
         return entries
 
     def _format_color_id(self, number: int) -> str:
@@ -1535,13 +1615,26 @@ class ColorTableManager:
         approved: bool,
         approved_at: str,
         transfer: dict[str, object],
+        assignments: list[dict[str, object]] | None = None,
     ) -> list[dict[str, str]]:
         events = self._parse_history_events(raw)
         if printed:
             events.append({"event": "printed", "timestamp": self._event_timestamp(printed_at), "user": ""})
         if approved:
             events.append({"event": "approved", "timestamp": self._event_timestamp(approved_at), "user": "Andreas"})
-        if transfer.get("completed"):
+        for assignment in assignments or []:
+            assignment_transfer = self._assignment_transfer(assignment)
+            if not assignment_transfer.get("completed"):
+                continue
+            completed_at = self._event_timestamp(str(assignment_transfer.get("completed_at") or ""))
+            user = str(assignment_transfer.get("completed_by") or "")
+            sk_number = str(assignment.get("sk_number") or "")
+            details = f"SK {sk_number}".strip()
+            if assignment_transfer.get("template_updated"):
+                events.append({"event": "template_updated", "timestamp": completed_at, "user": user, "details": details})
+            if assignment_transfer.get("portal_informed"):
+                events.append({"event": "portal_informed", "timestamp": completed_at, "user": user, "details": details})
+        if transfer.get("completed") and not assignments:
             completed_at = self._event_timestamp(str(transfer.get("completed_at") or ""))
             user = str(transfer.get("completed_by") or "")
             if transfer.get("template_updated"):
@@ -1629,6 +1722,16 @@ class ColorTableManager:
             sk_number = self._clean_sk_number(str(item.get("sk_number", "")))
             if not sk_number:
                 continue
+            transfer_state_present = any(
+                key in item
+                for key in (
+                    "transfer_completed",
+                    "transfer_completed_at",
+                    "transfer_completed_by",
+                    "transfer_note",
+                    "portal_informed",
+                )
+            )
             key = sk_number.casefold()
             if key in seen:
                 continue
@@ -1642,12 +1745,23 @@ class ColorTableManager:
                     "approved_at": str(item.get("approved_at") or ""),
                     "template_updated": bool(item.get("template_updated")),
                     "template_updated_at": str(item.get("template_updated_at") or ""),
+                    "portal_informed": bool(item.get("portal_informed")),
+                    "transfer_completed": bool(item.get("transfer_completed") or item.get("template_updated")),
+                    "transfer_completed_at": str(
+                        item.get("transfer_completed_at") or item.get("template_updated_at") or ""
+                    ),
+                    "transfer_completed_by": str(item.get("transfer_completed_by") or ""),
+                    "transfer_note": str(item.get("transfer_note") or ""),
+                    "_transfer_state_present": transfer_state_present,
                 }
             )
         return assignments
 
     def _dump_sk_assignments(self, assignments: list[dict[str, object]]) -> str:
-        return json.dumps(assignments, ensure_ascii=False, separators=(",", ":"))
+        cleaned: list[dict[str, object]] = []
+        for assignment in assignments:
+            cleaned.append({key: value for key, value in assignment.items() if not str(key).startswith("_")})
+        return json.dumps(cleaned, ensure_ascii=False, separators=(",", ":"))
 
     def _find_sk_assignment(
         self,
@@ -1900,6 +2014,7 @@ class ColorTableManager:
                 approved=approved,
                 approved_at=approved_at,
                 transfer=transfer,
+                assignments=assignments,
             )
             records.append(
                 {
@@ -2063,13 +2178,14 @@ class ColorTableManager:
             cmyk = str(row.get("CMYK", ""))
             assignments = self._parse_sk_assignments(row)
             printed, printed_at, approved, approved_at, transfer = self._color_workflow_from_row(row, assignments)
-            transfer_done = bool(transfer.get("completed"))
+            transfer_done_count, transfer_total_count = self._transfer_counts(assignments)
+            transfer_done = transfer_total_count > 0 and transfer_done_count == transfer_total_count
             if not printed:
                 open_print_tests += 1
             if printed and not approved:
                 open_approvals += 1
-            if approved and not transfer_done:
-                open_template_updates += 1
+            if approved:
+                open_template_updates += max(0, transfer_total_count - transfer_done_count)
             if "druckbar" in status:
                 css = "ok"
             elif "offen" in status:
@@ -2086,11 +2202,20 @@ class ColorTableManager:
             escaped_cmyk = html.escape(cmyk or "nicht erfasst")
             button_name = html.escape(name, quote=True)
             button_cmyk = html.escape(cmyk, quote=True)
-            transfer_method = self._transfer_method_text(transfer)
-            transfer_method_attr = html.escape(transfer_method, quote=True)
-            completed_by = html.escape(str(transfer.get("completed_by") or "nicht erfasst"))
-            transfer_note = html.escape(str(transfer.get("note") or ""))
-            transfer_at = html.escape(str(transfer.get("completed_at") or "nicht erfasst"))
+            sk_state = []
+            for assignment in assignments:
+                assignment_transfer = self._assignment_transfer(assignment)
+                sk_state.append(
+                    {
+                        "sk": str(assignment.get("sk_number") or ""),
+                        "completed": bool(assignment_transfer.get("completed")),
+                        "method": self._transfer_method_text(assignment_transfer),
+                        "at": str(assignment_transfer.get("completed_at") or ""),
+                        "by": str(assignment_transfer.get("completed_by") or ""),
+                        "note": str(assignment_transfer.get("note") or ""),
+                    }
+                )
+            sk_state_attr = html.escape(json.dumps(sk_state, ensure_ascii=False), quote=True)
             if printed:
                 print_summary = "<span class=\"statusLine done\">● erledigt</span>"
             else:
@@ -2107,33 +2232,41 @@ class ColorTableManager:
                 )
             else:
                 approval_summary = "<span class=\"statusLine idle\">wartet auf Druck</span>"
-            if transfer_done:
+            if approved:
+                transfer_class = "done" if transfer_done else "open"
+                transfer_text = f"{transfer_done_count} / {transfer_total_count} Vorlagen übernommen"
                 template_summary = (
-                    f"<details class=\"transferDetails\"><summary><span class=\"statusLine done\">● erledigt</span></summary>"
-                    f"<div>Methode: {html.escape(transfer_method)}</div>"
-                    f"<div>Datum: {transfer_at}</div>"
-                    f"<div>Bearbeiter: {completed_by}</div>"
-                    f"{'<div>Notiz: ' + transfer_note + '</div>' if transfer_note else ''}"
-                    "</details>"
-                )
-            elif approved:
-                template_summary = (
+                    f"<div class=\"transferSummary {transfer_class}\">{html.escape(transfer_text)}</div>"
                     f"<button type=\"button\" class=\"workflow danger\" data-action=\"template\" "
-                    f"data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\" data-method=\"{transfer_method_attr}\">"
-                    "Übernahme offen</button>"
+                    f"data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\" "
+                    f"data-sk-state=\"{sk_state_attr}\" data-open-count=\"{max(0, transfer_total_count - transfer_done_count)}\">"
+                    "Übernahmen verwalten</button>"
                 )
             else:
                 template_summary = "<span class=\"statusLine idle\">wartet auf Prüfung</span>"
-            history_html = "<br>".join(html.escape(item) for item in self._workflow_history(printed, printed_at, approved, approved_at, transfer))
+            history_html = "<br>".join(
+                html.escape(item)
+                for item in self._workflow_history(printed, printed_at, approved, approved_at, assignments)
+            )
             if not history_html:
                 history_html = "noch keine Workflow-Historie"
             if assignments:
                 detail_items = []
                 for assignment in assignments:
                     sk_number = html.escape(str(assignment.get("sk_number", "")))
+                    assignment_transfer = self._assignment_transfer(assignment)
+                    if assignment_transfer.get("completed"):
+                        sk_status = (
+                            f"<span class=\"statusLine done\">● übernommen</span>"
+                            f"<div class=\"skMeta\">{html.escape(self._transfer_method_text(assignment_transfer))}"
+                            f" · {html.escape(str(assignment_transfer.get('completed_at') or 'Datum nicht erfasst'))}</div>"
+                        )
+                    else:
+                        sk_status = "<span class=\"statusLine idle\">● Übernahme offen</span>"
                     detail_items.append(
                         "<div class=\"skItem\">"
                         f"<strong>SK {sk_number}</strong>"
+                        f"{sk_status}"
                         "</div>"
                     )
                 sk_html = (
@@ -2200,6 +2333,11 @@ class ColorTableManager:
     td:nth-child(4), td:nth-child(5), td:nth-child(7), td:nth-child(8), .history {{ color: #626b75; white-space: nowrap; }}
     details summary {{ cursor: pointer; color: #1d3348; font-weight: 700; }}
     .skItem {{ padding: 7px 0; border-top: 1px solid #eef1f4; }}
+    .skItem strong {{ display: block; margin-bottom: 4px; }}
+    .skMeta {{ color: #626b75; font-size: 12px; margin-top: 3px; }}
+    .transferSummary {{ font-weight: 800; margin-bottom: 7px; }}
+    .transferSummary.done {{ color: #2f8f4e; }}
+    .transferSummary.open {{ color: #c9901a; }}
     .badge {{ display: inline-block; padding: 5px 8px; border: 1px solid #c8cdd3; background: #eef1f4; font-size: 12px; font-weight: 700; }}
     .badge.done {{ border-color: #2f8f4e; background: #e3f0e7; color: #1f5c35; }}
     .badge.idle {{ color: #626b75; }}
@@ -2244,6 +2382,11 @@ class ColorTableManager:
     .statusLine {{ font-weight: 700; }}
     .statusLine.done {{ color: #2f8f4e; }}
     .statusLine.idle {{ color: #8c939b; }}
+    .statusLine.open {{ color: #c9901a; }}
+    .transferList {{ display: grid; gap: 10px; margin: 10px 0; }}
+    .transferItem {{ border: 1px solid #dfe3e7; padding: 10px; background: #f6f7f8; }}
+    .transferItem.done {{ border-left: 5px solid #2f8f4e; }}
+    .transferItem.open {{ border-left: 5px solid #c9901a; }}
     .dialogBody input[type="text"], .dialogBody input:not([type]), .dialogBody textarea {{ width: 100%; box-sizing: border-box; margin-top: 6px; }}
     .dialogBody input[type="checkbox"] {{ width: auto; margin: 0 6px 0 0; }}
     .dialogActions {{ display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }}
@@ -2449,7 +2592,10 @@ class ColorTableManager:
     function updateSummaries() {{
       var printOpen = document.querySelectorAll('.workflow[data-action="printed"]').length;
       var approvalOpen = document.querySelectorAll('.workflow[data-action="approve"]').length;
-      var templateOpen = document.querySelectorAll('.workflow[data-action="template"]').length;
+      var templateOpen = 0;
+      document.querySelectorAll('.workflow[data-action="template"]').forEach(function(button) {{
+        templateOpen += parseInt(button.getAttribute('data-open-count') || '0', 10) || 0;
+      }});
       var pills = document.querySelectorAll('.summaryPill');
       if (pills[0]) pills[0].textContent = printOpen + ' Drucke offen';
       if (pills[1]) pills[1].textContent = approvalOpen + ' Abnahmen offen';
@@ -2481,6 +2627,31 @@ class ColorTableManager:
       badge.className = className || 'badge done';
       badge.textContent = text;
       return badge;
+    }}
+    function parseSkState(button) {{
+      try {{
+        var parsed = JSON.parse(button.getAttribute('data-sk-state') || '[]');
+        return Array.isArray(parsed) ? parsed : [];
+      }} catch (_error) {{
+        return [];
+      }}
+    }}
+    function transferDialogBody(color, cmyk, skState) {{
+      var items = skState.map(function(item, index) {{
+        var sk = item.sk || '';
+        var method = item.method || 'offen';
+        var at = item.at || 'Datum nicht erfasst';
+        var by = item.by || 'nicht erfasst';
+        var note = item.note || '';
+        if (item.completed) {{
+          return '<div class="transferItem done"><strong>SK ' + escapeHtml(sk) + '</strong><div><span class="statusLine done">● erledigt</span></div><div class="skMeta">Methode: ' + escapeHtml(method) + '</div><div class="skMeta">Datum: ' + escapeHtml(at) + '</div><div class="skMeta">Bearbeiter: ' + escapeHtml(by) + '</div>' + (note ? '<div class="skMeta">Notiz: ' + escapeHtml(note) + '</div>' : '') + '</div>';
+        }}
+        return '<label class="transferItem open"><input type="checkbox" class="transferSk" value="' + escapeHtml(sk) + '"><strong>SK ' + escapeHtml(sk) + '</strong><div><span class="statusLine open">● offen</span></div></label>';
+      }}).join('');
+      if (!items) {{
+        items = '<p>Keine Eindruckvorlage hinterlegt.</p>';
+      }}
+      return '<p><strong>Kundenfarbe:</strong><br>' + escapeHtml(color) + '</p><p><strong>CMYK:</strong><br>' + escapeHtml(cmyk) + '</p><div class="transferList">' + items + '</div><p>Ausgewählte offene SKs als übernommen speichern:</p><label><input type="checkbox" id="transferTemplate"> Eindruckvorlage angepasst</label><br><label><input type="checkbox" id="transferPortal"> Portal informiert</label><p><label>Bearbeitet durch:<input id="transferBy" autocomplete="off"></label></p><p><label>Notiz:<textarea id="transferNote" rows="3"></textarea></label></p>';
     }}
     function ensureDetails(row) {{
       var cell = row.cells[5];
@@ -2592,12 +2763,10 @@ class ColorTableManager:
           }};
         }} else if (action === 'template') {{
           url = {sk_template_url_json};
-          var rowForSk = button.closest('tr');
-          var skItems = Array.from(rowForSk.querySelectorAll('.skItem strong')).map(function(item) {{ return item.textContent.replace(/^SK\\s*/, ''); }});
-          var skList = skItems.length ? '<ul>' + skItems.map(function(item) {{ return '<li>' + escapeHtml(item) + '</li>'; }}).join('') + '</ul>' : '<p>Keine Eindruckvorlage hinterlegt.</p>';
+          var skState = parseSkState(button);
           dialog = {{
-            title: 'Farbübernahme abschließen',
-            body: '<p><strong>Kundenfarbe:</strong><br>' + escapeHtml(color) + '</p><p><strong>CMYK:</strong><br>' + escapeHtml(cmyk) + '</p><p><strong>Betroffene Eindruckvorlagen:</strong></p>' + skList + '<p>Wie wurde die Änderung übernommen?</p><label><input type="checkbox" id="transferTemplate"> Eindruckvorlage angepasst</label><br><label><input type="checkbox" id="transferPortal"> Portal informiert</label><p><label>Bearbeitet durch:<input id="transferBy" autocomplete="off"></label></p><p><label>Notiz:<textarea id="transferNote" rows="3"></textarea></label></p>',
+            title: 'Übernahmen verwalten',
+            body: transferDialogBody(color, cmyk, skState),
             okText: 'Speichern'
           }};
         }} else {{
@@ -2610,6 +2779,11 @@ class ColorTableManager:
           status.textContent = 'Status wird gespeichert...';
           var data = {{ farbe: color }};
           if (action === 'template') {{
+            var selectedSk = Array.from(document.querySelectorAll('.transferSk:checked')).map(function(input) {{ return input.value; }});
+            if (!selectedSk.length) {{
+              status.textContent = 'Keine offene SK ausgewählt.';
+              return;
+            }}
             var templateChecked = document.getElementById('transferTemplate') && document.getElementById('transferTemplate').checked;
             var portalChecked = document.getElementById('transferPortal') && document.getElementById('transferPortal').checked;
             if (!templateChecked && !portalChecked) {{
@@ -2620,6 +2794,19 @@ class ColorTableManager:
             data.portal_informed = portalChecked ? '1' : '';
             data.completed_by = document.getElementById('transferBy') ? document.getElementById('transferBy').value : '';
             data.note = document.getElementById('transferNote') ? document.getElementById('transferNote').value : '';
+            Promise.all(selectedSk.map(function(sk) {{
+              var skData = Object.assign({{}}, data, {{ sk: sk }});
+              return postHelper(url, skData);
+            }}))
+            .then(function(payloads) {{
+              status.textContent = payloads.length + ' Übernahme(n) gespeichert.';
+              window.setTimeout(function() {{ window.location.reload(); }}, 700);
+            }})
+            .catch(function(error) {{
+              status.textContent = 'Status nicht gespeichert: ' + friendlyFetchError(error);
+              checkConnection();
+            }});
+            return;
           }}
           postHelper(url, data)
             .then(function(payload) {{
@@ -2632,10 +2819,9 @@ class ColorTableManager:
               }} else if (action === 'approve') {{
                 row.cells[6].innerHTML = '<span class="statusLine done">● Andreas</span>';
                 row.cells[7].innerHTML = '';
-                row.cells[7].appendChild(createWorkflowButton('template', color, '', cmyk, 'Übernahme offen', 'workflow danger'));
-              }} else if (action === 'template') {{
-                var method = data.template_updated && data.portal_informed ? 'Vorlage + Portal' : (data.template_updated ? 'Vorlage angepasst' : 'Portal informiert');
-                row.cells[7].innerHTML = '<details class="transferDetails"><summary><span class="statusLine done">● erledigt</span></summary><div>Methode: ' + escapeHtml(method) + '</div><div>Datum: jetzt</div><div>Bearbeiter: ' + escapeHtml(data.completed_by || 'nicht erfasst') + '</div>' + (data.note ? '<div>Notiz: ' + escapeHtml(data.note) + '</div>' : '') + '</details>';
+                row.cells[7].innerHTML = '<div class="transferSummary open">0 / 0 Vorlagen übernommen</div>';
+                row.cells[7].appendChild(createWorkflowButton('template', color, '', cmyk, 'Übernahmen verwalten', 'workflow danger'));
+                window.setTimeout(function() {{ window.location.reload(); }}, 700);
               }}
               refreshRowSearchText(row);
               applyColorSearch();
