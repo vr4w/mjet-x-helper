@@ -794,9 +794,9 @@ class ColorTableManager:
     def _import_correction_warning_text(self) -> str:
         return (
             "⚠️ Farbänderung erkannt\n\n"
-            "Eine gespeicherte Farbtabelle enthielt eine unplausible Änderung.\n\n"
-            "Der MJET Helper hat die Änderung erkannt und automatisch korrigiert.\n\n"
-            "Die Produktionsfarben wurden nicht verändert."
+            "Eine unplausible Änderung in der Farbtabelle wurde erkannt.\n\n"
+            "Der MJET Helper hat die Änderung automatisch korrigiert.\n\n"
+            "Die bestätigten Produktionsfarben wurden nicht verändert."
         )
 
     def _master_color_names(self, master_path: Path) -> list[str]:
@@ -4437,6 +4437,7 @@ class MainApp:
         )
         status_box.pack(fill="x", pady=(0, 10))
         self.status_match = StatusRow(status_box, "Farbabgleich", emphasis=True)
+        self.status_color_overview = StatusRow(status_box, "Farbstatus", emphasis=True)
         self.status_output = StatusRow(status_box, "OUTPUT", emphasis=True)
         secondary_status = tk.Frame(status_box, bg=THEME["panel"])
         secondary_status.pack(fill="x", pady=(3, 0))
@@ -4455,19 +4456,19 @@ class MainApp:
         )
         self.main_status_label.pack(fill="x", pady=(0, 10))
 
-        self._button(self.normal_frame, "Farbabgleich starten", self.start_color_sync)
-        self._button(self.normal_frame, "Farbübersicht", self.open_color_overview)
-        self._button(self.normal_frame, "Farbmischer", self.open_color_mixer)
-        self._button(self.normal_frame, "Druckdaten-Ordner leeren", self.clean_output_manual)
+        self._button(self.normal_frame, "🎨 Farbabgleich starten", self.start_color_sync)
+        self._button(self.normal_frame, "📋 Farbübersicht", self.open_color_overview)
+        self._button(self.normal_frame, "🎚 Farbmischer", self.open_color_mixer)
+        self._button(self.normal_frame, "🧹 Druckdaten-Ordner leeren", self.clean_output_manual)
         self._build_pdf_controls(self.normal_frame)
         self.cancel_output_button = self._button(
             self.normal_frame,
-            "Aufräumen stoppen",
+            "⏹ Aufräumen stoppen",
             self.cancel_output_cleaning,
             style="secondary",
             pack_now=False,
         )
-        self.rechner_button = self._button(self.normal_frame, "Rechner", self.toggle_calculator)
+        self.rechner_button = self._button(self.normal_frame, "🧮 Rechner", self.toggle_calculator)
 
         self.calc_frame = self._build_calculator(self.normal_frame)
         self.calc_frame.pack_forget()
@@ -4476,7 +4477,7 @@ class MainApp:
         spacer.pack(fill="x")
         self._button(
             self.normal_frame,
-            "Feierabend / Herunterfahren",
+            "⏻ Feierabend / Herunterfahren",
             self.shutdown_flow,
             style="danger",
         )
@@ -4822,6 +4823,7 @@ class MainApp:
             )
         else:
             self.status_match.set("gray", "nicht geprüft")
+        self._update_color_overview_status()
 
         output_color, output_text = self.cleaner.output_status()
         job_color, job_text = self.cleaner.jobdir_status()
@@ -4829,6 +4831,26 @@ class MainApp:
         if hasattr(self, "expert_jobdir_label"):
             self.expert_jobdir_label.configure(text=f"JobDir: {job_text}")
         self._maybe_auto_clean_output()
+
+    def _update_color_overview_status(self) -> None:
+        if not hasattr(self, "status_color_overview"):
+            return
+        if self.last_sync_result and self._result_has_color_overview_error(self.last_sync_result):
+            self.status_color_overview.set("red", "Fehler")
+            return
+        if self.last_sync_result and self.last_sync_result.severity in {"green", "yellow"}:
+            self.status_color_overview.set("green", "aktuell")
+            return
+        overview_csv = as_path(self.config.get("color_overview_csv", ""))
+        overview_html = as_path(self.config.get("color_overview_html", ""))
+        if overview_csv.exists() and overview_html.exists():
+            self.status_color_overview.set("yellow", "prüfen")
+        else:
+            self.status_color_overview.set("red", "Fehler")
+
+    def _result_has_color_overview_error(self, result: SyncResult) -> bool:
+        messages = result.errors + result.warnings
+        return any("Farbübersicht konnte nicht geschrieben werden" in message for message in messages)
 
     def _maybe_auto_clean_output(self) -> None:
         if not self.config.get("auto_clean_output_printdata", True):
@@ -4906,6 +4928,7 @@ class MainApp:
         self.last_sync_result = result
         self.main_status_label.configure(text=self._sync_detail_text(result))
         self.status_match.set(result.severity, self._sync_short_text(result))
+        self._update_color_overview_status()
         self._update_expert_details(result)
         if result.severity == "red":
             messagebox.showerror(APP_NAME, result.message + self._detail_suffix(result))
@@ -5370,6 +5393,7 @@ class MainApp:
         self.last_sync_result = result
         self.status_match.set(result.severity, self._sync_short_text(result))
         self.main_status_label.configure(text=self._sync_detail_text(result))
+        self._update_color_overview_status()
         self._update_expert_details(result)
 
     def _sync_short_text(self, result: SyncResult) -> str:
