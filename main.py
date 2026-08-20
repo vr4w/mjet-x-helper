@@ -279,6 +279,7 @@ class ColorTableManager:
         self.config = config
         self.logger = logger
         self.overview_lock = threading.RLock()
+        self.import_corrections: dict[str, dict[str, str]] = {}
         ET.register_namespace("", COLOR_NS)
 
     def rebuild_master(self, write_master: bool = True) -> SyncResult:
@@ -323,6 +324,8 @@ class ColorTableManager:
         unique_entries: list[ET.Element] = []
         seen_by_name: dict[str, tuple[str, int, Path, float]] = {}
         duplicate_same = 0
+        master_entries = self._master_entries_by_name(master_path) if master_path.exists() else {}
+        import_corrections: dict[str, dict[str, str]] = {}
 
         for color_file in color_files:
             file_mtime = self._safe_mtime(color_file)
@@ -345,7 +348,27 @@ class ColorTableManager:
             self.logger.log(f"{color_file.name}: {len(entries)} ColorEntry-Einträge")
 
             for entry in entries:
+                original_name = self._color_entry_name(entry)
                 name = self._normalize_entry_name_for_file(entry, color_file)
+                correction = self._detect_import_correction(
+                    name=name,
+                    original_name=original_name,
+                    incoming_entry=entry,
+                    master_entries=master_entries,
+                )
+                if correction:
+                    master_entry = master_entries.get(name.casefold())
+                    if master_entry is not None:
+                        entry = copy.deepcopy(master_entry)
+                        warning = self._import_correction_warning_text()
+                        if warning not in warnings:
+                            warnings.append(warning)
+                        import_corrections[name.casefold()] = correction
+                        self.logger.log(
+                            f"Farbimport-Schutz: {name} aus {color_file.name} korrigiert. "
+                            "Bestehende MPRINT-Zuordnung beibehalten.",
+                            "WARNING",
+                        )
                 content = self._entry_signature(entry)
                 if name in seen_by_name:
                     previous_content, previous_index, previous_file, previous_mtime = seen_by_name[name]
@@ -402,6 +425,7 @@ class ColorTableManager:
             self.logger.log("Nur Prüfung: Master wurde nicht geschrieben")
 
         try:
+            self.import_corrections = dict(import_corrections)
             master_names = color_names if write_master else self._master_color_names(master_path)
             overview_warning = self._write_color_overview(color_names, master_names)
             if overview_warning:
@@ -410,6 +434,8 @@ class ColorTableManager:
             warning = f"Farbübersicht konnte nicht geschrieben werden: {exc}"
             warnings.append(warning)
             self.logger.log(warning, "WARNING")
+        finally:
+            self.import_corrections = {}
 
         self.logger.log(f"Übernommene Farben: {len(unique_entries)}")
         if duplicate_same:
@@ -427,6 +453,16 @@ class ColorTableManager:
             )
         operation_done = "Master gebaut" if write_master else "Master geprüft"
         if warnings:
+            if import_corrections:
+                return SyncResult(
+                    "yellow",
+                    "Farbänderung erkannt und automatisch korrigiert",
+                    color_names,
+                    profiles,
+                    warnings,
+                    errors,
+                    source_files,
+                )
             return SyncResult(
                 "yellow",
                 f"{operation_done}, aber Warnungen vorhanden",
@@ -478,6 +514,8 @@ class ColorTableManager:
 
         single_signatures: dict[str, str] = {}
         seen_sources: dict[str, Path] = {}
+        master_entries = self._master_entries_by_name(master_path)
+        import_corrections: dict[str, dict[str, str]] = {}
         for color_file in color_files:
             try:
                 tree = ET.parse(color_file)
@@ -492,7 +530,27 @@ class ColorTableManager:
                 if local_name(entry.tag) != "ColorEntry":
                     continue
                 normalized_entry = copy.deepcopy(entry)
+                original_name = self._color_entry_name(normalized_entry)
                 name = self._normalize_entry_name_for_file(normalized_entry, color_file)
+                correction = self._detect_import_correction(
+                    name=name,
+                    original_name=original_name,
+                    incoming_entry=normalized_entry,
+                    master_entries=master_entries,
+                )
+                if correction:
+                    master_entry = master_entries.get(name.casefold())
+                    if master_entry is not None:
+                        normalized_entry = copy.deepcopy(master_entry)
+                        warning = self._import_correction_warning_text()
+                        if warning not in warnings:
+                            warnings.append(warning)
+                        import_corrections[name.casefold()] = correction
+                        self.logger.log(
+                            f"Farbimport-Schutz: {name} aus {color_file.name} erkannt. "
+                            "Bestehende MPRINT-Zuordnung bleibt maßgeblich.",
+                            "WARNING",
+                        )
                 signature = self._entry_signature(normalized_entry)
                 if name in single_signatures:
                     if single_signatures[name] != signature:
@@ -522,6 +580,7 @@ class ColorTableManager:
         ]
 
         try:
+            self.import_corrections = dict(import_corrections)
             overview_warning = self._write_color_overview(color_names, list(master_signatures.keys()))
             if overview_warning:
                 warnings.append(overview_warning)
@@ -529,6 +588,8 @@ class ColorTableManager:
             warning = f"Farbübersicht konnte nicht geschrieben werden: {exc}"
             warnings.append(warning)
             self.logger.log(warning, "WARNING")
+        finally:
+            self.import_corrections = {}
 
         if missing_or_changed:
             warning = f"{len(missing_or_changed)} Farbe(n) noch nicht in der Masterdatei"
@@ -612,7 +673,16 @@ class ColorTableManager:
     def _normalize_entry_name_for_file(self, entry: ET.Element, color_file: Path) -> str:
         name = self._color_entry_name(entry)
         file_name = color_file.stem.strip()
-        generic_names = {"eindruckfarbe", "eindruckfarbe2", "test", "custom", "sonderfarbe"}
+        generic_names = {
+            "eindruckfarbe",
+            "eindruckfarbe2",
+            "test",
+            "custom",
+            "sonderfarbe",
+            "passer",
+            "cut",
+            "crop",
+        }
         if file_name and name.casefold() in generic_names and file_name.casefold() != name.casefold():
             entry.set("Name", file_name)
             self.logger.log(
@@ -642,6 +712,92 @@ class ColorTableManager:
             if local_name(entry.tag) == "ColorEntry":
                 signatures[self._color_entry_name(entry)] = self._entry_signature(entry)
         return signatures
+
+    def _master_entries_by_name(self, master_path: Path) -> dict[str, ET.Element]:
+        if not master_path.exists():
+            return {}
+        try:
+            tree = ET.parse(master_path)
+        except Exception as exc:
+            self.logger.log(f"Master konnte für Import-Schutz nicht gelesen werden: {master_path} ({exc})", "WARNING")
+            return {}
+        entries: dict[str, ET.Element] = {}
+        for entry in tree.getroot().iter():
+            if local_name(entry.tag) == "ColorEntry":
+                name = self._clean_color_name(self._color_entry_name(entry))
+                if name:
+                    entries[name.casefold()] = copy.deepcopy(entry)
+        return entries
+
+    def _detect_import_correction(
+        self,
+        name: str,
+        original_name: str,
+        incoming_entry: ET.Element,
+        master_entries: dict[str, ET.Element],
+    ) -> dict[str, str] | None:
+        cleaned_name = self._clean_color_name(name)
+        cleaned_original = self._clean_color_name(original_name)
+        if not cleaned_name:
+            return None
+        master_entry = master_entries.get(cleaned_name.casefold())
+        if master_entry is None:
+            return None
+        if not self._is_technical_color_name(cleaned_original):
+            return None
+        if cleaned_original.casefold() == cleaned_name.casefold():
+            return None
+        incoming_values = self._entry_cmyk_values(incoming_entry)
+        master_values = self._entry_cmyk_values(master_entry)
+        if incoming_values is None or master_values is None:
+            return None
+        if incoming_values == master_values:
+            return None
+        return {
+            "event": "import_correction",
+            "timestamp": self._event_timestamp(now_stamp()),
+            "user": "MJET Helper",
+            "details": (
+                "Importabweichung erkannt. Eine technische Farbe wurde versehentlich als "
+                "Produktionsfarbe verwendet. Die ursprüngliche MPRINT-Zuordnung wurde beibehalten."
+            ),
+            "original_name": cleaned_original,
+            "target_name": cleaned_name,
+            "old_cmyk": self._cmyk_values_text(master_values),
+            "incoming_cmyk": self._cmyk_values_text(incoming_values),
+        }
+
+    def _is_technical_color_name(self, name: str) -> bool:
+        normalized = re.sub(r"[^a-z0-9äöüß]+", "", str(name).casefold())
+        return normalized in {
+            "eindruckfarbe",
+            "eindruckfarbe2",
+            "passer",
+            "cut",
+            "crop",
+            "custom",
+            "sonderfarbe",
+            "technical",
+            "hilfsfarbe",
+        }
+
+    def _entry_cmyk_values(self, entry: ET.Element) -> tuple[int, int, int, int] | None:
+        text = self._color_entry_cmyk(entry)
+        values = self._parse_cmyk_values(text)
+        if values is None:
+            return None
+        return (values["c"], values["m"], values["y"], values["k"])
+
+    def _cmyk_values_text(self, values: tuple[int, int, int, int]) -> str:
+        return f"C {values[0]} / M {values[1]} / Y {values[2]} / K {values[3]}"
+
+    def _import_correction_warning_text(self) -> str:
+        return (
+            "⚠️ Farbänderung erkannt\n\n"
+            "Eine gespeicherte Farbtabelle enthielt eine unplausible Änderung.\n\n"
+            "Der MJET Helper hat die Änderung erkannt und automatisch korrigiert.\n\n"
+            "Die Produktionsfarben wurden nicht verändert."
+        )
 
     def _master_color_names(self, master_path: Path) -> list[str]:
         return list(self._master_entry_signatures(master_path).keys())
@@ -753,7 +909,10 @@ class ColorTableManager:
                 created_at = now_text
             last_printed_at = existing.get("last_printed_at", "").strip()
             last_synced_at = now_text
+            correction_event = self.import_corrections.get(key)
             cmyk = str(info.get("cmyk", "") or existing.get("CMYK", "")).strip()
+            if correction_event and correction_event.get("old_cmyk"):
+                cmyk = str(correction_event.get("old_cmyk") or cmyk).strip()
             sk_assignments = self._parse_sk_assignments(existing)
             printed, printed_at, approved, approved_at, transfer = self._color_workflow_from_row(existing, sk_assignments)
             color_id = existing.get("color_id", "").strip() or id_lookup.get(key, "")
@@ -768,6 +927,9 @@ class ColorTableManager:
                 approved_at=approved_at,
                 transfer=transfer,
             )
+            if correction_event:
+                history_events.append(correction_event)
+                history_events = self._dedupe_history_events(history_events)
             machine_values = self._machine_values_for_row(
                 cmyk,
                 technical_source,
@@ -1412,15 +1574,21 @@ class ColorTableManager:
                     "event": event,
                     "timestamp": timestamp,
                     "user": str(item.get("user") or ""),
+                    "details": str(item.get("details") or ""),
                 }
             )
         return events
 
     def _dedupe_history_events(self, events: list[dict[str, str]]) -> list[dict[str, str]]:
         unique: list[dict[str, str]] = []
-        seen: set[tuple[str, str, str]] = set()
+        seen: set[tuple[str, str, str, str]] = set()
         for event in events:
-            key = (event.get("event", ""), event.get("timestamp", ""), event.get("user", ""))
+            key = (
+                event.get("event", ""),
+                event.get("timestamp", ""),
+                event.get("user", ""),
+                event.get("details", ""),
+            )
             if key in seen:
                 continue
             seen.add(key)
@@ -2004,8 +2172,10 @@ class ColorTableManager:
     body {{ font-family: Segoe UI, Arial, sans-serif; margin: 24px; color: #20242a; background: #f4f5f6; }}
     h1 {{ margin: 0 0 6px; font-size: 24px; }}
     .meta {{ margin: 0 0 18px; color: #626b75; }}
+    .topBar {{ display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; margin: 0 0 16px; }}
     .searchBar {{ display: flex; flex-direction: column; gap: 5px; margin: 0 0 14px; max-width: 360px; }}
     .searchBar label {{ color: #1d3348; font-weight: 700; font-size: 14px; }}
+    .viewToggle {{ margin-bottom: 14px; }}
     .summary {{ display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; }}
     .summaryPill {{ padding: 7px 10px; background: #fff; }}
     .entry {{ display: flex; gap: 8px; margin: 0 0 18px; max-width: 720px; }}
@@ -2040,6 +2210,28 @@ class ColorTableManager:
     .hideColor {{ padding: 6px 9px; font-size: 12px; background: #f0dfbc; color: #4a3510; }}
     .adminOnly {{ display: none; }}
     body.admin .adminOnly {{ display: table-cell; }}
+    body:not(.detailMode) thead {{ display: none; }}
+    body:not(.detailMode) table {{ display: block; background: transparent; box-shadow: none; }}
+    body:not(.detailMode) tbody {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }}
+    body:not(.detailMode) tr {{ display: grid; grid-template-columns: 1fr; gap: 10px; padding: 18px; background: white; border: 1px solid #dfe3e7; border-left: 8px solid #8c939b; }}
+    body:not(.detailMode) tr.ok {{ border-left-color: #2f8f4e; }}
+    body:not(.detailMode) tr.wait {{ border-left-color: #c9901a; }}
+    body:not(.detailMode) tr.new, body:not(.detailMode) tr.warn {{ border-left-color: #bd3f3f; }}
+    body:not(.detailMode) td {{ display: block; border: 0; padding: 0; white-space: normal; }}
+    body:not(.detailMode) td:first-child,
+    body:not(.detailMode) td:nth-child(3),
+    body:not(.detailMode) td:nth-child(9),
+    body:not(.detailMode) td:nth-child(10) {{ display: none; }}
+    body:not(.detailMode) td.name {{ font-size: 22px; color: #20242a; }}
+    body:not(.detailMode) td:nth-child(4) {{ font-size: 16px; color: #20242a; }}
+    body:not(.detailMode) td:nth-child(5)::before {{ content: "Druck:"; display: block; color: #626b75; font-size: 12px; font-weight: 700; margin-bottom: 3px; }}
+    body:not(.detailMode) td:nth-child(7)::before {{ content: "Prüfung:"; display: block; color: #626b75; font-size: 12px; font-weight: 700; margin-bottom: 3px; }}
+    body:not(.detailMode) td:nth-child(8)::before {{ content: "Übernahme:"; display: block; color: #626b75; font-size: 12px; font-weight: 700; margin-bottom: 3px; }}
+    body:not(.detailMode) td:nth-child(6) {{ padding-top: 4px; }}
+    body:not(.detailMode) .addSk {{ display: none; }}
+    body:not(.detailMode) .statusLine {{ font-size: 18px; }}
+    body:not(.detailMode) details summary {{ display: inline-block; padding: 7px 9px; border: 1px solid #c8cdd3; background: #eef1f4; }}
+    body:not(.detailMode) details[open] summary {{ margin-bottom: 6px; }}
     .dot {{ display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: #8c939b; }}
     tr.ok .dot {{ background: #2f8f4e; }}
     tr.wait .dot {{ background: #c9901a; }}
@@ -2060,9 +2252,12 @@ class ColorTableManager:
 <body>
   <h1 id="title">MPRINT Farbübersicht</h1>
   <p class="meta">Automatisch aktualisiert: {html.escape(now_stamp())}</p>
-  <div class="searchBar">
-    <label for="colorSearch">Farbsuche</label>
-    <input type="search" id="colorSearch" autocomplete="off" placeholder="Farbname suchen...">
+  <div class="topBar">
+    <div class="searchBar">
+      <label for="colorSearch">Farbsuche</label>
+      <input type="search" id="colorSearch" autocomplete="off" placeholder="Farbname suchen...">
+    </div>
+    <button type="button" id="detailToggle" class="viewToggle">Details anzeigen</button>
   </div>
   <div class="summary">{summary_html}</div>
   <form class="entry" method="post" action="{html.escape(submit_url, quote=True)}" target="submitFrame">
@@ -2198,6 +2393,15 @@ class ColorTableManager:
     var colorSearch = document.getElementById('colorSearch');
     if (colorSearch) {{
       colorSearch.addEventListener('input', applyColorSearch);
+    }}
+    var detailToggle = document.getElementById('detailToggle');
+    if (detailToggle) {{
+      detailToggle.addEventListener('click', function() {{
+        document.body.classList.toggle('detailMode');
+        detailToggle.textContent = document.body.classList.contains('detailMode')
+          ? 'Maschinenansicht'
+          : 'Details anzeigen';
+      }});
     }}
     function showDialog(options) {{
       return new Promise(function(resolve) {{
@@ -4712,6 +4916,10 @@ class MainApp:
 
     def _detail_suffix(self, result: SyncResult) -> str:
         details = result.errors or result.warnings
+        if not details:
+            return ""
+        if details and details[0] == result.message:
+            details = details[1:]
         if not details:
             return ""
         return "\n\n" + "\n".join(details[:8])
