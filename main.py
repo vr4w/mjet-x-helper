@@ -2202,8 +2202,10 @@ class ColorTableManager:
             escaped_cmyk = html.escape(cmyk or "nicht erfasst")
             button_name = html.escape(name, quote=True)
             button_cmyk = html.escape(cmyk, quote=True)
+            search_parts = [name, cmyk]
             sk_state = []
             for assignment in assignments:
+                search_parts.append(str(assignment.get("sk_number") or ""))
                 assignment_transfer = self._assignment_transfer(assignment)
                 sk_state.append(
                     {
@@ -2216,34 +2218,45 @@ class ColorTableManager:
                     }
                 )
             sk_state_attr = html.escape(json.dumps(sk_state, ensure_ascii=False), quote=True)
+            search_attr = html.escape(" ".join(search_parts), quote=True)
             if printed:
-                print_summary = "<span class=\"statusLine done\">● erledigt</span>"
+                print_summary = "<span class=\"statusLine done\">✓ erledigt</span>"
             else:
                 print_summary = (
                     f"<button type=\"button\" class=\"workflow\" data-action=\"printed\" "
                     f"data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\">Druck erledigt</button>"
                 )
             if approved:
-                approval_summary = "<span class=\"statusLine done\">● Andreas</span>"
+                approval_summary = "<span class=\"statusLine done\">✓ Andreas</span>"
             elif printed:
                 approval_summary = (
                     f"<button type=\"button\" class=\"workflow warn\" data-action=\"approve\" "
                     f"data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\">Andreas freigeben</button>"
                 )
             else:
-                approval_summary = "<span class=\"statusLine idle\">wartet auf Druck</span>"
+                approval_summary = "<span class=\"statusLine idle\">○ offen</span>"
             if approved:
                 transfer_class = "done" if transfer_done else "open"
+                open_transfer_count = max(0, transfer_total_count - transfer_done_count)
                 transfer_text = f"{transfer_done_count} / {transfer_total_count} Vorlagen übernommen"
+                machine_transfer_text = (
+                    f"✓ {transfer_total_count} erledigt"
+                    if transfer_done
+                    else f"○ {open_transfer_count} offen"
+                )
                 template_summary = (
                     f"<div class=\"transferSummary {transfer_class}\">{html.escape(transfer_text)}</div>"
+                    f"<div class=\"machineTransferSummary {transfer_class}\">{html.escape(machine_transfer_text)}</div>"
                     f"<button type=\"button\" class=\"workflow danger\" data-action=\"template\" "
                     f"data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\" "
-                    f"data-sk-state=\"{sk_state_attr}\" data-open-count=\"{max(0, transfer_total_count - transfer_done_count)}\">"
+                    f"data-sk-state=\"{sk_state_attr}\" data-open-count=\"{open_transfer_count}\">"
                     "Übernahmen verwalten</button>"
                 )
             else:
-                template_summary = "<span class=\"statusLine idle\">wartet auf Prüfung</span>"
+                template_summary = (
+                    f"<div class=\"transferSummary idle\">0 / {transfer_total_count} Vorlagen übernommen</div>"
+                    "<div class=\"machineTransferSummary idle\">○ offen</div>"
+                )
             history_html = "<br>".join(
                 html.escape(item)
                 for item in self._workflow_history(printed, printed_at, approved, approved_at, assignments)
@@ -2257,12 +2270,12 @@ class ColorTableManager:
                     assignment_transfer = self._assignment_transfer(assignment)
                     if assignment_transfer.get("completed"):
                         sk_status = (
-                            f"<span class=\"statusLine done\">● übernommen</span>"
+                            f"<span class=\"statusLine done\">✓ übernommen</span>"
                             f"<div class=\"skMeta\">{html.escape(self._transfer_method_text(assignment_transfer))}"
                             f" · {html.escape(str(assignment_transfer.get('completed_at') or 'Datum nicht erfasst'))}</div>"
                         )
                     else:
-                        sk_status = "<span class=\"statusLine idle\">● Übernahme offen</span>"
+                        sk_status = "<span class=\"statusLine open\">○ Übernahme offen</span>"
                     detail_items.append(
                         "<div class=\"skItem\">"
                         f"<strong>SK {sk_number}</strong>"
@@ -2270,30 +2283,30 @@ class ColorTableManager:
                         "</div>"
                     )
                 sk_html = (
-                    f"<details><summary>{len(assignments)} Eindruckvorlage(n)</summary>"
+                    f"<details class=\"skDetails\"><summary>{len(assignments)} Eindruckvorlage(n)</summary>"
                     f"{''.join(detail_items)}</details>"
                 )
             else:
                 sk_html = "<span class=\"muted\">keine Eindruckvorlage hinterlegt</span>"
             body_rows.append(
-                f"<tr class=\"{css}\">"
+                f"<tr class=\"{css}\" data-color-search=\"{search_attr}\">"
                 f"<td><span class=\"dot\" aria-hidden=\"true\"></span></td>"
                 f"<td class=\"name\">{escaped_name}</td>"
                 f"<td><button type=\"button\" class=\"copy\" data-name=\"{button_name}\">Kopieren</button></td>"
-                f"<td>{escaped_cmyk}</td>"
-                f"<td>{print_summary}</td>"
+                f"<td class=\"cmykCell\">{escaped_cmyk}</td>"
+                f"<td class=\"printCell\">{print_summary}</td>"
                 f"<td>{sk_html}<br><button type=\"button\" class=\"addSk\" data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\">SK hinzufügen</button></td>"
-                f"<td>{approval_summary}</td>"
-                f"<td>{template_summary}</td>"
+                f"<td class=\"approvalCell\">{approval_summary}</td>"
+                f"<td class=\"transferCell\">{template_summary}</td>"
                 f"<td class=\"history\"><strong>Historie</strong><br>{history_html}<br><span title=\"Angelegt am\">Angelegt: {escaped_angelegt_am}</span><br><span title=\"Abgeglichen am\">Abgleich: {escaped_abgeglichen_am}</span></td>"
                 f"<td class=\"adminOnly\"><button type=\"button\" class=\"hideColor\" data-name=\"{button_name}\">Ausblenden</button></td>"
                 f"</tr>"
             )
 
         summary_html = (
-            f"<button type=\"button\" class=\"summaryPill\" data-filter=\"print\">{open_print_tests} Drucke offen</button>"
-            f"<button type=\"button\" class=\"summaryPill\" data-filter=\"approval\">{open_approvals} Abnahmen offen</button>"
-            f"<button type=\"button\" class=\"summaryPill\" data-filter=\"template\">{open_template_updates} Übernahmen offen</button>"
+            f"<button type=\"button\" class=\"summaryPill\" data-filter=\"print\"><strong>{open_print_tests}</strong><span>Drucke offen</span></button>"
+            f"<button type=\"button\" class=\"summaryPill\" data-filter=\"approval\"><strong>{open_approvals}</strong><span>Prüfungen offen</span></button>"
+            f"<button type=\"button\" class=\"summaryPill\" data-filter=\"template\"><strong>{open_template_updates}</strong><span>Vorlagen offen</span></button>"
         )
 
         document = f"""<!doctype html>
@@ -2303,19 +2316,23 @@ class ColorTableManager:
   <title>MPRINT Farbübersicht</title>
   <style>
     body {{ font-family: Segoe UI, Arial, sans-serif; margin: 24px; color: #20242a; background: #f4f5f6; }}
-    h1 {{ margin: 0 0 6px; font-size: 24px; }}
-    .meta {{ margin: 0 0 18px; color: #626b75; }}
-    .topBar {{ display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; margin: 0 0 16px; }}
-    .searchBar {{ display: flex; flex-direction: column; gap: 5px; margin: 0 0 14px; max-width: 360px; }}
-    .searchBar label {{ color: #1d3348; font-weight: 700; font-size: 14px; }}
-    .viewToggle {{ margin-bottom: 14px; }}
-    .summary {{ display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; }}
-    .summaryPill {{ padding: 7px 10px; background: #fff; }}
-    .entry {{ display: flex; gap: 8px; margin: 0 0 18px; max-width: 720px; }}
+    h1 {{ margin: 0 0 6px; font-size: 25px; }}
+    .meta {{ margin: 0 0 12px; color: #626b75; font-size: 13px; }}
+    .topBar {{ display: grid; grid-template-columns: minmax(280px, 760px); gap: 14px; align-items: end; margin: 0 0 14px; }}
+    .searchBar {{ display: flex; flex-direction: column; gap: 6px; }}
+    .searchBar label {{ color: #1d3348; font-weight: 800; font-size: 14px; }}
+    .searchBar input {{ font-size: 20px; padding: 14px 16px; }}
+    .viewControls {{ margin: 0 0 16px; }}
+    .viewToggle {{ min-width: 155px; }}
+    .summary {{ display: grid; grid-template-columns: repeat(3, minmax(150px, 1fr)); gap: 10px; margin: 0 0 14px; max-width: 760px; }}
+    .summaryPill {{ display: flex; align-items: baseline; gap: 8px; padding: 12px 14px; background: #fff; border-color: #d1d6dc; text-align: left; }}
+    .summaryPill strong {{ font-size: 22px; color: #20242a; }}
+    .summaryPill span {{ color: #626b75; }}
+    .entry {{ display: flex; gap: 8px; margin: 0 0 10px; max-width: 720px; }}
     input {{ flex: 1; padding: 10px 12px; border: 1px solid #c8cdd3; font-size: 15px; }}
     button {{ border: 1px solid #b7c0ca; background: #d8e1ec; color: #1d3348; padding: 9px 12px; cursor: pointer; font-weight: 600; }}
     button:hover {{ background: #c7d5e5; }}
-    .connection {{ display: inline-flex; align-items: center; gap: 8px; margin: -8px 0 16px; color: #626b75; font-size: 14px; }}
+    .connection {{ display: inline-flex; align-items: center; gap: 8px; margin: 0 0 16px; color: #626b75; font-size: 13px; }}
     .connection::before {{ content: ""; width: 10px; height: 10px; border-radius: 50%; background: #8c939b; }}
     .connection.ok::before {{ background: #2f8f4e; }}
     .connection.down::before {{ background: #bd3f3f; }}
@@ -2326,6 +2343,7 @@ class ColorTableManager:
     .noResults.visible {{ display: block; }}
     th, td {{ padding: 9px 10px; border-bottom: 1px solid #dfe3e7; text-align: left; font-size: 14px; vertical-align: top; }}
     th {{ background: #e7e9ec; }}
+    tr[hidden] {{ display: none !important; }}
     th.indicator, td:first-child {{ width: 34px; text-align: center; }}
     .name {{ font-weight: 600; }}
     .copy, .addSk, .workflow {{ padding: 6px 9px; font-size: 12px; }}
@@ -2350,8 +2368,8 @@ class ColorTableManager:
     body.admin .adminOnly {{ display: table-cell; }}
     body:not(.detailMode) thead {{ display: none; }}
     body:not(.detailMode) table {{ display: block; background: transparent; box-shadow: none; }}
-    body:not(.detailMode) tbody {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }}
-    body:not(.detailMode) tr {{ display: grid; grid-template-columns: 1fr; gap: 10px; padding: 18px; background: white; border: 1px solid #dfe3e7; border-left: 8px solid #8c939b; }}
+    body:not(.detailMode) tbody {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }}
+    body:not(.detailMode) tr {{ display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px 18px; padding: 20px; background: white; border: 1px solid #e4e7ea; border-left: 8px solid #8c939b; }}
     body:not(.detailMode) tr.ok {{ border-left-color: #2f8f4e; }}
     body:not(.detailMode) tr.wait {{ border-left-color: #c9901a; }}
     body:not(.detailMode) tr.new, body:not(.detailMode) tr.warn {{ border-left-color: #bd3f3f; }}
@@ -2360,16 +2378,31 @@ class ColorTableManager:
     body:not(.detailMode) td:nth-child(3),
     body:not(.detailMode) td:nth-child(9),
     body:not(.detailMode) td:nth-child(10) {{ display: none; }}
-    body:not(.detailMode) td.name {{ font-size: 22px; color: #20242a; }}
-    body:not(.detailMode) td:nth-child(4) {{ font-size: 16px; color: #20242a; }}
-    body:not(.detailMode) td:nth-child(5)::before {{ content: "Druck:"; display: block; color: #626b75; font-size: 12px; font-weight: 700; margin-bottom: 3px; }}
-    body:not(.detailMode) td:nth-child(7)::before {{ content: "Prüfung:"; display: block; color: #626b75; font-size: 12px; font-weight: 700; margin-bottom: 3px; }}
-    body:not(.detailMode) td:nth-child(8)::before {{ content: "Übernahme:"; display: block; color: #626b75; font-size: 12px; font-weight: 700; margin-bottom: 3px; }}
-    body:not(.detailMode) td:nth-child(6) {{ padding-top: 4px; }}
+    body:not(.detailMode) td.name {{ grid-column: 1 / -1; font-size: 24px; line-height: 1.1; color: #20242a; font-weight: 800; }}
+    body:not(.detailMode) .cmykCell {{ grid-column: 1 / -1; font-size: 17px; color: #20242a; margin-top: -8px; }}
+    body:not(.detailMode) .printCell::before {{ content: "Druck"; display: block; color: #626b75; font-size: 12px; font-weight: 800; margin-bottom: 4px; }}
+    body:not(.detailMode) .approvalCell::before {{ content: "Prüfung"; display: block; color: #626b75; font-size: 12px; font-weight: 800; margin-bottom: 4px; }}
+    body:not(.detailMode) .transferCell::before {{ content: "Vorlagen"; display: block; color: #626b75; font-size: 12px; font-weight: 800; margin-bottom: 4px; }}
+    body:not(.detailMode) td:nth-child(6) {{ grid-column: 1 / -1; padding-top: 2px; }}
     body:not(.detailMode) .addSk {{ display: none; }}
+    body:not(.detailMode) .workflow.danger {{ display: none; }}
+    body:not(.detailMode) .transferSummary {{ display: none; }}
+    body:not(.detailMode) .machineTransferSummary {{ display: block; font-size: 18px; font-weight: 800; }}
+    body:not(.detailMode) .machineTransferSummary.done {{ color: #2f8f4e; }}
+    body:not(.detailMode) .machineTransferSummary.open {{ color: #c9901a; }}
+    body:not(.detailMode) .machineTransferSummary.idle {{ color: #8c939b; }}
     body:not(.detailMode) .statusLine {{ font-size: 18px; }}
-    body:not(.detailMode) details summary {{ display: inline-block; padding: 7px 9px; border: 1px solid #c8cdd3; background: #eef1f4; }}
+    body:not(.detailMode) .skMeta {{ display: none; }}
+    body:not(.detailMode) details summary {{ display: inline-block; padding: 8px 10px; border: 1px solid #d1d6dc; background: #f6f7f8; }}
     body:not(.detailMode) details[open] summary {{ margin-bottom: 6px; }}
+    body.detailMode .machineTransferSummary {{ display: none; }}
+    body.detailMode .adminOnly {{ display: table-cell; }}
+    @media (max-width: 760px) {{
+      body {{ margin: 16px; }}
+      .topBar, .summary {{ grid-template-columns: 1fr; }}
+      .viewToggle {{ width: 100%; }}
+      body:not(.detailMode) tr {{ grid-template-columns: 1fr; }}
+    }}
     .dot {{ display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: #8c939b; }}
     tr.ok .dot {{ background: #2f8f4e; }}
     tr.wait .dot {{ background: #c9901a; }}
@@ -2400,7 +2433,6 @@ class ColorTableManager:
       <label for="colorSearch">Farbsuche</label>
       <input type="search" id="colorSearch" autocomplete="off" placeholder="Farbname suchen...">
     </div>
-    <button type="button" id="detailToggle" class="viewToggle">Details anzeigen</button>
   </div>
   <div class="summary">{summary_html}</div>
   <form class="entry" method="post" action="{html.escape(submit_url, quote=True)}" target="submitFrame">
@@ -2408,6 +2440,7 @@ class ColorTableManager:
     <button type="submit">Eintragen</button>
   </form>
   <div id="connectionStatus" class="connection checking">Verbindung wird geprüft</div>
+  <div class="viewControls"><button type="button" id="detailToggle" class="viewToggle">Details anzeigen</button></div>
   <div id="entryStatus"></div>
   <iframe name="submitFrame" style="display:none"></iframe>
   <table>
@@ -2507,11 +2540,12 @@ class ColorTableManager:
       }});
     }}
     function normalizeSearchText(value) {{
-      return String(value || '').toLocaleLowerCase('de-DE');
+      return String(value || '').replace(/\\s+/g, ' ').trim().toLocaleLowerCase('de-DE');
     }}
     function refreshRowSearchText(row) {{
       if (!row) return;
-      row.dataset.searchText = normalizeSearchText(row.textContent || '');
+      var stableSearch = row.getAttribute('data-color-search') || '';
+      row.dataset.searchText = normalizeSearchText(stableSearch + ' ' + (row.textContent || ''));
     }}
     function applyColorSearch() {{
       var input = document.getElementById('colorSearch');
@@ -2597,9 +2631,12 @@ class ColorTableManager:
         templateOpen += parseInt(button.getAttribute('data-open-count') || '0', 10) || 0;
       }});
       var pills = document.querySelectorAll('.summaryPill');
-      if (pills[0]) pills[0].textContent = printOpen + ' Drucke offen';
-      if (pills[1]) pills[1].textContent = approvalOpen + ' Abnahmen offen';
-      if (pills[2]) pills[2].textContent = templateOpen + ' Übernahmen offen';
+      function setPill(pill, count, label) {{
+        if (pill) pill.innerHTML = '<strong>' + String(count) + '</strong><span>' + escapeHtml(label) + '</span>';
+      }}
+      setPill(pills[0], printOpen, 'Drucke offen');
+      setPill(pills[1], approvalOpen, 'Prüfungen offen');
+      setPill(pills[2], templateOpen, 'Vorlagen offen');
     }}
     function updateSkSummary(row) {{
       if (!row) return;
@@ -2672,9 +2709,10 @@ class ColorTableManager:
       var details = ensureDetails(row);
       var item = document.createElement('div');
       item.className = 'skItem';
-      item.innerHTML = '<strong>SK ' + escapeHtml(sk) + '</strong>';
+      item.innerHTML = '<strong>SK ' + escapeHtml(sk) + '</strong><span class="statusLine open">○ Übernahme offen</span>';
       details.appendChild(item);
       details.open = true;
+      row.setAttribute('data-color-search', ((row.getAttribute('data-color-search') || '') + ' ' + sk).trim());
       updateSkSummary(row);
       refreshRowSearchText(row);
       applyColorSearch();
@@ -2689,21 +2727,32 @@ class ColorTableManager:
       button.addEventListener('click', function() {{
         var name = button.getAttribute('data-name') || '';
         var status = document.getElementById('entryStatus');
+        var row = button.closest('tr');
         if (!window.fetch) {{
           status.textContent = 'Ausblenden braucht einen aktuellen Browser.';
           return;
         }}
-        if (!window.confirm('Farbe aus der Übersicht ausblenden?\\n\\n' + name)) {{
-          return;
-        }}
-        status.textContent = 'Farbe wird ausgeblendet...';
-        postHelper({hide_url_json}, {{ farbe: name }})
-        .then(function(payload) {{
-          status.textContent = payloadMessage(payload, 'Farbe ausgeblendet.');
-          window.setTimeout(function() {{ window.location.reload(); }}, 700);
-        }})
-        .catch(function(error) {{
-          status.textContent = 'Farbe nicht ausgeblendet: ' + friendlyFetchError(error);
+        showDialog({{
+          title: 'Farbe ausblenden?',
+          body: '<p><strong>Farbname:</strong><br>' + escapeHtml(name) + '</p><p>Die Farbe wird nur aus der MPRINT Farbübersicht ausgeblendet.<br>Die ursprünglichen Farbdaten werden nicht gelöscht.</p>',
+          okText: 'Ausblenden'
+        }}).then(function(confirmed) {{
+          if (!confirmed) {{
+            return;
+          }}
+          status.textContent = 'Farbe wird ausgeblendet...';
+          postHelper({hide_url_json}, {{ farbe: name }})
+          .then(function(payload) {{
+            status.textContent = payloadMessage(payload, 'Farbe ausgeblendet.');
+            if (row) {{
+              row.remove();
+            }}
+            applyColorSearch();
+            updateSummaries();
+          }})
+          .catch(function(error) {{
+            status.textContent = 'Farbe nicht ausgeblendet: ' + friendlyFetchError(error);
+          }});
         }});
       }});
     }});
