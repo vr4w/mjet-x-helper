@@ -20,6 +20,7 @@ import tempfile
 import threading
 import time
 import tkinter as tk
+import unicodedata
 import webbrowser
 import xml.etree.ElementTree as ET
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -274,6 +275,15 @@ class CosCheckResult:
     master_hits: list[str] = field(default_factory=list)
 
 
+@dataclass
+class SingleColorCandidate:
+    name: str
+    entry: ET.Element
+    source_file: Path
+    mtime: float
+    ignored_names: list[str] = field(default_factory=list)
+
+
 class ColorTableManager:
     def __init__(self, config: dict, logger: HelperLogger):
         self.config = config
@@ -321,79 +331,83 @@ class ColorTableManager:
             self.logger.log(error, "ERROR")
             return SyncResult("red", error, errors=[error])
 
-        unique_entries: list[ET.Element] = []
-        seen_by_name: dict[str, tuple[str, int, Path, float]] = {}
-        duplicate_same = 0
         master_entries = self._master_entries_by_name(master_path) if master_path.exists() else {}
         import_corrections: dict[str, dict[str, str]] = {}
+        candidates_by_name: dict[str, list[SingleColorCandidate]] = {}
+        display_names: dict[str, str] = {}
+        extra_entry_files = 0
 
         for color_file in color_files:
-            file_mtime = self._safe_mtime(color_file)
-            try:
-                tree = ET.parse(color_file)
-            except ET.ParseError as exc:
-                errors.append(f"XML fehlerhaft in {color_file.name}: {exc}")
-                self.logger.log(f"XML fehlerhaft in {color_file}: {exc}", "ERROR")
+            candidate, read_errors, read_warnings = self._single_color_candidate_from_file(color_file)
+            for error in read_errors:
+                errors.append(error)
+                self.logger.log(error, "ERROR")
+            for warning in read_warnings:
+                warnings.append(warning)
+                self.logger.log(warning, "WARNING")
+            if candidate is None:
                 continue
-            except Exception as exc:
-                errors.append(f"Datei konnte nicht gelesen werden: {color_file.name}: {exc}")
-                self.logger.log(f"Datei konnte nicht gelesen werden: {color_file}: {exc}", "ERROR")
-                continue
-
-            entries = [
-                copy.deepcopy(elem)
-                for elem in tree.getroot().iter()
-                if local_name(elem.tag) == "ColorEntry"
-            ]
-            self.logger.log(f"{color_file.name}: {len(entries)} ColorEntry-Einträge")
-
-            for entry in entries:
-                original_name = self._color_entry_name(entry)
-                name = self._normalize_entry_name_for_file(entry, color_file)
-                correction = self._detect_import_correction(
-                    name=name,
-                    original_name=original_name,
-                    incoming_entry=entry,
-                    master_entries=master_entries,
+            if candidate.ignored_names:
+                extra_entry_files += 1
+                self.logger.log(
+                    f"{color_file.name}: verwendet {candidate.name}; ignoriert: {', '.join(candidate.ignored_names)}"
                 )
-                if correction:
-                    master_entry = master_entries.get(name.casefold())
-                    if master_entry is not None:
-                        entry = copy.deepcopy(master_entry)
-                        warning = self._import_correction_warning_text()
-                        if warning not in warnings:
-                            warnings.append(warning)
-                        import_corrections[name.casefold()] = correction
-                        self.logger.log(
-                            f"Farbimport-Schutz: {name} aus {color_file.name} korrigiert. "
-                            "Bestehende MPRINT-Zuordnung beibehalten.",
-                            "WARNING",
-                        )
-                content = self._entry_signature(entry)
-                if name in seen_by_name:
-                    previous_content, previous_index, previous_file, previous_mtime = seen_by_name[name]
-                    if previous_content == content:
-                        duplicate_same += 1
-                        self.logger.log(f"Doppelte Farbe identisch übersprungen: {name}")
-                    else:
-                        warning = f"Doppelte Farbe: {name} - bitte prüfen."
+            key = self._normalized_color_key(candidate.name)
+            candidates_by_name.setdefault(key, []).append(candidate)
+            display_names.setdefault(key, candidate.name)
+
+        if not candidates_by_name:
+            error = "Keine gültigen Einzel-Farbexports gefunden. Der Master wurde nicht verändert."
+            errors.append(error)
+            self.logger.log(error, "ERROR")
+
+        unique_entries: list[ET.Element] = []
+        color_names: list[str] = []
+        automatic_conflicts = 0
+        updated_colors: list[str] = []
+        for key in sorted(candidates_by_name, key=lambda item: display_names[item].casefold()):
+            candidates = sorted(
+                candidates_by_name[key],
+                key=lambda candidate: (candidate.mtime, candidate.source_file.name.casefold()),
+                reverse=True,
+            )
+            winner = candidates[0]
+            if len(candidates) > 1:
+                automatic_conflicts += 1
+                self.logger.log(
+                    "Mehrere Quellen für "
+                    f"{winner.name} erkannt. Verwendet wurde die zuletzt geänderte Datei: "
+                    f"{winner.source_file.name} ({self._mtime_text(winner.mtime)})",
+                    "WARNING",
+                )
+            entry = copy.deepcopy(winner.entry)
+            original_name = self._color_entry_name(entry)
+            name = winner.name
+            correction = self._detect_import_correction(
+                name=name,
+                original_name=original_name,
+                incoming_entry=entry,
+                master_entries=master_entries,
+            )
+            if correction:
+                master_entry = master_entries.get(self._normalized_color_key(name))
+                if master_entry is not None:
+                    entry = copy.deepcopy(master_entry)
+                    warning = self._import_correction_warning_text()
+                    if warning not in warnings:
                         warnings.append(warning)
-                        if file_mtime >= previous_mtime:
-                            unique_entries[previous_index] = entry
-                            seen_by_name[name] = (content, previous_index, color_file, file_mtime)
-                            winner = color_file
-                            loser = previous_file
-                        else:
-                            winner = previous_file
-                            loser = color_file
-                        self.logger.log(
-                            f"{warning} Gewinner: {winner.name}; übersprungen: {loser.name}",
-                            "WARNING",
-                        )
-                    continue
-                seen_by_name[name] = (content, len(unique_entries), color_file, file_mtime)
-                unique_entries.append(entry)
-                color_names.append(name)
+                    import_corrections[self._normalized_color_key(name)] = correction
+                    self.logger.log(
+                        f"Farbimport-Schutz: {name} aus {winner.source_file.name} korrigiert. "
+                        "Bestehende MPRINT-Zuordnung beibehalten.",
+                        "WARNING",
+                    )
+            master_entry = master_entries.get(self._normalized_color_key(name))
+            if master_entry is not None and self._entry_signature(master_entry) != self._entry_signature(entry):
+                updated_colors.append(name)
+                self.logger.log(f"{name} wurde aus {winner.source_file.name} aktualisiert.")
+            unique_entries.append(entry)
+            color_names.append(name)
 
         if errors:
             return SyncResult(
@@ -438,8 +452,14 @@ class ColorTableManager:
             self.import_corrections = {}
 
         self.logger.log(f"Übernommene Farben: {len(unique_entries)}")
-        if duplicate_same:
-            self.logger.log(f"Identische doppelte Farben übersprungen: {duplicate_same}")
+        if extra_entry_files:
+            self.logger.log(
+                f"{extra_entry_files} Mehrfarben-Exportdatei(en) automatisch auf Dateiname-Farbe reduziert"
+            )
+        if automatic_conflicts:
+            self.logger.log(f"{automatic_conflicts} mehrdeutige Quellen automatisch nach Änderungsdatum aufgelöst")
+        if updated_colors:
+            self.logger.log("Aktualisierte Farben: " + ", ".join(updated_colors[:20]))
 
         if errors:
             return SyncResult(
@@ -472,9 +492,24 @@ class ColorTableManager:
                 errors,
                 source_files,
             )
+        success_message = "Master erfolgreich gebaut" if write_master else "Master-Prüfung erfolgreich"
+        success_notes: list[str] = []
+        if extra_entry_files:
+            success_notes.append(
+                "Mehrfarben-Exports wurden automatisch auf die passende Dateiname-Farbe reduziert."
+            )
+        if automatic_conflicts:
+            success_notes.append("Mehrere Quellen wurden nach Änderungsdatum eindeutig aufgelöst.")
+        if updated_colors:
+            color_list = ", ".join(updated_colors[:10])
+            if len(updated_colors) > 10:
+                color_list += f" und {len(updated_colors) - 10} weitere"
+            success_notes.append(f"Aktualisierte Farben: {color_list}.")
+        if success_notes:
+            success_message = "Farbabgleich erfolgreich. " + " ".join(success_notes)
         return SyncResult(
             "green",
-            "Master erfolgreich gebaut" if write_master else "Master-Prüfung erfolgreich",
+            success_message,
             color_names,
             profiles,
             warnings,
@@ -513,52 +548,62 @@ class ColorTableManager:
             return SyncResult("red", error, errors=[error], files=source_files)
 
         single_signatures: dict[str, str] = {}
-        seen_sources: dict[str, Path] = {}
         master_entries = self._master_entries_by_name(master_path)
         import_corrections: dict[str, dict[str, str]] = {}
+        candidates_by_name: dict[str, list[SingleColorCandidate]] = {}
+        display_names: dict[str, str] = {}
         for color_file in color_files:
-            try:
-                tree = ET.parse(color_file)
-            except ET.ParseError as exc:
-                errors.append(f"XML fehlerhaft in {color_file.name}: {exc}")
+            candidate, read_errors, read_warnings = self._single_color_candidate_from_file(color_file)
+            errors.extend(read_errors)
+            warnings.extend(read_warnings)
+            if candidate is None:
                 continue
-            except Exception as exc:
-                errors.append(f"Datei konnte nicht gelesen werden: {color_file.name}: {exc}")
-                continue
+            key = self._normalized_color_key(candidate.name)
+            candidates_by_name.setdefault(key, []).append(candidate)
+            display_names.setdefault(key, candidate.name)
 
-            for entry in tree.getroot().iter():
-                if local_name(entry.tag) != "ColorEntry":
-                    continue
-                normalized_entry = copy.deepcopy(entry)
-                original_name = self._color_entry_name(normalized_entry)
-                name = self._normalize_entry_name_for_file(normalized_entry, color_file)
-                correction = self._detect_import_correction(
-                    name=name,
-                    original_name=original_name,
-                    incoming_entry=normalized_entry,
-                    master_entries=master_entries,
+        if not candidates_by_name:
+            error = "Keine gültigen Einzel-Farbexports gefunden"
+            errors.append(error)
+
+        for key in sorted(candidates_by_name, key=lambda item: display_names[item].casefold()):
+            candidates = sorted(
+                candidates_by_name[key],
+                key=lambda candidate: (candidate.mtime, candidate.source_file.name.casefold()),
+                reverse=True,
+            )
+            winner = candidates[0]
+            normalized_entry = copy.deepcopy(winner.entry)
+            original_name = self._color_entry_name(normalized_entry)
+            name = winner.name
+            if len(candidates) > 1:
+                self.logger.log(
+                    "Mehrere Quellen für "
+                    f"{name} erkannt. Verwendet wurde die zuletzt geänderte Datei: "
+                    f"{winner.source_file.name} ({self._mtime_text(winner.mtime)})",
+                    "WARNING",
                 )
-                if correction:
-                    master_entry = master_entries.get(name.casefold())
-                    if master_entry is not None:
-                        normalized_entry = copy.deepcopy(master_entry)
-                        warning = self._import_correction_warning_text()
-                        if warning not in warnings:
-                            warnings.append(warning)
-                        import_corrections[name.casefold()] = correction
-                        self.logger.log(
-                            f"Farbimport-Schutz: {name} aus {color_file.name} erkannt. "
-                            "Bestehende MPRINT-Zuordnung bleibt maßgeblich.",
-                            "WARNING",
-                        )
-                signature = self._entry_signature(normalized_entry)
-                if name in single_signatures:
-                    if single_signatures[name] != signature:
-                        warnings.append(f"Doppelte Farbe: {name} - bitte prüfen.")
-                    continue
-                single_signatures[name] = signature
-                seen_sources[name] = color_file
-                color_names.append(name)
+            correction = self._detect_import_correction(
+                name=name,
+                original_name=original_name,
+                incoming_entry=normalized_entry,
+                master_entries=master_entries,
+            )
+            if correction:
+                master_entry = master_entries.get(self._normalized_color_key(name))
+                if master_entry is not None:
+                    normalized_entry = copy.deepcopy(master_entry)
+                    warning = self._import_correction_warning_text()
+                    if warning not in warnings:
+                        warnings.append(warning)
+                    import_corrections[self._normalized_color_key(name)] = correction
+                    self.logger.log(
+                        f"Farbimport-Schutz: {name} aus {winner.source_file.name} erkannt. "
+                        "Bestehende MPRINT-Zuordnung bleibt maßgeblich.",
+                        "WARNING",
+                    )
+            single_signatures[name] = self._entry_signature(normalized_entry)
+            color_names.append(name)
 
         if errors:
             for error in errors:
@@ -573,10 +618,14 @@ class ColorTableManager:
             )
 
         master_signatures = self._master_entry_signatures(master_path)
+        master_signature_lookup = {
+            self._normalized_color_key(name): signature
+            for name, signature in master_signatures.items()
+        }
         missing_or_changed = [
             name
             for name, signature in single_signatures.items()
-            if master_signatures.get(name) != signature
+            if master_signature_lookup.get(self._normalized_color_key(name)) != signature
         ]
 
         try:
@@ -638,6 +687,78 @@ class ColorTableManager:
             files.append(path)
         return files
 
+    def _single_color_candidate_from_file(
+        self,
+        color_file: Path,
+    ) -> tuple[SingleColorCandidate | None, list[str], list[str]]:
+        file_mtime = self._safe_mtime(color_file)
+        target_name = self._target_color_name_from_file(color_file)
+        errors: list[str] = []
+        warnings: list[str] = []
+        try:
+            tree = ET.parse(color_file)
+        except ET.ParseError as exc:
+            return None, [f"XML fehlerhaft in {color_file.name}: {exc}"], []
+        except Exception as exc:
+            return None, [f"Datei konnte nicht gelesen werden: {color_file.name}: {exc}"], []
+
+        entries = [
+            copy.deepcopy(elem)
+            for elem in tree.getroot().iter()
+            if local_name(elem.tag) == "ColorEntry"
+        ]
+        self.logger.log(f"{color_file.name}: {len(entries)} ColorEntry-Einträge")
+        matching: list[ET.Element] = []
+        ignored_names: list[str] = []
+        target_key = self._normalized_color_key(target_name)
+        for entry in entries:
+            entry_name = self._clean_color_name(self._color_entry_name(entry))
+            if self._normalized_color_key(entry_name) == target_key:
+                entry.set("Name", target_name)
+                matching.append(entry)
+            elif entry_name:
+                ignored_names.append(entry_name)
+
+        if not matching:
+            warnings.append(
+                f"{color_file.name} enthält keinen passenden Farbeintrag '{target_name}'. "
+                "Die Datei wurde nicht übernommen."
+            )
+            return None, errors, warnings
+
+        if len(matching) > 1:
+            warnings.append(
+                f"{color_file.name} enthält mehrere passende Farbeinträge '{target_name}'. "
+                "Der erste passende Eintrag wurde verwendet."
+            )
+
+        return (
+            SingleColorCandidate(
+                name=target_name,
+                entry=matching[0],
+                source_file=color_file,
+                mtime=file_mtime,
+                ignored_names=ignored_names,
+            ),
+            errors,
+            warnings,
+        )
+
+    def _target_color_name_from_file(self, color_file: Path) -> str:
+        return self._clean_color_name(unicodedata.normalize("NFC", color_file.stem))
+
+    def _normalized_color_key(self, value: str) -> str:
+        normalized = unicodedata.normalize("NFC", self._clean_color_name(value))
+        return normalized.casefold()
+
+    def _mtime_text(self, value: float) -> str:
+        if not value:
+            return "Datum nicht lesbar"
+        try:
+            return dt.datetime.fromtimestamp(value).strftime("%d.%m.%Y %H:%M")
+        except Exception:
+            return "Datum nicht lesbar"
+
     def _is_ignored_file(self, path: Path) -> bool:
         name = path.name
         lower = name.lower()
@@ -669,27 +790,6 @@ class ColorTableManager:
         content = ET.tostring(entry, encoding="unicode")
         compact = re.sub(r"\s+", " ", content).strip()
         return compact[:80] or f"ColorEntry-{id(entry)}"
-
-    def _normalize_entry_name_for_file(self, entry: ET.Element, color_file: Path) -> str:
-        name = self._color_entry_name(entry)
-        file_name = color_file.stem.strip()
-        generic_names = {
-            "eindruckfarbe",
-            "eindruckfarbe2",
-            "test",
-            "custom",
-            "sonderfarbe",
-            "passer",
-            "cut",
-            "crop",
-        }
-        if file_name and name.casefold() in generic_names and file_name.casefold() != name.casefold():
-            entry.set("Name", file_name)
-            self.logger.log(
-                f"Generischer Farbname '{name}' aus {color_file.name} als '{file_name}' übernommen."
-            )
-            return file_name
-        return name
 
     def _entry_signature(self, entry: ET.Element) -> str:
         def normalize(node: ET.Element) -> tuple:
@@ -726,7 +826,7 @@ class ColorTableManager:
             if local_name(entry.tag) == "ColorEntry":
                 name = self._clean_color_name(self._color_entry_name(entry))
                 if name:
-                    entries[name.casefold()] = copy.deepcopy(entry)
+                    entries[self._normalized_color_key(name)] = copy.deepcopy(entry)
         return entries
 
     def _detect_import_correction(
@@ -740,7 +840,7 @@ class ColorTableManager:
         cleaned_original = self._clean_color_name(original_name)
         if not cleaned_name:
             return None
-        master_entry = master_entries.get(cleaned_name.casefold())
+        master_entry = master_entries.get(self._normalized_color_key(cleaned_name))
         if master_entry is None:
             return None
         if not self._is_technical_color_name(cleaned_original):
@@ -1874,21 +1974,19 @@ class ColorTableManager:
 
         info_by_key: dict[str, dict[str, str]] = {}
         for color_file in self._find_color_files(single_dir, master_path):
-            try:
-                tree = ET.parse(color_file)
-            except Exception:
+            candidate, _errors, _warnings = self._single_color_candidate_from_file(color_file)
+            if candidate is None:
                 continue
-            for entry in tree.getroot().iter():
-                if local_name(entry.tag) != "ColorEntry":
-                    continue
-                normalized_entry = copy.deepcopy(entry)
-                name = self._normalize_entry_name_for_file(normalized_entry, color_file)
-                key = name.casefold()
-                if key not in info_by_key:
-                    info_by_key[key] = {
-                        "name": name,
-                        "cmyk": self._color_entry_cmyk(normalized_entry),
-                    }
+            key = self._normalized_color_key(candidate.name)
+            existing = info_by_key.get(key)
+            if existing and float(existing.get("mtime", "0") or 0) > candidate.mtime:
+                continue
+            info_by_key[key] = {
+                "name": candidate.name,
+                "cmyk": self._color_entry_cmyk(candidate.entry),
+                "mtime": str(candidate.mtime),
+                "source_file": candidate.source_file.name,
+            }
         return info_by_key
 
     def _color_entry_cmyk(self, entry: ET.Element) -> str:
