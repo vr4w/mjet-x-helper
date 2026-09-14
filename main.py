@@ -2940,8 +2940,9 @@ class ColorTableManager:
     .transferSummary.done {{ color: #2f8f4e; }}
     .transferSummary.open {{ color: #c9901a; }}
     .printDecision {{ display: inline-flex; flex-wrap: wrap; gap: 7px; }}
-    .printChoice {{ border-radius: 999px; padding: 7px 10px; border: 1px solid #cdd6ce; background: #edf6ee; color: #245735; font-weight: 800; }}
-    .printChoice.notPrintable {{ border-color: #e0b9b9; background: #f8e9e9; color: #7a1f1f; }}
+    .printChoice {{ border-radius: 999px; padding: 7px 10px; border: 1px solid #ccd3db; background: #ffffff; color: #37414d; font-weight: 800; }}
+    .printChoice.printable.active {{ border-color: #8ab896; background: #edf7ef; color: #245735; }}
+    .printChoice.notPrintable {{ border-color: #dcc4c4; background: #fff7f7; color: #7a1f1f; }}
     .printChoice.active {{ box-shadow: inset 0 0 0 2px rgba(47, 143, 78, 0.22); }}
     .notPrintableBanner {{ display: inline-flex; align-items: center; margin-top: 10px; padding: 8px 10px; background: #f4dddd; color: #7a1f1f; border: 1px solid #d9a5a5; font-size: 15px; font-weight: 900; }}
     .notPrintableCardReason {{ margin-top: 8px; color: #6a2a2a; font-size: 14px; line-height: 1.35; font-weight: 600; }}
@@ -2976,15 +2977,18 @@ class ColorTableManager:
     body:not(.detailMode) thead {{ display: none; }}
     body:not(.detailMode) table {{ display: block; background: transparent; box-shadow: none; }}
     body:not(.detailMode) tbody {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; align-items: start; }}
-    body:not(.detailMode) tr {{ position: relative; overflow: hidden; display: grid; grid-template-columns: 118px minmax(0, 1fr); grid-template-rows: 68px 46px 30px 30px; gap: 8px 10px; height: 230px; padding: 16px; background: #fff; border: 1px solid #e1e5e9; border-left: 0; box-shadow: 0 1px 2px rgba(32,36,42,0.04); box-sizing: border-box; }}
-    body:not(.detailMode) tr.new, body:not(.detailMode) tr.warn {{ background: #fafbfc; }}
-    body:not(.detailMode) tr.blocked {{ background: #fff8f8; border-color: #e8caca; }}
+    body:not(.detailMode) tr {{ position: relative; overflow: hidden; display: grid; grid-template-columns: 118px minmax(0, 1fr); grid-template-rows: 68px 46px 30px 30px; gap: 8px 10px; height: 230px; padding: 16px; background: #f4f6f7; border: 1px solid #dfe4e8; border-left: 4px solid #c9d1d8; box-shadow: 0 1px 2px rgba(32,36,42,0.035); box-sizing: border-box; color: #49525c; }}
+    body:not(.detailMode) tr.ok {{ background: #ffffff; border-color: #dce8df; border-left-color: #579b66; color: #20242a; }}
+    body:not(.detailMode) tr.wait,
+    body:not(.detailMode) tr.new,
+    body:not(.detailMode) tr.warn {{ background: #f3f5f6; border-color: #dfe4e8; border-left-color: #c9d1d8; color: #4d5660; }}
+    body:not(.detailMode) tr.blocked {{ background: #fff7f6; border-color: #ead2d0; border-left-color: #c96262; color: #382c2c; }}
     body:not(.detailMode) td {{ display: block; border: 0; padding: 0; white-space: normal; }}
     body:not(.detailMode) td:first-child,
     body:not(.detailMode) td:nth-child(3),
     body:not(.detailMode) td:nth-child(9),
     body:not(.detailMode) td:nth-child(10) {{ display: none; }}
-    body:not(.detailMode) td.name {{ grid-column: 1 / -1; grid-row: 1; min-height: 0; padding-right: 92px; font-size: 21px; line-height: 1.08; color: #20242a; font-weight: 850; }}
+    body:not(.detailMode) td.name {{ grid-column: 1 / -1; grid-row: 1; min-height: 0; padding-right: 92px; font-size: 21px; line-height: 1.08; color: inherit; font-weight: 850; }}
     body:not(.detailMode) .colorNameText {{ display: -webkit-box; max-width: 100%; overflow: hidden; overflow-wrap: anywhere; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }}
     body:not(.detailMode) .machineCmyk {{ display: block; max-width: calc(100% - 4px); margin-top: 5px; color: #626b75; font-size: 12px; line-height: 1.1; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
     body:not(.detailMode) .colorCorner {{ position: absolute; top: 0; right: 0; width: 86px; height: 78px; margin: 0; border: 0; border-radius: 0; clip-path: polygon(100% 0, 0 0, 100% 100%); box-shadow: none; }}
@@ -2998,8 +3002,11 @@ class ColorTableManager:
     body:not(.detailMode) .approvalCell {{ grid-column: 2; grid-row: 3; }}
     body:not(.detailMode) .transferCell {{ grid-column: 2; grid-row: 4; }}
     body:not(.detailMode) .approvalCell,
-    body:not(.detailMode) .transferCell {{ display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; padding: 6px 9px; background: #f7f8f9; border: 1px solid #eceff2; box-sizing: border-box; }}
-    body:not(.detailMode) .addSk {{ display: grid; width: 100%; height: 100%; margin: 0; padding: 9px 8px; align-content: center; justify-items: center; gap: 4px; background: #eef1f4; border-color: #d9dee4; }}
+    body:not(.detailMode) .transferCell {{ display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; padding: 6px 9px; background: rgba(255,255,255,0.62); border: 1px solid rgba(190,199,208,0.5); box-sizing: border-box; }}
+    body:not(.detailMode) tr.ok .approvalCell,
+    body:not(.detailMode) tr.ok .transferCell {{ background: #f8fbf8; border-color: #e5eee7; }}
+    body:not(.detailMode) .addSk {{ display: grid; width: 100%; height: 100%; margin: 0; padding: 9px 8px; align-content: center; justify-items: center; gap: 4px; background: rgba(255,255,255,0.68); border-color: rgba(190,199,208,0.58); }}
+    body:not(.detailMode) tr.ok .addSk {{ background: #f8fbf8; border-color: #dfe9e1; }}
     body:not(.detailMode) .templateButtonLabel {{ color: #626b75; font-size: 12px; font-weight: 900; }}
     body:not(.detailMode) .templateButtonCount {{ color: #20242a; font-size: 28px; line-height: 1; font-weight: 900; }}
     body:not(.detailMode) .templateButtonPlus {{ color: #626b75; font-size: 16px; line-height: 1; }}
@@ -3020,7 +3027,7 @@ class ColorTableManager:
     body:not(.detailMode) tr.blocked .notPrintableBanner {{ display: flex; width: fit-content; margin-top: 13px; padding: 7px 9px; font-size: 14px; }}
     body:not(.detailMode) tr.blocked .notPrintableCardReason {{ max-height: 54px; overflow-y: auto; padding-right: 5px; font-size: 13px; }}
     body:not(.detailMode) tr.blocked .skCell {{ grid-column: 1 / -1; grid-row: 4; }}
-    body:not(.detailMode) tr.blocked .addSk {{ display: flex; align-items: center; justify-content: center; gap: 8px; padding: 5px 10px; }}
+    body:not(.detailMode) tr.blocked .addSk {{ display: flex; align-items: center; justify-content: center; gap: 8px; padding: 5px 10px; background: #fffafa; border-color: #e8d0ce; }}
     body:not(.detailMode) tr.blocked .templateButtonCount {{ font-size: 20px; }}
     body:not(.detailMode) details {{ display: none; }}
     body:not(.detailMode) .skEmpty {{ display: none; }}
@@ -4416,10 +4423,10 @@ def _write_preview_data(config: dict, manager: ColorTableManager) -> None:
     rows = [
         _preview_row(manager, "CLR-900001", "MUSTERMANN ROT", "C 0 / M 90 / Y 80 / K 5", "Einzelfarbe vorhanden - Farbabgleich offen", sks=[_preview_sk(manager, "SK 100001")]),
         _preview_row(manager, "CLR-900002", "VOGT BLAU", "C 100 / M 60 / Y 10 / K 10", "MPRINT angepasst / druckbar", printed=True, sks=[_preview_sk(manager, "FOG_BAD_003")]),
+        _preview_row(manager, "CLR-900006", "ADAM ROT", "C 5 / M 90 / Y 80 / K 5", "MPRINT angepasst / druckbar", printed=True, approved=True, sks=[_preview_sk(manager, "SK 400001"), _preview_sk(manager, "SK 400002")], not_printable=True, reason="Feine und fette schwarze Schriften im selben Eindruck - keine stabile gemeinsame Maschineneinstellung möglich."),
         _preview_row(manager, "CLR-900003", "ANDREAS GRUEN", "C 70 / M 0 / Y 90 / K 10", "MPRINT angepasst / druckbar", printed=True, approved=True, sks=[_preview_sk(manager, "SK 200010")]),
         _preview_row(manager, "CLR-900004", "FOGT BLAU MIT LANGER BEZEICHNUNG FUER MASCHINENTEST", "C 100 / M 60 / Y 10 / K 10", "MPRINT angepasst / druckbar", printed=True, approved=True, sks=[_preview_sk(manager, "FOG_BAD_003", True, "Marvin"), _preview_sk(manager, "FOG_BAD_011"), _preview_sk(manager, "FOG_BAD_020")]),
         _preview_row(manager, "CLR-900005", "ALLES ABGESCHLOSSEN", "C 30 / M 20 / Y 10 / K 0", "MPRINT angepasst / druckbar", printed=True, approved=True, sks=[_preview_sk(manager, "SK 300001", True, "Marvin"), _preview_sk(manager, "SK 300002", True, "Marvin")]),
-        _preview_row(manager, "CLR-900006", "ADAM ROT", "C 5 / M 90 / Y 80 / K 5", "MPRINT angepasst / druckbar", printed=True, approved=True, sks=[_preview_sk(manager, "SK 400001"), _preview_sk(manager, "SK 400002")], not_printable=True, reason="Feine und fette schwarze Schriften im selben Eindruck - keine stabile gemeinsame Maschineneinstellung möglich."),
         _preview_row(manager, "CLR-900007", "ADAM SCHWARZ LANGER GRUND", "C 80 / M 70 / Y 60 / K 100", "MPRINT angepasst / druckbar", printed=True, approved=True, sks=[_preview_sk(manager, "SK-SEHR-LANGE-123456789")], not_printable=True, reason="Sehr feine Negativschrift und massive Volltonflächen liegen in einer Anwendung zusammen. Die Maschine kann für diesen Eindruck nicht gleichzeitig scharf genug und flächig stabil genug eingestellt werden, ohne sichtbare Qualitätsverluste zu erzeugen."),
         _preview_row(manager, "CLR-900008", "SEHR HELLE FARBE", "C 0 / M 0 / Y 0 / K 0", "Noch nicht an MPRINT gedruckt"),
         _preview_row(manager, "CLR-900009", "TIEFSCHWARZ TEST", "C 80 / M 70 / Y 60 / K 100", "MPRINT angepasst / druckbar", printed=True, approved=True),
