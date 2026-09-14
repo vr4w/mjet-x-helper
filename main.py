@@ -2773,14 +2773,18 @@ class ColorTableManager:
             sk_state_attr = html.escape(json.dumps(sk_state, ensure_ascii=False), quote=True)
             search_attr = html.escape(" ".join(search_parts), quote=True)
             if not_printable:
-                print_summary = "<span class=\"statusLine idle\">○ zurückgestellt</span>"
+                print_summary = (
+                    "<div class=\"printDecision\">"
+                    "<span class=\"printChoice notPrintable active\">✕ Nicht druckbar</span>"
+                    "</div>"
+                )
             elif printed:
                 print_summary = (
                     "<div class=\"printDecision\">"
                     "<span class=\"printChoice printable active\">✓ Druckbar</span>"
-                    f"<button type=\"button\" class=\"printChoice notPrintable workflow\" data-action=\"notPrintable\" "
+                    f"<button type=\"button\" class=\"printChoice notPrintable workflow detailStatusChange\" data-action=\"notPrintable\" "
                     f"data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\" "
-                    f"data-sk-state=\"{sk_state_attr}\">Nicht druckbar</button>"
+                    f"data-sk-state=\"{sk_state_attr}\">Status ändern</button>"
                     "</div>"
                 )
             else:
@@ -2804,8 +2808,11 @@ class ColorTableManager:
                 )
             elif printed:
                 approval_summary = (
-                    f"<button type=\"button\" class=\"workflow warn\" data-action=\"approve\" "
+                    "<span class=\"statusLine idle\" title=\"Prüfung offen\">"
+                    "<span class=\"machineApproval\">○</span>"
+                    f"<button type=\"button\" class=\"workflow warn detailApproval\" data-action=\"approve\" "
                     f"data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\">Andreas freigeben</button>"
+                    "</span>"
                 )
             else:
                 approval_summary = "<span class=\"statusLine idle\" title=\"Prüfung offen\"><span class=\"machineApproval\">○</span><span class=\"detailApproval\">○ offen</span></span>"
@@ -2922,9 +2929,12 @@ class ColorTableManager:
   <meta charset="utf-8">
   <title>MPRINT Farbübersicht</title>
   <style>
-    body {{ font-family: Segoe UI, Arial, sans-serif; margin: 24px; color: #20242a; background: #f4f5f6; }}
+    body {{ font-family: Segoe UI, Arial, sans-serif; margin: 24px; color: #20242a; background: #e9ecef; }}
     h1 {{ margin: 0 0 6px; font-size: 25px; }}
     .meta {{ margin: 0 0 12px; color: #626b75; font-size: 13px; }}
+    .machineHeader {{ display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; margin: 0 0 14px; }}
+    .titleBlock {{ min-width: 0; }}
+    .headerActions {{ display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }}
     .previewBanner {{ display: inline-flex; margin: 0 0 14px; padding: 7px 10px; background: #fff4cc; color: #6b4d00; border: 1px solid #e5ca72; font-weight: 800; font-size: 13px; }}
     .topBar {{ display: grid; grid-template-columns: minmax(280px, 760px); gap: 14px; align-items: end; margin: 0 0 14px; }}
     .searchBar {{ display: flex; flex-direction: column; gap: 6px; }}
@@ -2940,7 +2950,7 @@ class ColorTableManager:
     input {{ flex: 1; padding: 10px 12px; border: 1px solid #c8cdd3; font-size: 15px; }}
     button {{ border: 1px solid #b7c0ca; background: #d8e1ec; color: #1d3348; padding: 9px 12px; cursor: pointer; font-weight: 600; }}
     button:hover {{ background: #c7d5e5; }}
-    .connection {{ display: inline-flex; align-items: center; gap: 8px; margin: 0 0 16px; color: #626b75; font-size: 13px; }}
+    .connection {{ display: inline-flex; align-items: center; gap: 8px; margin: 0; color: #626b75; font-size: 13px; white-space: nowrap; }}
     .connection::before {{ content: ""; width: 10px; height: 10px; border-radius: 50%; background: #8c939b; }}
     .connection.ok::before {{ background: #2f8f4e; }}
     .connection.down::before {{ background: #bd3f3f; }}
@@ -3002,13 +3012,17 @@ class ColorTableManager:
     .prepressNote.done .prepressNoteStatus {{ color: #2f8f4e; }}
     body:not(.detailMode) thead {{ display: none; }}
     body:not(.detailMode) table {{ display: block; background: transparent; box-shadow: none; }}
-    body:not(.detailMode) tbody {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; align-items: start; }}
-    body:not(.detailMode) tr {{ order: var(--machine-order, 0); position: relative; overflow: hidden; display: grid; grid-template-columns: 112px minmax(0, 1fr) 72px 72px; grid-template-rows: 76px 42px 44px; gap: 8px 12px; height: 208px; padding: 18px; background: #f4f6f7; border: 1px solid #dfe4e8; border-left: 3px solid #c9d1d8; box-shadow: 0 1px 2px rgba(32,36,42,0.03); box-sizing: border-box; color: #49525c; }}
-    body:not(.detailMode) tr.ok {{ background: #ffffff; border-color: #e0e7e1; border-left-color: #6f9b78; color: #20242a; }}
+    body:not(.detailMode) .summary,
+    body:not(.detailMode) .entry {{ display: none; }}
+    body:not(.detailMode) #entryStatus {{ margin-top: 0; }}
+    body:not(.detailMode) .viewToggle {{ min-width: 142px; }}
+    body:not(.detailMode) tbody {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 15px; align-items: start; }}
+    body:not(.detailMode) tr {{ order: var(--machine-order, 0); position: relative; overflow: hidden; display: grid; grid-template-columns: 112px minmax(0, 1fr) 72px 72px; grid-template-rows: 76px 42px 44px; gap: 8px 12px; height: 208px; padding: 18px; background: #f2f4f5; border: 1px solid #d5dbe0; border-left: 3px solid #c3ccd3; box-shadow: 0 1px 2px rgba(32,36,42,0.025); box-sizing: border-box; color: #535c66; }}
+    body:not(.detailMode) tr.ok {{ background: #ffffff; border-color: #d6e1d8; border-left-color: #628d6b; box-shadow: 0 4px 12px rgba(32,36,42,0.075); color: #20242a; }}
     body:not(.detailMode) tr.wait,
     body:not(.detailMode) tr.new,
     body:not(.detailMode) tr.warn {{ background: #f3f5f6; border-color: #dfe4e8; border-left-color: #c9d1d8; color: #4d5660; }}
-    body:not(.detailMode) tr.blocked {{ background: #f7f6f5; border-color: #e5dfdd; border-left-color: #c9b4b0; color: #756c6c; }}
+    body:not(.detailMode) tr.blocked {{ background: #f3f1f0; border-color: #e1dbd9; border-left-color: #c7b7b3; box-shadow: 0 1px 2px rgba(32,36,42,0.02); color: #817878; }}
     body:not(.detailMode) td {{ display: block; border: 0; padding: 0; white-space: normal; }}
     body:not(.detailMode) td:first-child,
     body:not(.detailMode) td:nth-child(3),
@@ -3017,8 +3031,8 @@ class ColorTableManager:
     body:not(.detailMode) td.name {{ grid-column: 1 / -1; grid-row: 1; min-height: 0; padding-right: 24%; font-size: 21px; line-height: 1.08; color: inherit; font-weight: 850; z-index: 1; }}
     body:not(.detailMode) .colorNameText {{ display: -webkit-box; max-width: 100%; overflow: hidden; overflow-wrap: anywhere; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }}
     body:not(.detailMode) .machineCmyk {{ display: block; max-width: calc(100% - 4px); margin-top: 5px; color: #626b75; font-size: 12px; line-height: 1.1; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
-    body:not(.detailMode) .customerGlow {{ display: block; position: absolute; inset: 0; z-index: 0; pointer-events: none; background: radial-gradient(circle at 92% 8%, rgba(var(--customer-rgb, 210,216,222), 0.28) 0, rgba(var(--customer-rgb, 210,216,222), 0.18) 12%, rgba(var(--customer-rgb, 210,216,222), 0.08) 24%, rgba(var(--customer-rgb, 210,216,222), 0) 38%); }}
-    body:not(.detailMode) tr.blocked .customerGlow {{ opacity: 0.34; }}
+    body:not(.detailMode) .customerGlow {{ display: block; position: absolute; inset: 0; z-index: 0; pointer-events: none; background: radial-gradient(circle at 96% 4%, rgba(var(--customer-rgb, 210,216,222), 0.76) 0, rgba(var(--customer-rgb, 210,216,222), 0.42) 11%, rgba(var(--customer-rgb, 210,216,222), 0.14) 27%, rgba(var(--customer-rgb, 210,216,222), 0) 46%); }}
+    body:not(.detailMode) tr.blocked .customerGlow {{ opacity: 0.22; filter: saturate(0.35); }}
     body:not(.detailMode) .cornerCmyk {{ display: none; }}
     body:not(.detailMode) .cmykCell {{ display: none; }}
     body:not(.detailMode) .printCell {{ grid-column: 1 / -1; grid-row: 2; align-self: start; padding-top: 0; z-index: 1; }}
@@ -3038,6 +3052,7 @@ class ColorTableManager:
     body:not(.detailMode) .templateButtonCount {{ color: #20242a; font-size: 26px; line-height: 1; font-weight: 900; }}
     body:not(.detailMode) .templateButtonPlus {{ color: #626b75; font-size: 16px; line-height: 1; }}
     body:not(.detailMode) .workflow.danger {{ display: none; }}
+    body:not(.detailMode) .detailStatusChange {{ display: none; }}
     body:not(.detailMode) .transferSummary {{ display: none; }}
     body:not(.detailMode) .machineTransferSummary {{ display: block; min-width: 0; font-size: 23px; line-height: 1; font-weight: 900; white-space: nowrap; overflow: visible; }}
     body:not(.detailMode) .machineTransferSummary.done {{ color: #3f6248; }}
@@ -3068,9 +3083,13 @@ class ColorTableManager:
     body.detailMode .machineCmyk {{ display: none; }}
     body.detailMode .detailApproval {{ display: inline; }}
     body.detailMode .machineTransferSummary {{ display: none; }}
+    body.detailMode .detailStatusChange {{ display: inline-block; margin-left: 8px; }}
     body.detailMode .adminOnly {{ display: table-cell; }}
     @media (max-width: 760px) {{
       body {{ margin: 16px; }}
+      .machineHeader {{ display: grid; gap: 10px; }}
+      .headerActions {{ justify-content: stretch; }}
+      .headerActions .connection {{ flex: 1; }}
       .topBar, .summary {{ grid-template-columns: 1fr; }}
       .prepressEntry {{ grid-template-columns: 1fr; }}
       .prepressEntry textarea {{ grid-column: auto; }}
@@ -3103,8 +3122,16 @@ class ColorTableManager:
   </style>
 </head>
 <body>
-  <h1 id="title">MPRINT Farbübersicht</h1>
-  <p class="meta">Automatisch aktualisiert: {html.escape(now_stamp())}</p>
+  <header class="machineHeader">
+    <div class="titleBlock">
+      <h1 id="title">MPRINT Farbübersicht</h1>
+      <p class="meta">Automatisch aktualisiert: {html.escape(now_stamp())}</p>
+    </div>
+    <div class="headerActions">
+      <div id="connectionStatus" class="connection checking">Verbindung wird geprüft</div>
+      <button type="button" id="detailToggle" class="viewToggle">Vorstufenansicht</button>
+    </div>
+  </header>
   {preview_banner}
   <div class="topBar">
     <div class="searchBar">
@@ -3117,8 +3144,6 @@ class ColorTableManager:
     <input name="farbe" id="farbe" autocomplete="off" placeholder="Kundenfarbe eintragen">
     <button type="submit">Eintragen</button>
   </form>
-  <div id="connectionStatus" class="connection checking">Verbindung wird geprüft</div>
-  <div class="viewControls"><button type="button" id="detailToggle" class="viewToggle">Details anzeigen</button></div>
   <div id="entryStatus"></div>
   <iframe name="submitFrame" style="display:none"></iframe>
   <section class="prepressNotes" aria-label="Vorstufen-Hinweise">
@@ -3314,7 +3339,7 @@ class ColorTableManager:
         document.body.classList.toggle('detailMode');
         detailToggle.textContent = document.body.classList.contains('detailMode')
           ? 'Maschinenansicht'
-          : 'Details anzeigen';
+          : 'Vorstufenansicht';
       }});
     }}
     function showDialog(options) {{
@@ -3676,14 +3701,15 @@ class ColorTableManager:
               status.textContent = payloadMessage(payload, 'Status gespeichert.');
               if (action === 'printed') {{
                 row.cells[4].innerHTML = '<div class="printDecision"><span class="printChoice printable active">✓ Druckbar</span></div>';
-                var notPrintableButton = createWorkflowButton('notPrintable', color, '', cmyk, 'Nicht druckbar', 'printChoice notPrintable workflow');
+                var notPrintableButton = createWorkflowButton('notPrintable', color, '', cmyk, 'Status ändern', 'printChoice notPrintable workflow detailStatusChange');
                 var skButtonForBlock = row.querySelector('.skPanelButton');
                 if (skButtonForBlock) {{
                   notPrintableButton.setAttribute('data-sk-state', skButtonForBlock.getAttribute('data-sk-state') || '[]');
                 }}
                 row.cells[4].querySelector('.printDecision').appendChild(notPrintableButton);
                 row.cells[6].innerHTML = '';
-                row.cells[6].appendChild(createWorkflowButton('approve', color, '', cmyk, 'Andreas freigeben', 'workflow warn'));
+                row.cells[6].innerHTML = '<span class="statusLine idle" title="Prüfung offen"><span class="machineApproval">○</span></span>';
+                row.cells[6].querySelector('.statusLine').appendChild(createWorkflowButton('approve', color, '', cmyk, 'Andreas freigeben', 'workflow warn detailApproval'));
               }} else if (action === 'approve') {{
                 row.cells[6].innerHTML = '<span class="statusLine done" title="Prüfung abgeschlossen"><span class="machineApproval">✓</span><span class="detailApproval">✓ Andreas</span></span>';
                 row.cells[7].innerHTML = '';
