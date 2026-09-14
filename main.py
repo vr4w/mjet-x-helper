@@ -2691,7 +2691,27 @@ class ColorTableManager:
             if preview_mode
             else ""
         )
-        for row in rows:
+        machine_sort: dict[int, int] = {}
+        sort_items: list[tuple[int, str, int]] = []
+        for index, row in enumerate(rows):
+            name = str(row.get("Farbbezeichnung", ""))
+            assignments = self._parse_sk_assignments(row)
+            printed, _printed_at, approved, _approved_at, _transfer = self._color_workflow_from_row(row, assignments)
+            not_printable = self._truthy(row.get("not_printable", ""))
+            transfer_done_count, transfer_total_count = self._transfer_counts(assignments)
+            transfer_done = transfer_total_count > 0 and transfer_done_count == transfer_total_count
+            if not_printable:
+                group = 4
+            elif not printed:
+                group = 1
+            elif transfer_done:
+                group = 3
+            else:
+                group = 2
+            sort_items.append((group, name.casefold(), index))
+        for order_index, (_group, _name, original_index) in enumerate(sorted(sort_items), start=1):
+            machine_sort[original_index] = order_index
+        for row_index, row in enumerate(rows):
             name = str(row.get("Farbbezeichnung", ""))
             status = row.get("Status", "")
             angelegt_am = str(row.get("Angelegt am", ""))
@@ -2777,8 +2797,8 @@ class ColorTableManager:
                 approval_summary = "<span class=\"statusLine idle\">○ zurückgestellt</span>"
             elif approved:
                 approval_summary = (
-                    "<span class=\"statusLine done\">"
-                    "<span class=\"machineApproval\">✓ abgeschlossen</span>"
+                    "<span class=\"statusLine done\" title=\"Prüfung abgeschlossen\">"
+                    "<span class=\"machineApproval\">✓</span>"
                     "<span class=\"detailApproval\">✓ Andreas</span>"
                     "</span>"
                 )
@@ -2788,7 +2808,7 @@ class ColorTableManager:
                     f"data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\">Andreas freigeben</button>"
                 )
             else:
-                approval_summary = "<span class=\"statusLine idle\">○ offen</span>"
+                approval_summary = "<span class=\"statusLine idle\" title=\"Prüfung offen\"><span class=\"machineApproval\">○</span><span class=\"detailApproval\">○ offen</span></span>"
             if not_printable:
                 template_summary = "<div class=\"machineTransferSummary idle\">○ zurückgestellt</div><div class=\"transferSummary idle\">Workflow zurückgestellt</div>"
             elif approved:
@@ -2796,13 +2816,18 @@ class ColorTableManager:
                 open_transfer_count = max(0, transfer_total_count - transfer_done_count)
                 transfer_text = f"{transfer_done_count} / {transfer_total_count} Vorlagen übernommen"
                 machine_transfer_text = (
-                    "✓ übernommen"
+                    "✓"
                     if transfer_done
-                    else ("○ offen" if transfer_total_count == 0 else f"○ {open_transfer_count} offen")
+                    else ("○" if transfer_total_count == 0 else f"○ {open_transfer_count}")
+                )
+                machine_transfer_title = (
+                    "Alle Vorlagen übernommen"
+                    if transfer_done
+                    else ("Vorlagen offen" if transfer_total_count == 0 else f"{open_transfer_count} Vorlagen offen")
                 )
                 template_summary = (
                     f"<div class=\"transferSummary {transfer_class}\">{html.escape(transfer_text)}</div>"
-                    f"<div class=\"machineTransferSummary {transfer_class}\">{html.escape(machine_transfer_text)}</div>"
+                    f"<div class=\"machineTransferSummary {transfer_class}\" title=\"{html.escape(machine_transfer_title, quote=True)}\">{html.escape(machine_transfer_text)}</div>"
                     f"<button type=\"button\" class=\"workflow danger\" data-action=\"template\" "
                     f"data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\" "
                     f"data-sk-state=\"{sk_state_attr}\" data-open-count=\"{open_transfer_count}\">"
@@ -2811,7 +2836,7 @@ class ColorTableManager:
             else:
                 template_summary = (
                     f"<div class=\"transferSummary idle\">0 / {transfer_total_count} Vorlagen übernommen</div>"
-                    "<div class=\"machineTransferSummary idle\">○ offen</div>"
+                    "<div class=\"machineTransferSummary idle\" title=\"Vorlagen offen\">○</div>"
                 )
             history_entries = self._workflow_history(printed, printed_at, approved, approved_at, assignments)
             history_entries.extend(self._history_event_lines(row.get("history_events", "")))
@@ -2871,9 +2896,9 @@ class ColorTableManager:
             else:
                 reason_detail_button = ""
             body_rows.append(
-                f"<tr class=\"{css}\" data-color-search=\"{search_attr}\">"
+                f"<tr class=\"{css}\" style=\"--machine-order:{machine_sort.get(row_index, row_index + 1)}\" data-color-search=\"{search_attr}\">"
                 f"<td><span class=\"dot\" aria-hidden=\"true\"></span></td>"
-                f"<td class=\"name\"><span class=\"colorCorner\" data-cmyk=\"{button_cmyk}\" title=\"{button_name} · {button_cmyk}\"><span class=\"cornerCmyk\">{escaped_cmyk}</span></span><span class=\"colorNameText\" title=\"{button_name}\">{escaped_name}</span><span class=\"machineCmyk\" title=\"{button_cmyk}\">{escaped_cmyk}</span>{not_printable_banner}</td>"
+                f"<td class=\"name\"><span class=\"customerGlow\" data-cmyk=\"{button_cmyk}\" title=\"{button_name} · {button_cmyk}\" aria-hidden=\"true\"></span><span class=\"colorNameText\" title=\"{button_name}\">{escaped_name}</span><span class=\"machineCmyk\" title=\"{button_cmyk}\">{escaped_cmyk}</span>{not_printable_banner}</td>"
                 f"<td><button type=\"button\" class=\"copy\" data-name=\"{button_name}\">Kopieren</button></td>"
                 f"<td class=\"cmykCell\">{escaped_cmyk}</td>"
                 f"<td class=\"printCell\">{print_summary}</td>"
@@ -2940,16 +2965,17 @@ class ColorTableManager:
     .transferSummary.done {{ color: #2f8f4e; }}
     .transferSummary.open {{ color: #c9901a; }}
     .printDecision {{ display: inline-flex; flex-wrap: wrap; gap: 7px; }}
-    .printChoice {{ border-radius: 999px; padding: 7px 10px; border: 1px solid #ccd3db; background: #ffffff; color: #37414d; font-weight: 800; }}
-    .printChoice.printable.active {{ border-color: #8ab896; background: #edf7ef; color: #245735; }}
-    .printChoice.notPrintable {{ border-color: #dcc4c4; background: #fff7f7; color: #7a1f1f; }}
-    .printChoice.active {{ box-shadow: inset 0 0 0 2px rgba(47, 143, 78, 0.22); }}
-    .notPrintableBanner {{ display: inline-flex; align-items: center; margin-top: 10px; padding: 8px 10px; background: #f4dddd; color: #7a1f1f; border: 1px solid #d9a5a5; font-size: 15px; font-weight: 900; }}
-    .notPrintableCardReason {{ margin-top: 8px; color: #6a2a2a; font-size: 14px; line-height: 1.35; font-weight: 600; }}
+    .printChoice {{ border-radius: 999px; padding: 7px 10px; border: 1px solid #cfd5dc; background: rgba(255,255,255,0.62); color: #4b5560; font-weight: 800; }}
+    .printChoice.printable.active {{ border-color: #a7bfae; background: #ffffff; color: #23382a; }}
+    .printChoice.notPrintable {{ border-color: #d8d0d0; background: rgba(255,255,255,0.52); color: #5f4646; }}
+    .printChoice.notPrintable.active {{ border-color: #c8a6a6; background: #fffafa; color: #6b3030; }}
+    .printChoice.active {{ box-shadow: 0 1px 3px rgba(32,36,42,0.08); }}
+    .notPrintableBanner {{ display: inline-flex; align-items: center; margin-top: 10px; padding: 0; background: transparent; color: #6d5555; border: 0; font-size: 14px; font-weight: 900; }}
+    .notPrintableCardReason {{ margin-top: 7px; color: #776b6b; font-size: 13px; line-height: 1.35; font-weight: 600; }}
     .reasonButton {{ margin-left: 8px; padding: 5px 8px; font-size: 12px; background: #f8eeee; color: #7a1f1f; }}
     .notPrintableReason {{ display: none; margin-top: 8px; color: #7a1f1f; white-space: normal; }}
     tr.blocked .notPrintableReason {{ display: inline-block; }}
-    .colorCorner {{ display: inline-block; width: 20px; height: 20px; border-radius: 4px; border: 1px solid #aab2bb; background: #eef1f4; margin-right: 8px; vertical-align: -4px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.5); }}
+    .customerGlow {{ display: none; }}
     .cornerCmyk {{ display: none; }}
     .machineCmyk, .machineApproval {{ display: none; }}
     .badge {{ display: inline-block; padding: 5px 8px; border: 1px solid #c8cdd3; background: #eef1f4; font-size: 12px; font-weight: 700; }}
@@ -2977,57 +3003,60 @@ class ColorTableManager:
     body:not(.detailMode) thead {{ display: none; }}
     body:not(.detailMode) table {{ display: block; background: transparent; box-shadow: none; }}
     body:not(.detailMode) tbody {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; align-items: start; }}
-    body:not(.detailMode) tr {{ position: relative; overflow: hidden; display: grid; grid-template-columns: 118px minmax(0, 1fr); grid-template-rows: 68px 46px 30px 30px; gap: 8px 10px; height: 230px; padding: 16px; background: #f4f6f7; border: 1px solid #dfe4e8; border-left: 4px solid #c9d1d8; box-shadow: 0 1px 2px rgba(32,36,42,0.035); box-sizing: border-box; color: #49525c; }}
-    body:not(.detailMode) tr.ok {{ background: #ffffff; border-color: #dce8df; border-left-color: #579b66; color: #20242a; }}
+    body:not(.detailMode) tr {{ order: var(--machine-order, 0); position: relative; overflow: hidden; display: grid; grid-template-columns: 112px minmax(0, 1fr) 72px 72px; grid-template-rows: 76px 42px 44px; gap: 8px 12px; height: 208px; padding: 18px; background: #f4f6f7; border: 1px solid #dfe4e8; border-left: 3px solid #c9d1d8; box-shadow: 0 1px 2px rgba(32,36,42,0.03); box-sizing: border-box; color: #49525c; }}
+    body:not(.detailMode) tr.ok {{ background: #ffffff; border-color: #e0e7e1; border-left-color: #6f9b78; color: #20242a; }}
     body:not(.detailMode) tr.wait,
     body:not(.detailMode) tr.new,
     body:not(.detailMode) tr.warn {{ background: #f3f5f6; border-color: #dfe4e8; border-left-color: #c9d1d8; color: #4d5660; }}
-    body:not(.detailMode) tr.blocked {{ background: #fff7f6; border-color: #ead2d0; border-left-color: #c96262; color: #382c2c; }}
+    body:not(.detailMode) tr.blocked {{ background: #f7f6f5; border-color: #e5dfdd; border-left-color: #c9b4b0; color: #756c6c; }}
     body:not(.detailMode) td {{ display: block; border: 0; padding: 0; white-space: normal; }}
     body:not(.detailMode) td:first-child,
     body:not(.detailMode) td:nth-child(3),
     body:not(.detailMode) td:nth-child(9),
     body:not(.detailMode) td:nth-child(10) {{ display: none; }}
-    body:not(.detailMode) td.name {{ grid-column: 1 / -1; grid-row: 1; min-height: 0; padding-right: 92px; font-size: 21px; line-height: 1.08; color: inherit; font-weight: 850; }}
+    body:not(.detailMode) td.name {{ grid-column: 1 / -1; grid-row: 1; min-height: 0; padding-right: 24%; font-size: 21px; line-height: 1.08; color: inherit; font-weight: 850; z-index: 1; }}
     body:not(.detailMode) .colorNameText {{ display: -webkit-box; max-width: 100%; overflow: hidden; overflow-wrap: anywhere; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }}
     body:not(.detailMode) .machineCmyk {{ display: block; max-width: calc(100% - 4px); margin-top: 5px; color: #626b75; font-size: 12px; line-height: 1.1; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
-    body:not(.detailMode) .colorCorner {{ position: absolute; top: 0; right: 0; width: 86px; height: 78px; margin: 0; border: 0; border-radius: 0; clip-path: polygon(100% 0, 0 0, 100% 100%); box-shadow: none; }}
+    body:not(.detailMode) .customerGlow {{ display: block; position: absolute; inset: 0; z-index: 0; pointer-events: none; background: radial-gradient(circle at 92% 8%, rgba(var(--customer-rgb, 210,216,222), 0.28) 0, rgba(var(--customer-rgb, 210,216,222), 0.18) 12%, rgba(var(--customer-rgb, 210,216,222), 0.08) 24%, rgba(var(--customer-rgb, 210,216,222), 0) 38%); }}
+    body:not(.detailMode) tr.blocked .customerGlow {{ opacity: 0.34; }}
     body:not(.detailMode) .cornerCmyk {{ display: none; }}
     body:not(.detailMode) .cmykCell {{ display: none; }}
-    body:not(.detailMode) .printCell {{ grid-column: 1 / -1; grid-row: 2; align-self: start; padding-top: 0; }}
-    body:not(.detailMode) .printCell::before {{ content: "Druck"; display: block; color: #626b75; font-size: 12px; font-weight: 800; margin-bottom: 4px; }}
-    body:not(.detailMode) .approvalCell::before {{ content: "Prüfung"; color: #626b75; font-size: 12px; font-weight: 800; }}
-    body:not(.detailMode) .transferCell::before {{ content: "Vorlagen"; color: #626b75; font-size: 12px; font-weight: 800; }}
-    body:not(.detailMode) td:nth-child(6) {{ grid-column: 1; grid-row: 3 / 5; padding: 0; }}
-    body:not(.detailMode) .approvalCell {{ grid-column: 2; grid-row: 3; }}
-    body:not(.detailMode) .transferCell {{ grid-column: 2; grid-row: 4; }}
+    body:not(.detailMode) .printCell {{ grid-column: 1 / -1; grid-row: 2; align-self: start; padding-top: 0; z-index: 1; }}
+    body:not(.detailMode) .printCell::before {{ content: none; }}
+    body:not(.detailMode) td:nth-child(6) {{ grid-column: 1 / 3; grid-row: 3; padding: 0; z-index: 1; }}
+    body:not(.detailMode) .approvalCell {{ grid-column: 3; grid-row: 3; }}
+    body:not(.detailMode) .transferCell {{ grid-column: 4; grid-row: 3; }}
     body:not(.detailMode) .approvalCell,
-    body:not(.detailMode) .transferCell {{ display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; padding: 6px 9px; background: rgba(255,255,255,0.62); border: 1px solid rgba(190,199,208,0.5); box-sizing: border-box; }}
+    body:not(.detailMode) .transferCell {{ display: grid; align-content: center; justify-items: center; gap: 3px; min-width: 0; padding: 0; background: transparent; border: 0; box-sizing: border-box; z-index: 1; }}
+    body:not(.detailMode) .approvalCell::before {{ content: "Prüfung"; color: #777f88; font-size: 11px; font-weight: 800; }}
+    body:not(.detailMode) .transferCell::before {{ content: "Vorlagen"; color: #777f88; font-size: 11px; font-weight: 800; }}
     body:not(.detailMode) tr.ok .approvalCell,
-    body:not(.detailMode) tr.ok .transferCell {{ background: #f8fbf8; border-color: #e5eee7; }}
-    body:not(.detailMode) .addSk {{ display: grid; width: 100%; height: 100%; margin: 0; padding: 9px 8px; align-content: center; justify-items: center; gap: 4px; background: rgba(255,255,255,0.68); border-color: rgba(190,199,208,0.58); }}
-    body:not(.detailMode) tr.ok .addSk {{ background: #f8fbf8; border-color: #dfe9e1; }}
+    body:not(.detailMode) tr.ok .transferCell {{ background: transparent; border-color: transparent; }}
+    body:not(.detailMode) .addSk {{ display: grid; width: 100%; height: 100%; margin: 0; padding: 0; align-content: center; justify-items: start; gap: 3px; background: transparent; border: 0; color: inherit; text-align: left; }}
+    body:not(.detailMode) tr.ok .addSk {{ background: transparent; border-color: transparent; }}
     body:not(.detailMode) .templateButtonLabel {{ color: #626b75; font-size: 12px; font-weight: 900; }}
-    body:not(.detailMode) .templateButtonCount {{ color: #20242a; font-size: 28px; line-height: 1; font-weight: 900; }}
+    body:not(.detailMode) .templateButtonCount {{ color: #20242a; font-size: 26px; line-height: 1; font-weight: 900; }}
     body:not(.detailMode) .templateButtonPlus {{ color: #626b75; font-size: 16px; line-height: 1; }}
     body:not(.detailMode) .workflow.danger {{ display: none; }}
     body:not(.detailMode) .transferSummary {{ display: none; }}
-    body:not(.detailMode) .machineTransferSummary {{ display: block; min-width: 0; font-size: 17px; line-height: 1; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
-    body:not(.detailMode) .machineTransferSummary.done {{ color: #2f8f4e; }}
-    body:not(.detailMode) .machineTransferSummary.open {{ color: #c9901a; }}
+    body:not(.detailMode) .machineTransferSummary {{ display: block; min-width: 0; font-size: 23px; line-height: 1; font-weight: 900; white-space: nowrap; overflow: visible; }}
+    body:not(.detailMode) .machineTransferSummary.done {{ color: #3f6248; }}
+    body:not(.detailMode) .machineTransferSummary.open {{ color: #6d6f72; }}
     body:not(.detailMode) .machineTransferSummary.idle {{ color: #8c939b; }}
-    body:not(.detailMode) .statusLine {{ min-width: 0; font-size: 17px; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
+    body:not(.detailMode) .statusLine {{ min-width: 0; font-size: 23px; line-height: 1; font-weight: 900; white-space: nowrap; overflow: visible; }}
+    body:not(.detailMode) .statusLine.done {{ color: #3f6248; }}
+    body:not(.detailMode) .statusLine.idle {{ color: #8c939b; }}
     body:not(.detailMode) .machineApproval {{ display: inline; }}
     body:not(.detailMode) .detailApproval {{ display: none; }}
     body:not(.detailMode) .skMeta {{ display: none; }}
     body:not(.detailMode) tr.blocked .printCell,
     body:not(.detailMode) tr.blocked .approvalCell,
     body:not(.detailMode) tr.blocked .transferCell {{ display: none; }}
-    body:not(.detailMode) tr.blocked td.name {{ grid-row: 1 / 4; min-height: 0; padding-right: 92px; }}
-    body:not(.detailMode) tr.blocked .notPrintableBanner {{ display: flex; width: fit-content; margin-top: 13px; padding: 7px 9px; font-size: 14px; }}
-    body:not(.detailMode) tr.blocked .notPrintableCardReason {{ max-height: 54px; overflow-y: auto; padding-right: 5px; font-size: 13px; }}
-    body:not(.detailMode) tr.blocked .skCell {{ grid-column: 1 / -1; grid-row: 4; }}
-    body:not(.detailMode) tr.blocked .addSk {{ display: flex; align-items: center; justify-content: center; gap: 8px; padding: 5px 10px; background: #fffafa; border-color: #e8d0ce; }}
+    body:not(.detailMode) tr.blocked td.name {{ grid-row: 1 / 3; min-height: 0; padding-right: 12%; }}
+    body:not(.detailMode) tr.blocked .notPrintableBanner {{ display: flex; width: fit-content; margin-top: 12px; padding: 0; font-size: 14px; }}
+    body:not(.detailMode) tr.blocked .notPrintableCardReason {{ display: -webkit-box; max-height: none; overflow: hidden; padding-right: 5px; font-size: 13px; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }}
+    body:not(.detailMode) tr.blocked .skCell {{ grid-column: 1 / -1; grid-row: 3; }}
+    body:not(.detailMode) tr.blocked .addSk {{ display: flex; align-items: center; justify-content: flex-start; gap: 8px; padding: 0; background: transparent; border-color: transparent; }}
     body:not(.detailMode) tr.blocked .templateButtonCount {{ font-size: 20px; }}
     body:not(.detailMode) details {{ display: none; }}
     body:not(.detailMode) .skEmpty {{ display: none; }}
@@ -3046,7 +3075,7 @@ class ColorTableManager:
       .prepressEntry {{ grid-template-columns: 1fr; }}
       .prepressEntry textarea {{ grid-column: auto; }}
       .viewToggle {{ width: 100%; }}
-      body:not(.detailMode) tr {{ grid-template-columns: 105px minmax(0, 1fr); }}
+      body:not(.detailMode) tr {{ grid-template-columns: 96px minmax(0, 1fr) 56px 56px; }}
     }}
     .dot {{ display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: #8c939b; }}
     tr.ok .dot {{ background: #2f8f4e; }}
@@ -3240,12 +3269,12 @@ class ColorTableManager:
       }}
       return {{ text: '#20242a', shadow: '0 1px 1px rgba(255,255,255,0.55)' }};
     }}
-    document.querySelectorAll('.colorCorner').forEach(function(swatch) {{
+    document.querySelectorAll('.customerGlow').forEach(function(swatch) {{
       var cmyk = swatch.getAttribute('data-cmyk') || '';
-      var contrast = cmykContrast(cmyk);
-      swatch.style.backgroundColor = cmykToCssColor(cmyk);
-      swatch.style.setProperty('--corner-text', contrast.text);
-      swatch.style.setProperty('--corner-shadow', contrast.shadow);
+      var color = cmykToCssColor(cmyk);
+      var match = color.match(/\\d+/g);
+      var rgb = match && match.length >= 3 ? match.slice(0, 3).join(', ') : '210, 216, 222';
+      swatch.style.setProperty('--customer-rgb', rgb);
     }});
     function normalizeSearchText(value) {{
       return String(value || '').replace(/\\s+/g, ' ').trim().toLocaleLowerCase('de-DE');
@@ -3656,9 +3685,9 @@ class ColorTableManager:
                 row.cells[6].innerHTML = '';
                 row.cells[6].appendChild(createWorkflowButton('approve', color, '', cmyk, 'Andreas freigeben', 'workflow warn'));
               }} else if (action === 'approve') {{
-                row.cells[6].innerHTML = '<span class="statusLine done"><span class="machineApproval">✓ abgeschlossen</span><span class="detailApproval">✓ Andreas</span></span>';
+                row.cells[6].innerHTML = '<span class="statusLine done" title="Prüfung abgeschlossen"><span class="machineApproval">✓</span><span class="detailApproval">✓ Andreas</span></span>';
                 row.cells[7].innerHTML = '';
-                row.cells[7].innerHTML = '<div class="transferSummary open">0 / 0 Vorlagen übernommen</div><div class="machineTransferSummary idle">○ offen</div>';
+                row.cells[7].innerHTML = '<div class="transferSummary open">0 / 0 Vorlagen übernommen</div><div class="machineTransferSummary idle" title="Vorlagen offen">○</div>';
                 var templateButton = createWorkflowButton('template', color, '', cmyk, 'Übernahmen verwalten', 'workflow danger');
                 templateButton.setAttribute('data-open-count', '0');
                 row.cells[7].appendChild(templateButton);
