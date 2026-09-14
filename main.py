@@ -5,6 +5,7 @@ import copy
 import csv
 import ctypes
 import datetime as dt
+import argparse
 import fnmatch
 import html
 import json
@@ -1229,7 +1230,7 @@ class ColorTableManager:
                 }
             )
             row["sk_assignments"] = self._dump_sk_assignments(assignments)
-            return True, f"SK {cleaned_sk} wurde bei {cleaned_color} hinzugefügt."
+            return True, f"{self._sk_label(cleaned_sk)} wurde bei {cleaned_color} hinzugefügt."
 
         return self._update_sk_assignment(cleaned_color, cleaned_sk, update)
 
@@ -1833,7 +1834,7 @@ class ColorTableManager:
             method = self._transfer_method_text(transfer)
             at = str(transfer.get("completed_at") or "Datum nicht erfasst")
             sk_number = str(assignment.get("sk_number") or "").strip()
-            entries.append(f"{at} - SK {sk_number}: {method}")
+            entries.append(f"{at} - {self._sk_label(sk_number)}: {method}")
         return entries
 
     def _history_event_lines(self, raw: object) -> list[str]:
@@ -2158,6 +2159,20 @@ class ColorTableManager:
 
     def _clean_sk_number(self, value: str) -> str:
         return re.sub(r"\s+", " ", str(value)).strip()
+
+    def _sk_label(self, value: str) -> str:
+        cleaned = self._clean_sk_number(value)
+        if not cleaned:
+            return "SK"
+        if cleaned.casefold().startswith("sk"):
+            return cleaned
+        return f"SK {cleaned}"
+
+    def _short_text(self, value: str, limit: int = 160) -> str:
+        text = re.sub(r"\s+", " ", str(value or "")).strip()
+        if len(text) <= limit:
+            return text
+        return text[: max(0, limit - 5)].rstrip() + " ..."
 
     def _api_result(self, ok: bool, message: str, status: int = 200) -> dict:
         return {"ok": ok, "message": message, "status": status}
@@ -2670,6 +2685,12 @@ class ColorTableManager:
         open_template_updates = 0
         prepress_notes = self._read_prepress_notes()
         prepress_note_html = self._prepress_notes_html(prepress_notes)
+        preview_mode = bool(self.config.get("ui_preview_mode"))
+        preview_banner = (
+            "<div class=\"previewBanner\">UI PREVIEW - keine Produktionsdaten</div>"
+            if preview_mode
+            else ""
+        )
         for row in rows:
             name = str(row.get("Farbbezeichnung", ""))
             status = row.get("Status", "")
@@ -2708,6 +2729,7 @@ class ColorTableManager:
             escaped_abgeglichen_am = html.escape(abgeglichen_am or "nicht erfasst")
             escaped_cmyk = html.escape(cmyk or "nicht erfasst")
             escaped_not_printable_reason = html.escape(not_printable_reason or "kein Grund erfasst")
+            escaped_not_printable_reason_short = html.escape(self._short_text(not_printable_reason or "kein Grund erfasst", 170))
             escaped_not_printable_at = html.escape(not_printable_at or "nicht erfasst")
             escaped_not_printable_by = html.escape(not_printable_by or "nicht erfasst")
             button_name = html.escape(name, quote=True)
@@ -2733,11 +2755,23 @@ class ColorTableManager:
             if not_printable:
                 print_summary = "<span class=\"statusLine idle\">○ zurückgestellt</span>"
             elif printed:
-                print_summary = "<span class=\"statusLine done\">✓ erledigt</span>"
+                print_summary = (
+                    "<div class=\"printDecision\">"
+                    "<span class=\"printChoice printable active\">✓ Druckbar</span>"
+                    f"<button type=\"button\" class=\"printChoice notPrintable workflow\" data-action=\"notPrintable\" "
+                    f"data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\" "
+                    f"data-sk-state=\"{sk_state_attr}\">Nicht druckbar</button>"
+                    "</div>"
+                )
             else:
                 print_summary = (
-                    f"<button type=\"button\" class=\"workflow\" data-action=\"printed\" "
-                    f"data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\">Druck erledigt</button>"
+                    "<div class=\"printDecision\">"
+                    f"<button type=\"button\" class=\"printChoice printable workflow\" data-action=\"printed\" "
+                    f"data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\">Druckbar</button>"
+                    f"<button type=\"button\" class=\"printChoice notPrintable workflow\" data-action=\"notPrintable\" "
+                    f"data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\" "
+                    f"data-sk-state=\"{sk_state_attr}\">Nicht druckbar</button>"
+                    "</div>"
                 )
             if not_printable:
                 approval_summary = "<span class=\"statusLine idle\">○ zurückgestellt</span>"
@@ -2782,7 +2816,9 @@ class ColorTableManager:
             if assignments:
                 detail_items = []
                 for assignment in assignments:
-                    sk_number = html.escape(str(assignment.get("sk_number", "")))
+                    raw_sk_number = str(assignment.get("sk_number", ""))
+                    sk_number = html.escape(raw_sk_number)
+                    sk_label = html.escape(self._sk_label(raw_sk_number))
                     assignment_transfer = self._assignment_transfer(assignment)
                     if assignment_transfer.get("completed"):
                         sk_status = (
@@ -2794,7 +2830,7 @@ class ColorTableManager:
                         sk_status = "<span class=\"statusLine open\">○ Übernahme offen</span>"
                     detail_items.append(
                         "<div class=\"skItem\">"
-                        f"<strong>SK {sk_number}</strong>"
+                        f"<strong>{sk_label}</strong>"
                         f"{sk_status}"
                         "</div>"
                     )
@@ -2804,35 +2840,38 @@ class ColorTableManager:
                 )
             else:
                 sk_html = "<span class=\"muted skEmpty\">SK: 0</span>"
+            sk_button_text = f"SK · {len(assignments)}" if assignments else "+ SK"
+            sk_button = (
+                f"<button type=\"button\" class=\"addSk skPanelButton\" data-color=\"{button_name}\" "
+                f"data-cmyk=\"{button_cmyk}\" data-sk-state=\"{sk_state_attr}\">{html.escape(sk_button_text)}</button>"
+            )
             not_printable_banner = ""
             clear_not_printable_button = ""
-            not_printable_action = ""
             if not_printable:
                 not_printable_banner = (
                     "<div class=\"notPrintableBanner\">✕ NICHT DRUCKBAR</div>"
-                    f"<button type=\"button\" class=\"reasonButton\" data-reason=\"{button_not_printable_reason}\">Grund</button>"
+                    f"<div class=\"notPrintableCardReason\">{escaped_not_printable_reason_short}</div>"
+                )
+                reason_detail_button = (
+                    f"<br><button type=\"button\" class=\"reasonButton\" data-reason=\"{button_not_printable_reason}\">Grund anzeigen</button>"
                 )
                 clear_not_printable_button = (
                     f"<br><button type=\"button\" class=\"workflow clearNotPrintable\" data-action=\"clearNotPrintable\" "
                     f"data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\">Nicht-druckbar-Status aufheben</button>"
                 )
             else:
-                not_printable_action = (
-                    f"<button type=\"button\" class=\"workflow notPrintableAction\" data-action=\"notPrintable\" "
-                    f"data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\" "
-                    f"data-sk-state=\"{sk_state_attr}\">Nicht druckbar</button>"
-                )
+                reason_detail_button = ""
             body_rows.append(
                 f"<tr class=\"{css}\" data-color-search=\"{search_attr}\">"
                 f"<td><span class=\"dot\" aria-hidden=\"true\"></span></td>"
-                f"<td class=\"name\"><span class=\"colorSwatch\" data-cmyk=\"{button_cmyk}\" title=\"{button_name} · {button_cmyk}\"></span>{escaped_name}{not_printable_banner}</td>"
+                f"<td class=\"name\"><span class=\"colorCorner\" data-cmyk=\"{button_cmyk}\" title=\"{button_name} · {button_cmyk}\"><span class=\"cornerCmyk\">{escaped_cmyk}</span></span><span class=\"colorNameText\">{escaped_name}</span>{not_printable_banner}</td>"
                 f"<td><button type=\"button\" class=\"copy\" data-name=\"{button_name}\">Kopieren</button></td>"
                 f"<td class=\"cmykCell\">{escaped_cmyk}</td>"
                 f"<td class=\"printCell\">{print_summary}</td>"
-                f"<td>{sk_html}<br><button type=\"button\" class=\"addSk\" data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\">+ SK</button>{not_printable_action}</td>"
+                f"<td class=\"skCell\">{sk_html}{sk_button}</td>"
                 f"<td class=\"approvalCell\">{approval_summary}</td>"
                 f"<td class=\"transferCell\">{template_summary}</td>"
-                f"<td class=\"history\"><strong>Historie</strong><br>{history_html}<br><span title=\"Angelegt am\">Angelegt: {escaped_angelegt_am}</span><br><span title=\"Abgeglichen am\">Abgleich: {escaped_abgeglichen_am}</span><br><span class=\"notPrintableReason\"><strong>Nicht druckbar:</strong> {escaped_not_printable_reason}<br>Markiert: {escaped_not_printable_at}<br>Von: {escaped_not_printable_by}</span>{clear_not_printable_button}</td>"
+                f"<td class=\"history\"><strong>Historie</strong><br>{history_html}<br><span title=\"Angelegt am\">Angelegt: {escaped_angelegt_am}</span><br><span title=\"Abgeglichen am\">Abgleich: {escaped_abgeglichen_am}</span><br><span class=\"notPrintableReason\"><strong>Nicht druckbar:</strong> {escaped_not_printable_reason}<br>Markiert: {escaped_not_printable_at}<br>Von: {escaped_not_printable_by}</span>{reason_detail_button}{clear_not_printable_button}</td>"
                 f"<td class=\"adminOnly\"><button type=\"button\" class=\"hideColor\" data-name=\"{button_name}\">Ausblenden</button></td>"
                 f"</tr>"
             )
@@ -2852,6 +2891,7 @@ class ColorTableManager:
     body {{ font-family: Segoe UI, Arial, sans-serif; margin: 24px; color: #20242a; background: #f4f5f6; }}
     h1 {{ margin: 0 0 6px; font-size: 25px; }}
     .meta {{ margin: 0 0 12px; color: #626b75; font-size: 13px; }}
+    .previewBanner {{ display: inline-flex; margin: 0 0 14px; padding: 7px 10px; background: #fff4cc; color: #6b4d00; border: 1px solid #e5ca72; font-weight: 800; font-size: 13px; }}
     .topBar {{ display: grid; grid-template-columns: minmax(280px, 760px); gap: 14px; align-items: end; margin: 0 0 14px; }}
     .searchBar {{ display: flex; flex-direction: column; gap: 6px; }}
     .searchBar label {{ color: #1d3348; font-weight: 800; font-size: 14px; }}
@@ -2881,7 +2921,7 @@ class ColorTableManager:
     th.indicator, td:first-child {{ width: 34px; text-align: center; }}
     .name {{ font-weight: 600; }}
     .copy, .addSk, .workflow {{ padding: 6px 9px; font-size: 12px; }}
-    .addSk, .notPrintableAction {{ margin-top: 7px; margin-right: 6px; }}
+    .addSk {{ margin-top: 7px; margin-right: 6px; }}
     td:nth-child(4), td:nth-child(5), td:nth-child(7), td:nth-child(8), .history {{ color: #626b75; white-space: nowrap; }}
     details summary {{ cursor: pointer; color: #1d3348; font-weight: 700; }}
     .skItem {{ padding: 7px 0; border-top: 1px solid #eef1f4; }}
@@ -2890,11 +2930,17 @@ class ColorTableManager:
     .transferSummary {{ font-weight: 800; margin-bottom: 7px; }}
     .transferSummary.done {{ color: #2f8f4e; }}
     .transferSummary.open {{ color: #c9901a; }}
+    .printDecision {{ display: inline-flex; flex-wrap: wrap; gap: 7px; }}
+    .printChoice {{ border-radius: 999px; padding: 7px 10px; border: 1px solid #cdd6ce; background: #edf6ee; color: #245735; font-weight: 800; }}
+    .printChoice.notPrintable {{ border-color: #e0b9b9; background: #f8e9e9; color: #7a1f1f; }}
+    .printChoice.active {{ box-shadow: inset 0 0 0 2px rgba(47, 143, 78, 0.22); }}
     .notPrintableBanner {{ display: inline-flex; align-items: center; margin-top: 10px; padding: 8px 10px; background: #f4dddd; color: #7a1f1f; border: 1px solid #d9a5a5; font-size: 15px; font-weight: 900; }}
+    .notPrintableCardReason {{ margin-top: 8px; color: #6a2a2a; font-size: 14px; line-height: 1.35; font-weight: 600; }}
     .reasonButton {{ margin-left: 8px; padding: 5px 8px; font-size: 12px; background: #f8eeee; color: #7a1f1f; }}
     .notPrintableReason {{ display: none; margin-top: 8px; color: #7a1f1f; white-space: normal; }}
     tr.blocked .notPrintableReason {{ display: inline-block; }}
-    .colorSwatch {{ display: inline-block; width: 20px; height: 20px; border-radius: 4px; border: 1px solid #aab2bb; background: #eef1f4; margin-right: 8px; vertical-align: -4px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.5); }}
+    .colorCorner {{ display: inline-block; width: 20px; height: 20px; border-radius: 4px; border: 1px solid #aab2bb; background: #eef1f4; margin-right: 8px; vertical-align: -4px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.5); }}
+    .cornerCmyk {{ display: none; }}
     .badge {{ display: inline-block; padding: 5px 8px; border: 1px solid #c8cdd3; background: #eef1f4; font-size: 12px; font-weight: 700; }}
     .badge.done {{ border-color: #2f8f4e; background: #e3f0e7; color: #1f5c35; }}
     .badge.idle {{ color: #626b75; }}
@@ -2919,25 +2965,29 @@ class ColorTableManager:
     .prepressNote.done .prepressNoteStatus {{ color: #2f8f4e; }}
     body:not(.detailMode) thead {{ display: none; }}
     body:not(.detailMode) table {{ display: block; background: transparent; box-shadow: none; }}
-    body:not(.detailMode) tbody {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }}
-    body:not(.detailMode) tr {{ position: relative; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px 16px; padding: 18px; background: white; border: 1px solid #e4e7ea; border-left: 8px solid #8c939b; }}
-    body:not(.detailMode) tr.ok {{ border-left-color: #2f8f4e; }}
-    body:not(.detailMode) tr.wait {{ border-left-color: #c9901a; }}
-    body:not(.detailMode) tr.new, body:not(.detailMode) tr.warn {{ border-left-color: #bd3f3f; }}
-    body:not(.detailMode) tr.blocked {{ border-left-color: #bd3f3f; background: #fffafa; }}
+    body:not(.detailMode) tbody {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; }}
+    body:not(.detailMode) tr {{ position: relative; overflow: hidden; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px 12px; min-height: 205px; padding: 18px; background: #fff; border: 1px solid #e1e5e9; border-left: 0; box-shadow: 0 1px 2px rgba(32,36,42,0.04); }}
+    body:not(.detailMode) tr.new, body:not(.detailMode) tr.warn {{ background: #fafbfc; }}
+    body:not(.detailMode) tr.blocked {{ grid-template-columns: 1fr; background: #fff8f8; border-color: #e8caca; }}
     body:not(.detailMode) td {{ display: block; border: 0; padding: 0; white-space: normal; }}
     body:not(.detailMode) td:first-child,
     body:not(.detailMode) td:nth-child(3),
     body:not(.detailMode) td:nth-child(9),
     body:not(.detailMode) td:nth-child(10) {{ display: none; }}
-    body:not(.detailMode) td.name {{ grid-column: 1 / -1; padding-right: 42px; font-size: 22px; line-height: 1.1; color: #20242a; font-weight: 800; }}
-    body:not(.detailMode) .colorSwatch {{ position: absolute; top: 12px; right: 12px; width: 28px; height: 28px; margin: 0; }}
-    body:not(.detailMode) .cmykCell {{ grid-column: 1 / -1; font-size: 17px; color: #20242a; margin-top: -8px; }}
+    body:not(.detailMode) td.name {{ grid-column: 1 / -1; min-height: 68px; padding-right: 132px; font-size: 22px; line-height: 1.1; color: #20242a; font-weight: 850; }}
+    body:not(.detailMode) .colorNameText {{ display: block; max-width: 100%; overflow-wrap: anywhere; }}
+    body:not(.detailMode) .colorCorner {{ position: absolute; top: 0; right: 0; width: 155px; height: 105px; margin: 0; border: 0; border-radius: 0; clip-path: polygon(100% 0, 0 0, 100% 100%); box-shadow: none; }}
+    body:not(.detailMode) .cornerCmyk {{ position: absolute; display: block; top: 24px; right: 2px; width: 116px; transform: rotate(35deg); transform-origin: center; color: var(--corner-text, #20242a); font-size: 10px; line-height: 1.15; font-weight: 900; text-align: center; text-shadow: var(--corner-shadow, none); }}
+    body:not(.detailMode) .cmykCell {{ display: none; }}
+    body:not(.detailMode) .printCell {{ grid-column: 1 / -1; align-self: end; padding-top: 2px; }}
     body:not(.detailMode) .printCell::before {{ content: "Druck"; display: block; color: #626b75; font-size: 12px; font-weight: 800; margin-bottom: 4px; }}
     body:not(.detailMode) .approvalCell::before {{ content: "Prüfung"; display: block; color: #626b75; font-size: 12px; font-weight: 800; margin-bottom: 4px; }}
     body:not(.detailMode) .transferCell::before {{ content: "Vorlagen"; display: block; color: #626b75; font-size: 12px; font-weight: 800; margin-bottom: 4px; }}
-    body:not(.detailMode) td:nth-child(6) {{ grid-column: 1 / -1; padding-top: 2px; }}
-    body:not(.detailMode) .addSk {{ display: inline-block; }}
+    body:not(.detailMode) td:nth-child(6),
+    body:not(.detailMode) .approvalCell,
+    body:not(.detailMode) .transferCell {{ padding: 10px 10px 9px; background: #f7f8f9; border: 1px solid #eceff2; min-height: 54px; }}
+    body:not(.detailMode) td:nth-child(6)::before {{ content: "SK"; display: block; color: #626b75; font-size: 12px; font-weight: 800; margin-bottom: 4px; }}
+    body:not(.detailMode) .addSk {{ display: inline-block; margin: 0; padding: 7px 10px; background: #eef1f4; }}
     body:not(.detailMode) .workflow.danger {{ display: none; }}
     body:not(.detailMode) .transferSummary {{ display: none; }}
     body:not(.detailMode) .machineTransferSummary {{ display: block; font-size: 18px; font-weight: 800; }}
@@ -2946,16 +2996,20 @@ class ColorTableManager:
     body:not(.detailMode) .machineTransferSummary.idle {{ color: #8c939b; }}
     body:not(.detailMode) .statusLine {{ font-size: 18px; }}
     body:not(.detailMode) .skMeta {{ display: none; }}
-    body:not(.detailMode) .notPrintableAction {{ display: inline-block; background: #f4dddd; color: #7a1f1f; border-color: #d9a5a5; }}
-    body:not(.detailMode) tr.blocked .notPrintableAction {{ display: none; }}
+    body:not(.detailMode) tr.blocked .printCell,
+    body:not(.detailMode) tr.blocked .approvalCell,
+    body:not(.detailMode) tr.blocked .transferCell {{ display: none; }}
     body:not(.detailMode) tr.blocked .printCell,
     body:not(.detailMode) tr.blocked .approvalCell,
     body:not(.detailMode) tr.blocked .transferCell {{ opacity: 0.42; }}
-    body:not(.detailMode) .notPrintableBanner {{ display: flex; width: fit-content; }}
+    body:not(.detailMode) tr.blocked td.name {{ min-height: 132px; padding-right: 122px; }}
+    body:not(.detailMode) tr.blocked .notPrintableBanner {{ display: flex; width: fit-content; margin-top: 18px; }}
+    body:not(.detailMode) details {{ display: none; }}
     body:not(.detailMode) details summary {{ display: inline-block; padding: 8px 10px; border: 1px solid #d1d6dc; background: #f6f7f8; }}
     body:not(.detailMode) details[open] summary {{ margin-bottom: 6px; }}
     body:not(.detailMode) .detailSkSummary {{ display: none; }}
     body.detailMode .machineSkSummary {{ display: none; }}
+    body.detailMode .skPanelButton {{ display: none; }}
     body.detailMode .machineTransferSummary {{ display: none; }}
     body.detailMode .adminOnly {{ display: table-cell; }}
     @media (max-width: 760px) {{
@@ -2983,6 +3037,9 @@ class ColorTableManager:
     .transferItem {{ border: 1px solid #dfe3e7; padding: 10px; background: #f6f7f8; }}
     .transferItem.done {{ border-left: 5px solid #2f8f4e; }}
     .transferItem.open {{ border-left: 5px solid #c9901a; }}
+    .skPopupList {{ display: grid; gap: 7px; margin: 10px 0 14px; }}
+    .skPopupItem {{ display: flex; justify-content: space-between; gap: 10px; padding: 8px 10px; background: #f6f7f8; border: 1px solid #e0e4e8; }}
+    .skPopupItem span {{ color: #626b75; font-weight: 700; }}
     .dialogBody input[type="text"], .dialogBody input:not([type]), .dialogBody textarea {{ width: 100%; box-sizing: border-box; margin-top: 6px; }}
     .dialogBody input[type="checkbox"] {{ width: auto; margin: 0 6px 0 0; }}
     .dialogActions {{ display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }}
@@ -2991,6 +3048,7 @@ class ColorTableManager:
 <body>
   <h1 id="title">MPRINT Farbübersicht</h1>
   <p class="meta">Automatisch aktualisiert: {html.escape(now_stamp())}</p>
+  {preview_banner}
   <div class="topBar">
     <div class="searchBar">
       <label for="colorSearch">Farbsuche</label>
@@ -3118,14 +3176,14 @@ class ColorTableManager:
     function cmykToCssColor(raw) {{
       var parts = String(raw || '').match(/-?\\d+(?:[\\.,]\\d+)?/g);
       if (!parts || parts.length < 4) {{
-        return '#eef1f4';
+        return 'rgb(238, 241, 244)';
       }}
       var values = parts.slice(0, 4).map(function(part) {{
         var value = Math.round(parseFloat(String(part).replace(',', '.')));
         return isFinite(value) ? Math.max(0, Math.min(100, value)) : null;
       }});
       if (values.some(function(value) {{ return value === null; }})) {{
-        return '#eef1f4';
+        return 'rgb(238, 241, 244)';
       }}
       var c = values[0] / 100;
       var m = values[1] / 100;
@@ -3135,12 +3193,31 @@ class ColorTableManager:
       var g = Math.round(255 * (1 - m) * (1 - k));
       var b = Math.round(255 * (1 - y) * (1 - k));
       if (values[0] === 0 && values[1] === 0 && values[2] === 0 && values[3] === 0) {{
-        return '#f7f8f9';
+        return 'rgb(247, 248, 249)';
       }}
       return 'rgb(' + r + ', ' + g + ', ' + b + ')';
     }}
-    document.querySelectorAll('.colorSwatch').forEach(function(swatch) {{
-      swatch.style.backgroundColor = cmykToCssColor(swatch.getAttribute('data-cmyk') || '');
+    function cmykContrast(raw) {{
+      var color = cmykToCssColor(raw);
+      var match = color.match(/\\d+/g);
+      if (!match || match.length < 3) {{
+        return {{ text: '#20242a', shadow: '0 1px 1px rgba(255,255,255,0.55)' }};
+      }}
+      var r = parseInt(match[0], 10);
+      var g = parseInt(match[1], 10);
+      var b = parseInt(match[2], 10);
+      var lightness = (r * 299 + g * 587 + b * 114) / 1000;
+      if (lightness < 118) {{
+        return {{ text: '#ffffff', shadow: '0 1px 2px rgba(0,0,0,0.55)' }};
+      }}
+      return {{ text: '#20242a', shadow: '0 1px 1px rgba(255,255,255,0.55)' }};
+    }}
+    document.querySelectorAll('.colorCorner').forEach(function(swatch) {{
+      var cmyk = swatch.getAttribute('data-cmyk') || '';
+      var contrast = cmykContrast(cmyk);
+      swatch.style.backgroundColor = cmykToCssColor(cmyk);
+      swatch.style.setProperty('--corner-text', contrast.text);
+      swatch.style.setProperty('--corner-shadow', contrast.shadow);
     }});
     function normalizeSearchText(value) {{
       return String(value || '').replace(/\\s+/g, ' ').trim().toLocaleLowerCase('de-DE');
@@ -3193,10 +3270,12 @@ class ColorTableManager:
         title.textContent = options.title || '';
         body.innerHTML = options.body || '';
         ok.textContent = options.okText || 'OK';
+        cancel.style.display = options.hideCancel ? 'none' : '';
         backdrop.classList.add('open');
         var input = options.returnInput ? body.querySelector('input') : null;
         function cleanup(value) {{
           backdrop.classList.remove('open');
+          cancel.style.display = '';
           cancel.onclick = null;
           ok.onclick = null;
           document.removeEventListener('keydown', onKey);
@@ -3277,6 +3356,11 @@ class ColorTableManager:
       }}
     }}
     function transferDialogBody(color, cmyk, skState) {{
+      function skLabel(value) {{
+        var cleaned = String(value || '').replace(/\\s+/g, ' ').trim();
+        if (!cleaned) return 'SK';
+        return /^sk/i.test(cleaned) ? cleaned : 'SK ' + cleaned;
+      }}
       var items = skState.map(function(item, index) {{
         var sk = item.sk || '';
         var method = item.method || 'offen';
@@ -3284,14 +3368,30 @@ class ColorTableManager:
         var by = item.by || 'nicht erfasst';
         var note = item.note || '';
         if (item.completed) {{
-          return '<div class="transferItem done"><strong>SK ' + escapeHtml(sk) + '</strong><div><span class="statusLine done">● erledigt</span></div><div class="skMeta">Methode: ' + escapeHtml(method) + '</div><div class="skMeta">Datum: ' + escapeHtml(at) + '</div><div class="skMeta">Bearbeiter: ' + escapeHtml(by) + '</div>' + (note ? '<div class="skMeta">Notiz: ' + escapeHtml(note) + '</div>' : '') + '</div>';
+          return '<div class="transferItem done"><strong>' + escapeHtml(skLabel(sk)) + '</strong><div><span class="statusLine done">● erledigt</span></div><div class="skMeta">Methode: ' + escapeHtml(method) + '</div><div class="skMeta">Datum: ' + escapeHtml(at) + '</div><div class="skMeta">Bearbeiter: ' + escapeHtml(by) + '</div>' + (note ? '<div class="skMeta">Notiz: ' + escapeHtml(note) + '</div>' : '') + '</div>';
         }}
-        return '<label class="transferItem open"><input type="checkbox" class="transferSk" value="' + escapeHtml(sk) + '"><strong>SK ' + escapeHtml(sk) + '</strong><div><span class="statusLine open">● offen</span></div></label>';
+        return '<label class="transferItem open"><input type="checkbox" class="transferSk" value="' + escapeHtml(sk) + '"><strong>' + escapeHtml(skLabel(sk)) + '</strong><div><span class="statusLine open">● offen</span></div></label>';
       }}).join('');
       if (!items) {{
         items = '<p>Keine Eindruckvorlage hinterlegt.</p>';
       }}
       return '<p><strong>Kundenfarbe:</strong><br>' + escapeHtml(color) + '</p><p><strong>CMYK:</strong><br>' + escapeHtml(cmyk) + '</p><div class="transferList">' + items + '</div><p>Ausgewählte offene SKs als übernommen speichern:</p><label><input type="checkbox" id="transferTemplate"> Eindruckvorlage angepasst</label><br><label><input type="checkbox" id="transferPortal"> Portal informiert</label><p><label>Bearbeitet durch:<input id="transferBy" autocomplete="off"></label></p><p><label>Notiz:<textarea id="transferNote" rows="3"></textarea></label></p>';
+    }}
+    function skDialogBody(color, skState) {{
+      function skLabel(value) {{
+        var cleaned = String(value || '').replace(/\\s+/g, ' ').trim();
+        if (!cleaned) return 'SK';
+        return /^sk/i.test(cleaned) ? cleaned : 'SK ' + cleaned;
+      }}
+      var items = skState.map(function(item) {{
+        var sk = item.sk || '';
+        var status = item.completed ? '✓ übernommen' : '○ Übernahme offen';
+        return '<div class="skPopupItem"><strong>' + escapeHtml(skLabel(sk)) + '</strong><span>' + escapeHtml(status) + '</span></div>';
+      }}).join('');
+      if (!items) {{
+        items = '<p class="muted">Noch keine SK hinterlegt.</p>';
+      }}
+      return '<p><strong>Kundenfarbe:</strong><br>' + escapeHtml(color) + '</p><div class="skPopupList">' + items + '</div><label>neue SK-Nummer eingeben<input id="skInput" autocomplete="off"></label>';
     }}
     function ensureDetails(row) {{
       var cell = row.cells[5];
@@ -3313,11 +3413,18 @@ class ColorTableManager:
       var details = ensureDetails(row);
       var item = document.createElement('div');
       item.className = 'skItem';
-      item.innerHTML = '<strong>SK ' + escapeHtml(sk) + '</strong><span class="statusLine open">○ Übernahme offen</span>';
+      item.innerHTML = '<strong>' + escapeHtml(/^sk/i.test(sk) ? sk : 'SK ' + sk) + '</strong><span class="statusLine open">○ Übernahme offen</span>';
       details.appendChild(item);
       details.open = true;
       row.setAttribute('data-color-search', ((row.getAttribute('data-color-search') || '') + ' ' + sk).trim());
       updateSkSummary(row);
+      var skButtons = row.querySelectorAll('.skPanelButton');
+      skButtons.forEach(function(button) {{
+        var currentState = parseSkState(button);
+        currentState.push({{ sk: sk, completed: false, method: 'offen', at: '', by: '', note: '' }});
+        button.setAttribute('data-sk-state', JSON.stringify(currentState));
+        button.textContent = 'SK · ' + currentState.length;
+      }});
       refreshRowSearchText(row);
       applyColorSearch();
     }}
@@ -3364,10 +3471,11 @@ class ColorTableManager:
       button.addEventListener('click', function() {{
         var color = button.getAttribute('data-color') || '';
         var cmyk = button.getAttribute('data-cmyk') || 'nicht erfasst';
+        var skState = parseSkState(button);
         var status = document.getElementById('entryStatus');
         showDialog({{
-	          title: 'SK-Nummer ergänzen',
-	          body: '<p><strong>Kundenfarbe:</strong><br>' + escapeHtml(color) + '</p><label>SK-Nummer<input id="skInput" autocomplete="off"></label>',
+	          title: 'Betroffene Eindruckvorlagen',
+	          body: skDialogBody(color, skState),
 	          okText: 'Hinzufügen',
 	          returnInput: true
 	        }}).then(function(sk) {{
@@ -3397,7 +3505,8 @@ class ColorTableManager:
         showDialog({{
           title: 'Grund',
           body: '<p>' + escapeHtml(button.getAttribute('data-reason') || 'Kein Grund erfasst.') + '</p>',
-          okText: 'Schließen'
+          okText: 'Schließen',
+          hideCancel: true
         }});
       }});
     }});
@@ -4099,6 +4208,13 @@ class ColorRequestServer:
 
             def do_GET(self) -> None:
                 path = self.path.split("?", 1)[0]
+                if color_manager.config.get("ui_preview_mode") and path in {"/", "/preview"}:
+                    preview_path = as_path(color_manager.config.get("color_overview_html", ""))
+                    try:
+                        self._send_text(preview_path.read_text(encoding="utf-8"), content_type="text/html; charset=utf-8")
+                    except Exception as exc:
+                        self._send_text(f"Preview konnte nicht geladen werden: {exc}", status=500)
+                    return
                 if path == "/status":
                     self._send_text(f"{APP_NAME} bereit")
                     return
@@ -4114,10 +4230,15 @@ class ColorRequestServer:
             def log_message(self, _format: str, *_args: object) -> None:
                 return
 
-            def _send_text(self, text: str, status: int = 200) -> None:
+            def _send_text(
+                self,
+                text: str,
+                status: int = 200,
+                content_type: str = "text/plain; charset=utf-8",
+            ) -> None:
                 data = text.encode("utf-8")
                 self.send_response(status)
-                self._send_common_headers(len(data), "text/plain; charset=utf-8")
+                self._send_common_headers(len(data), content_type)
                 self.end_headers()
                 self.wfile.write(data)
 
@@ -4153,6 +4274,197 @@ class ColorRequestServer:
         except Exception:
             pass
         self.server = None
+
+
+class PreviewColorTableManager(ColorTableManager):
+    def refresh_color_overview(self) -> None:
+        csv_path = self._overview_csv_path()
+        html_path = as_path(self.config.get("color_overview_html", ""))
+        rows, _fields = self._read_color_overview_with_legacy(csv_path)
+        self._write_color_overview_html(html_path, self._visible_overview_rows(rows))
+        self._write_color_export(rows)
+
+
+def _preview_sk(
+    manager: ColorTableManager,
+    sk_number: str,
+    transfer_completed: bool = False,
+    completed_by: str = "",
+) -> dict[str, object]:
+    return {
+        "sk_number": sk_number,
+        "printed": False,
+        "printed_at": "",
+        "approved": False,
+        "approved_at": "",
+        "template_updated": bool(transfer_completed),
+        "template_updated_at": "2026-09-11 10:30:00" if transfer_completed else "",
+        "portal_informed": bool(transfer_completed),
+        "transfer_completed": bool(transfer_completed),
+        "transfer_completed_at": "2026-09-11 10:30:00" if transfer_completed else "",
+        "transfer_completed_by": completed_by,
+        "transfer_note": "",
+    }
+
+
+def _preview_row(
+    manager: ColorTableManager,
+    color_id: str,
+    name: str,
+    cmyk: str,
+    status: str,
+    printed: bool = False,
+    approved: bool = False,
+    sks: list[dict[str, object]] | None = None,
+    not_printable: bool = False,
+    reason: str = "",
+) -> dict[str, str]:
+    assignments = sks or []
+    printed_at = "2026-09-11 09:15:00" if printed else ""
+    approved_at = "2026-09-11 09:45:00" if approved else ""
+    done_count, total_count = manager._transfer_counts(assignments)
+    transfer = manager._aggregate_assignment_transfer(assignments, manager._empty_transfer())
+    events = manager._merge_history_events(
+        "[]",
+        printed=printed,
+        printed_at=printed_at,
+        approved=approved,
+        approved_at=approved_at,
+        transfer=transfer,
+        assignments=assignments,
+        not_printable=not_printable,
+        not_printable_at="2026-09-11 11:10:00" if not_printable else "",
+        not_printable_by="Marvin" if not_printable else "",
+        not_printable_reason=reason,
+    )
+    return {
+        "color_id": color_id,
+        "Farbbezeichnung": name,
+        "Status": status,
+        "Angelegt am": "2026-09-11 08:00:00",
+        "Gedruckt am": printed_at,
+        "Abgeglichen am": now_stamp(),
+        "CMYK": cmyk,
+        "Einzelfarbe vorhanden": "ja",
+        "In Masterdatei": "ja" if printed else "nein",
+        "Letzter Abgleich": now_stamp(),
+        "Quelle": "MPRINT",
+        "created_at": "2026-09-11 08:00:00",
+        "last_printed_at": printed_at,
+        "last_synced_at": now_stamp(),
+        "legacy_created_at": "",
+        "legacy_printed_at": "",
+        "sk_assignments": manager._dump_sk_assignments(assignments),
+        "printed": "ja" if printed else "nein",
+        "printed_at": printed_at,
+        "approved": "ja" if approved else "nein",
+        "approved_at": approved_at,
+        "transfer": manager._dump_transfer(transfer),
+        "not_printable": "ja" if not_printable else "nein",
+        "not_printable_at": "2026-09-11 11:10:00" if not_printable else "",
+        "not_printable_by": "Marvin" if not_printable else "",
+        "not_printable_reason": reason,
+        "approval_notification_json": "",
+        "approval_mail_preview": "",
+        "source": "MPRINT",
+        "machine_values": "[]",
+        "history_events": manager._dump_history_events(events),
+        "_preview_done_count": str(done_count),
+        "_preview_total_count": str(total_count),
+    }
+
+
+def _write_preview_data(config: dict, manager: ColorTableManager) -> None:
+    csv_path = manager._overview_csv_path()
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    rows = [
+        _preview_row(manager, "CLR-900001", "MUSTERMANN ROT", "C 0 / M 90 / Y 80 / K 5", "Einzelfarbe vorhanden - Farbabgleich offen", sks=[_preview_sk(manager, "SK 100001")]),
+        _preview_row(manager, "CLR-900002", "VOGT BLAU", "C 100 / M 60 / Y 10 / K 10", "MPRINT angepasst / druckbar", printed=True, sks=[_preview_sk(manager, "FOG_BAD_003")]),
+        _preview_row(manager, "CLR-900003", "ANDREAS GRUEN", "C 70 / M 0 / Y 90 / K 10", "MPRINT angepasst / druckbar", printed=True, approved=True, sks=[_preview_sk(manager, "SK 200010")]),
+        _preview_row(manager, "CLR-900004", "FOGT BLAU MIT LANGER BEZEICHNUNG FUER MASCHINENTEST", "C 100 / M 60 / Y 10 / K 10", "MPRINT angepasst / druckbar", printed=True, approved=True, sks=[_preview_sk(manager, "FOG_BAD_003", True, "Marvin"), _preview_sk(manager, "FOG_BAD_011"), _preview_sk(manager, "FOG_BAD_020")]),
+        _preview_row(manager, "CLR-900005", "ALLES ABGESCHLOSSEN", "C 30 / M 20 / Y 10 / K 0", "MPRINT angepasst / druckbar", printed=True, approved=True, sks=[_preview_sk(manager, "SK 300001", True, "Marvin"), _preview_sk(manager, "SK 300002", True, "Marvin")]),
+        _preview_row(manager, "CLR-900006", "ADAM ROT", "C 5 / M 90 / Y 80 / K 5", "MPRINT angepasst / druckbar", printed=True, approved=True, sks=[_preview_sk(manager, "SK 400001"), _preview_sk(manager, "SK 400002")], not_printable=True, reason="Feine und fette schwarze Schriften im selben Eindruck - keine stabile gemeinsame Maschineneinstellung möglich."),
+        _preview_row(manager, "CLR-900007", "ADAM SCHWARZ LANGER GRUND", "C 80 / M 70 / Y 60 / K 100", "MPRINT angepasst / druckbar", printed=True, approved=True, sks=[_preview_sk(manager, "SK-SEHR-LANGE-123456789")], not_printable=True, reason="Sehr feine Negativschrift und massive Volltonflächen liegen in einer Anwendung zusammen. Die Maschine kann für diesen Eindruck nicht gleichzeitig scharf genug und flächig stabil genug eingestellt werden, ohne sichtbare Qualitätsverluste zu erzeugen."),
+        _preview_row(manager, "CLR-900008", "SEHR HELLE FARBE", "C 0 / M 0 / Y 0 / K 0", "Noch nicht an MPRINT gedruckt"),
+        _preview_row(manager, "CLR-900009", "TIEFSCHWARZ TEST", "C 80 / M 70 / Y 60 / K 100", "MPRINT angepasst / druckbar", printed=True, approved=True),
+        _preview_row(manager, "CLR-900010", "OHNE CMYK WERT", "", "Noch nicht an MPRINT gedruckt"),
+    ]
+    fieldnames = [field for field in rows[0] if not field.startswith("_preview_")]
+    with csv_path.open("w", encoding="utf-8-sig", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames, delimiter=";")
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({field: row.get(field, "") for field in fieldnames})
+    manager._write_prepress_notes(
+        [
+            {
+                "id": "NOTE-900001",
+                "title": "Weinbiet Feldgrau",
+                "text": "44 % Schwarz",
+                "customer": "Weinbiet",
+                "color": "Feldgrau",
+                "sk_number": "SK 123456",
+                "created_at": "2026-09-11 08:30:00",
+                "created_by": "Marvin",
+                "status": "offen",
+                "completed_at": "",
+                "completed_by": "",
+                "history": [],
+            }
+        ]
+    )
+
+
+def _free_preview_port(start_port: int) -> int:
+    for port in range(start_port, start_port + 40):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            try:
+                probe.bind(("127.0.0.1", port))
+            except OSError:
+                continue
+            return port
+    return start_port
+
+
+def run_color_overview_preview(port: int = 8766) -> None:
+    preview_root = Path(tempfile.mkdtemp(prefix="mjet-helper-preview-"))
+    preview_port = _free_preview_port(port)
+    config = dict(DEFAULT_CONFIG)
+    config.update(
+        {
+            "ui_preview_mode": True,
+            "color_request_server_host": "127.0.0.1",
+            "color_request_server_port": preview_port,
+            "color_request_submit_url": f"http://127.0.0.1:{preview_port}/farbe",
+            "color_overview_csv": str(preview_root / "work" / "preview_colors.csv"),
+            "legacy_color_overview_csv": "",
+            "color_overview_html": str(preview_root / "preview.html"),
+            "color_export_json": str(preview_root / "export" / "preview_colors.json"),
+            "hidden_colors_json": str(preview_root / "config" / "hidden_colors.json"),
+            "prepress_notes_json": str(preview_root / "work" / "prepress_notes.json"),
+            "backup_dir": str(preview_root / "backup"),
+            "single_color_dir": str(preview_root / "unused_single_colors"),
+            "color_root": str(preview_root / "unused_color_root"),
+            "master_cct": str(preview_root / "unused_color_root" / "mprint4c-master.cct"),
+        }
+    )
+    logger = HelperLogger(config)
+    manager = PreviewColorTableManager(config, logger)
+    _write_preview_data(config, manager)
+    manager.refresh_color_overview()
+    server = ColorRequestServer(config, logger, manager)
+    server.start()
+    url = f"http://127.0.0.1:{preview_port}/preview"
+    print("UI PREVIEW - keine Produktionsdaten", flush=True)
+    print(f"Preview-URL: {url}", flush=True)
+    print(f"Temporärer Preview-Ordner: {preview_root}", flush=True)
+    print("Beenden mit Ctrl+C", flush=True)
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        server.stop()
+        shutil.rmtree(preview_root, ignore_errors=True)
 
 
 class PdfReductionError(RuntimeError):
@@ -6650,6 +6962,14 @@ class MainApp:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(add_help=True)
+    parser.add_argument("--preview", action="store_true", help="lokalen UI-Preview mit Demo-Daten starten")
+    parser.add_argument("--preview-port", type=int, default=8766, help="Start-Port für den lokalen UI-Preview")
+    args = parser.parse_args()
+    if args.preview:
+        run_color_overview_preview(args.preview_port)
+        return
+
     try:
         config = load_config()
     except Exception as exc:
