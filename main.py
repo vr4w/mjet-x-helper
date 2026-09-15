@@ -1348,7 +1348,10 @@ class ColorTableManager:
         }
         notes.append(note)
         self._write_prepress_notes(notes)
-        return self._api_result(True, "Vorstufen-Hinweis wurde gespeichert.", 200)
+        self.refresh_color_overview()
+        result = self._api_result(True, "Vorstufen-Hinweis wurde gespeichert.", 200)
+        result["note"] = note
+        return result
 
     def complete_prepress_note(self, note_id: str, completed_by: str = "") -> dict:
         cleaned_id = str(note_id or "").strip()
@@ -1359,7 +1362,9 @@ class ColorTableManager:
             if str(note.get("id") or "") != cleaned_id:
                 continue
             if str(note.get("status") or "") == "erledigt":
-                return self._api_result(True, "Vorstufen-Hinweis war bereits übernommen.", 200)
+                result = self._api_result(True, "Vorstufen-Hinweis war bereits übernommen.", 200)
+                result["note"] = note
+                return result
             note["status"] = "erledigt"
             completed_at = now_stamp()
             note["completed_at"] = completed_at
@@ -1374,7 +1379,10 @@ class ColorTableManager:
             )
             note["history"] = history
             self._write_prepress_notes(notes)
-            return self._api_result(True, "Vorstufen-Hinweis wurde als übernommen markiert.", 200)
+            self.refresh_color_overview()
+            result = self._api_result(True, "Vorstufen-Hinweis wurde als übernommen markiert.", 200)
+            result["note"] = note
+            return result
         return self._api_result(False, "Vorstufen-Hinweis nicht gefunden.", 404)
 
     def hide_overview_color(self, color_name: str) -> str:
@@ -1826,7 +1834,7 @@ class ColorTableManager:
         if printed:
             entries.append(f"{printed_at or 'Datum nicht erfasst'} - Gedruckt")
         if approved:
-            entries.append(f"{approved_at or 'Datum nicht erfasst'} - Andreas freigegeben")
+            entries.append(f"{approved_at or 'Datum nicht erfasst'} - Prüfung abgeschlossen - Andreas")
         for assignment in assignments or []:
             transfer = self._assignment_transfer(assignment)
             if not transfer.get("completed"):
@@ -1843,7 +1851,7 @@ class ColorTableManager:
             "not_printable_cleared": "Nicht-druckbar-Status aufgehoben",
             "prepress_note_created": "Vorstufen-Hinweis angelegt",
             "prepress_note_completed": "Vorstufen-Hinweis übernommen",
-            "approval": "Andreas freigegeben",
+            "approval": "Prüfung abgeschlossen",
         }
         lines: list[str] = []
         for event in self._parse_history_events(raw):
@@ -1856,7 +1864,7 @@ class ColorTableManager:
             line = f"{timestamp} - {label}"
             if user:
                 line += f" ({user})"
-            if details:
+            if details and event.get("event") != "not_printable_set":
                 line += f": {details}"
             lines.append(line)
         return lines
@@ -2754,7 +2762,6 @@ class ColorTableManager:
             escaped_not_printable_by = html.escape(not_printable_by or "nicht erfasst")
             button_name = html.escape(name, quote=True)
             button_cmyk = html.escape(cmyk, quote=True)
-            button_not_printable_reason = html.escape(not_printable_reason, quote=True)
             search_parts = [name, cmyk]
             sk_state = []
             for assignment in assignments:
@@ -2802,54 +2809,68 @@ class ColorTableManager:
             elif approved:
                 approval_summary = (
                     "<span class=\"statusLine done\" title=\"Prüfung abgeschlossen\">"
-                    "<span class=\"machineApproval\">✓</span>"
-                    "<span class=\"detailApproval\">✓ Andreas</span>"
+                    "<span class=\"machineApproval\">✓ Geprüft</span>"
+                    "<span class=\"detailApproval\">✓ geprüft</span>"
                     "</span>"
                 )
             elif printed:
                 approval_summary = (
                     "<span class=\"statusLine idle\" title=\"Prüfung offen\">"
-                    "<span class=\"machineApproval\">○</span>"
+                    "<span class=\"machineApproval\">○ Prüfung</span>"
                     f"<button type=\"button\" class=\"workflow warn detailApproval\" data-action=\"approve\" "
-                    f"data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\">Andreas freigeben</button>"
+                    f"data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\">Prüfung abschließen</button>"
                     "</span>"
                 )
             else:
-                approval_summary = "<span class=\"statusLine idle\" title=\"Prüfung offen\"><span class=\"machineApproval\">○</span><span class=\"detailApproval\">○ offen</span></span>"
+                approval_summary = "<span class=\"statusLine idle\" title=\"Prüfung offen\"><span class=\"machineApproval\">○ Prüfung</span><span class=\"detailApproval\">○ offen</span></span>"
             if not_printable:
-                template_summary = "<div class=\"machineTransferSummary idle\">○ zurückgestellt</div><div class=\"transferSummary idle\">Workflow zurückgestellt</div>"
-            elif approved:
-                transfer_class = "done" if transfer_done else "open"
+                template_summary = "<div class=\"machineTransferSummary idle\" title=\"Übernahme zurückgestellt\">–</div><div class=\"transferSummary idle\">Workflow zurückgestellt</div>"
+            else:
                 open_transfer_count = max(0, transfer_total_count - transfer_done_count)
-                transfer_text = f"{transfer_done_count} / {transfer_total_count} Vorlagen übernommen"
+                transfer_class = "idle" if transfer_total_count == 0 else ("done" if transfer_done else "open")
+                transfer_text = (
+                    "Keine SK hinterlegt"
+                    if transfer_total_count == 0
+                    else f"{transfer_done_count} / {transfer_total_count} Vorlagen übernommen"
+                )
                 machine_transfer_text = (
-                    "✓"
+                    "–"
+                    if transfer_total_count == 0
+                    else f"✓ {transfer_done_count} / {transfer_total_count}"
                     if transfer_done
-                    else ("○" if transfer_total_count == 0 else f"○ {open_transfer_count}")
+                    else f"{transfer_done_count} / {transfer_total_count}"
                 )
                 machine_transfer_title = (
-                    "Alle Vorlagen übernommen"
-                    if transfer_done
-                    else ("Vorlagen offen" if transfer_total_count == 0 else f"{open_transfer_count} Vorlagen offen")
+                    "Keine SK hinterlegt"
+                    if transfer_total_count == 0
+                    else ("Alle SK übernommen" if transfer_done else f"{open_transfer_count} SK offen")
                 )
                 template_summary = (
                     f"<div class=\"transferSummary {transfer_class}\">{html.escape(transfer_text)}</div>"
                     f"<div class=\"machineTransferSummary {transfer_class}\" title=\"{html.escape(machine_transfer_title, quote=True)}\">{html.escape(machine_transfer_text)}</div>"
-                    f"<button type=\"button\" class=\"workflow danger\" data-action=\"template\" "
-                    f"data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\" "
-                    f"data-sk-state=\"{sk_state_attr}\" data-open-count=\"{open_transfer_count}\">"
-                    "Übernahmen verwalten</button>"
                 )
-            else:
-                template_summary = (
-                    f"<div class=\"transferSummary idle\">0 / {transfer_total_count} Vorlagen übernommen</div>"
-                    "<div class=\"machineTransferSummary idle\" title=\"Vorlagen offen\">○</div>"
-                )
+                if approved:
+                    template_summary += (
+                        f"<button type=\"button\" class=\"workflow danger\" data-action=\"template\" "
+                        f"data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\" "
+                        f"data-sk-state=\"{sk_state_attr}\" data-open-count=\"{open_transfer_count}\">"
+                        "Übernahmen verwalten</button>"
+                    )
             history_entries = self._workflow_history(printed, printed_at, approved, approved_at, assignments)
             history_entries.extend(self._history_event_lines(row.get("history_events", "")))
-            history_html = "<br>".join(html.escape(item) for item in history_entries)
-            if not history_html:
-                history_html = "noch keine Workflow-Historie"
+            history_count = len(history_entries)
+            history_body_html = "<br>".join(html.escape(item) for item in history_entries)
+            if not history_body_html:
+                history_body_html = "<span class=\"muted\">keine Workflow-Historie</span>"
+            history_summary = "keine Historie" if history_count == 0 else f"Historie · {history_count}"
+            history_html = (
+                "<details class=\"historyDetails\">"
+                f"<summary>{html.escape(history_summary)}</summary>"
+                f"<div class=\"historyList\">{history_body_html}</div>"
+                "</details>"
+                f"<div class=\"historyMeta\"><span title=\"Angelegt am\">Angelegt: {escaped_angelegt_am}</span><br>"
+                f"<span title=\"Abgeglichen am\">Abgleich: {escaped_abgeglichen_am}</span></div>"
+            )
             if assignments:
                 detail_items = []
                 for assignment in assignments:
@@ -2872,19 +2893,17 @@ class ColorTableManager:
                         "</div>"
                     )
                 sk_html = (
-                    f"<details class=\"skDetails\"><summary><span class=\"machineSkSummary\">Vorlagen {len(assignments)}</span><span class=\"detailSkSummary\">{len(assignments)} Eindruckvorlage(n)</span></summary>"
+                    f"<details class=\"skDetails\"><summary><span class=\"machineSkSummary\">SK {len(assignments)}</span><span class=\"detailSkSummary\">{len(assignments)} Eindruckvorlage(n)</span></summary>"
                     f"{''.join(detail_items)}</details>"
                 )
             else:
                 sk_html = "<span class=\"muted skEmpty\">Vorlagen 0</span>"
             sk_button_html = (
-                "<span class=\"templateButtonLabel\">Vorlagen</span>"
-                f"<span class=\"templateButtonCount\">{len(assignments)}</span>"
-                + ("<span class=\"templateButtonPlus\">+</span>" if not assignments else "")
+                f"<span class=\"templateButtonCount\">{len(assignments) if assignments else '+'}</span>"
             )
             sk_button = (
                 f"<button type=\"button\" class=\"addSk skPanelButton\" data-color=\"{button_name}\" "
-                f"data-cmyk=\"{button_cmyk}\" data-sk-state=\"{sk_state_attr}\">{sk_button_html}</button>"
+                f"data-cmyk=\"{button_cmyk}\" data-sk-state=\"{sk_state_attr}\" title=\"SK-Nummer hinzufügen oder anzeigen\">{sk_button_html}</button>"
             )
             not_printable_banner = ""
             clear_not_printable_button = ""
@@ -2892,16 +2911,15 @@ class ColorTableManager:
                 not_printable_banner = (
                     "<div class=\"notPrintableBanner\">✕ NICHT DRUCKBAR</div>"
                     f"<div class=\"notPrintableCardReason\">{escaped_not_printable_reason_short}</div>"
-                )
-                reason_detail_button = (
-                    f"<br><button type=\"button\" class=\"reasonButton\" data-reason=\"{button_not_printable_reason}\">Grund anzeigen</button>"
+                    "<details class=\"notPrintableReasonDetails\">"
+                    "<summary>Grund</summary>"
+                    f"<div>{escaped_not_printable_reason}</div>"
+                    "</details>"
                 )
                 clear_not_printable_button = (
                     f"<br><button type=\"button\" class=\"workflow clearNotPrintable\" data-action=\"clearNotPrintable\" "
                     f"data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\">Nicht-druckbar-Status aufheben</button>"
                 )
-            else:
-                reason_detail_button = ""
             body_rows.append(
                 f"<tr class=\"{css}\" style=\"--machine-order:{machine_sort.get(row_index, row_index + 1)}\" data-color-search=\"{search_attr}\">"
                 f"<td><span class=\"dot\" aria-hidden=\"true\"></span></td>"
@@ -2912,7 +2930,7 @@ class ColorTableManager:
                 f"<td class=\"skCell\">{sk_html}{sk_button}</td>"
                 f"<td class=\"approvalCell\">{approval_summary}</td>"
                 f"<td class=\"transferCell\">{template_summary}</td>"
-                f"<td class=\"history\"><strong>Historie</strong><br>{history_html}<br><span title=\"Angelegt am\">Angelegt: {escaped_angelegt_am}</span><br><span title=\"Abgeglichen am\">Abgleich: {escaped_abgeglichen_am}</span><br><span class=\"notPrintableReason\"><strong>Nicht druckbar:</strong> {escaped_not_printable_reason}<br>Markiert: {escaped_not_printable_at}<br>Von: {escaped_not_printable_by}</span>{reason_detail_button}{clear_not_printable_button}</td>"
+                f"<td class=\"history\">{history_html}{clear_not_printable_button}</td>"
                 f"<td class=\"adminOnly\"><button type=\"button\" class=\"hideColor\" data-name=\"{button_name}\">Ausblenden</button></td>"
                 f"</tr>"
             )
@@ -2929,19 +2947,20 @@ class ColorTableManager:
   <meta charset="utf-8">
   <title>MPRINT Farbübersicht</title>
   <style>
-    body {{ font-family: Segoe UI, Arial, sans-serif; margin: 24px; color: #20242a; background: #e9ecef; }}
+    body {{ font-family: Segoe UI, Arial, sans-serif; margin: 22px 24px; color: #20242a; background: #dfe4e8; }}
     h1 {{ margin: 0 0 6px; font-size: 25px; }}
     .meta {{ margin: 0 0 12px; color: #626b75; font-size: 13px; }}
     .machineHeader {{ display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; margin: 0 0 14px; }}
     .titleBlock {{ min-width: 0; }}
     .headerActions {{ display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }}
-    .previewBanner {{ display: inline-flex; margin: 0 0 14px; padding: 7px 10px; background: #fff4cc; color: #6b4d00; border: 1px solid #e5ca72; font-weight: 800; font-size: 13px; }}
+    .previewBanner {{ display: inline-flex; margin: 0 0 10px; padding: 7px 10px; background: #fff4cc; color: #6b4d00; border: 1px solid #e5ca72; font-weight: 800; font-size: 13px; }}
     .topBar {{ display: grid; grid-template-columns: minmax(280px, 760px); gap: 14px; align-items: end; margin: 0 0 14px; }}
     .searchBar {{ display: flex; flex-direction: column; gap: 6px; }}
     .searchBar label {{ color: #1d3348; font-weight: 800; font-size: 14px; }}
     .searchBar input {{ font-size: 20px; padding: 14px 16px; }}
     .viewControls {{ margin: 0 0 16px; }}
     .viewToggle {{ min-width: 155px; }}
+    .prepressControls {{ margin: 0 0 14px; }}
     .summary {{ display: grid; grid-template-columns: repeat(3, minmax(150px, 1fr)); gap: 10px; margin: 0 0 14px; max-width: 760px; }}
     .summaryPill {{ display: flex; align-items: baseline; gap: 8px; padding: 12px 14px; background: #fff; border-color: #d1d6dc; text-align: left; }}
     .summaryPill strong {{ font-size: 22px; color: #20242a; }}
@@ -2982,9 +3001,9 @@ class ColorTableManager:
     .printChoice.active {{ box-shadow: 0 1px 3px rgba(32,36,42,0.08); }}
     .notPrintableBanner {{ display: inline-flex; align-items: center; margin-top: 10px; padding: 0; background: transparent; color: #6d5555; border: 0; font-size: 14px; font-weight: 900; }}
     .notPrintableCardReason {{ margin-top: 7px; color: #776b6b; font-size: 13px; line-height: 1.35; font-weight: 600; }}
-    .reasonButton {{ margin-left: 8px; padding: 5px 8px; font-size: 12px; background: #f8eeee; color: #7a1f1f; }}
-    .notPrintableReason {{ display: none; margin-top: 8px; color: #7a1f1f; white-space: normal; }}
-    tr.blocked .notPrintableReason {{ display: inline-block; }}
+    .notPrintableReasonDetails {{ display: none; margin-top: 7px; color: #6d5555; font-size: 12px; }}
+    .notPrintableReasonDetails summary {{ color: #6d5555; font-weight: 900; }}
+    .notPrintableReasonDetails div {{ margin-top: 5px; line-height: 1.35; white-space: normal; overflow-wrap: anywhere; }}
     .customerGlow {{ display: none; }}
     .cornerCmyk {{ display: none; }}
     .machineCmyk, .machineApproval {{ display: none; }}
@@ -2995,6 +3014,10 @@ class ColorTableManager:
     .workflow.danger {{ background: #e5c0c0; color: #3e1f1f; }}
     .muted {{ color: #8c939b; }}
     .history {{ font-size: 12px; }}
+    .historyDetails {{ max-width: 330px; }}
+    .historyDetails summary {{ display: inline-flex; align-items: center; gap: 6px; padding: 3px 0; color: #4f5964; font-weight: 800; cursor: pointer; }}
+    .historyList {{ margin-top: 6px; line-height: 1.35; white-space: normal; overflow-wrap: anywhere; }}
+    .historyMeta {{ margin-top: 4px; color: #626b75; line-height: 1.25; }}
     .hideColor {{ padding: 6px 9px; font-size: 12px; background: #f0dfbc; color: #4a3510; }}
     .adminOnly {{ display: none; }}
     body.admin .adminOnly {{ display: table-cell; }}
@@ -3012,17 +3035,15 @@ class ColorTableManager:
     .prepressNote.done .prepressNoteStatus {{ color: #2f8f4e; }}
     body:not(.detailMode) thead {{ display: none; }}
     body:not(.detailMode) table {{ display: block; background: transparent; box-shadow: none; }}
-    body:not(.detailMode) .summary,
-    body:not(.detailMode) .entry {{ display: none; }}
     body:not(.detailMode) #entryStatus {{ margin-top: 0; }}
     body:not(.detailMode) .viewToggle {{ min-width: 142px; }}
-    body:not(.detailMode) tbody {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 15px; align-items: start; }}
-    body:not(.detailMode) tr {{ order: var(--machine-order, 0); position: relative; overflow: hidden; display: grid; grid-template-columns: 112px minmax(0, 1fr) 72px 72px; grid-template-rows: 76px 42px 44px; gap: 8px 12px; height: 208px; padding: 18px; background: #f2f4f5; border: 1px solid #d5dbe0; border-left: 3px solid #c3ccd3; box-shadow: 0 1px 2px rgba(32,36,42,0.025); box-sizing: border-box; color: #535c66; }}
-    body:not(.detailMode) tr.ok {{ background: #ffffff; border-color: #d6e1d8; border-left-color: #628d6b; box-shadow: 0 4px 12px rgba(32,36,42,0.075); color: #20242a; }}
+    body:not(.detailMode) tbody {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; align-items: start; }}
+    body:not(.detailMode) tr {{ order: var(--machine-order, 0); position: relative; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr) max-content; grid-template-rows: 76px 42px 58px; gap: 12px 16px; height: 220px; padding: 18px; background: #e4e8eb; border: 1px solid #c4cbd1; border-left: 4px solid #aeb8c0; box-shadow: 0 1px 1px rgba(32,36,42,0.015); box-sizing: border-box; color: #6b737b; }}
+    body:not(.detailMode) tr.ok {{ background: #ffffff; border-color: #bed2c1; border-left-color: #3f8050; box-shadow: 0 10px 26px rgba(32,36,42,0.16); color: #151a20; }}
     body:not(.detailMode) tr.wait,
     body:not(.detailMode) tr.new,
-    body:not(.detailMode) tr.warn {{ background: #f3f5f6; border-color: #dfe4e8; border-left-color: #c9d1d8; color: #4d5660; }}
-    body:not(.detailMode) tr.blocked {{ background: #f3f1f0; border-color: #e1dbd9; border-left-color: #c7b7b3; box-shadow: 0 1px 2px rgba(32,36,42,0.02); color: #817878; }}
+    body:not(.detailMode) tr.warn {{ background: #e2e6e9; border-color: #c7cfd6; border-left-color: #aeb8c0; color: #656f79; box-shadow: 0 1px 1px rgba(32,36,42,0.012); }}
+    body:not(.detailMode) tr.blocked {{ background: #e6e2df; border-color: #d6ceca; border-left-color: #b9aaa4; box-shadow: none; color: #89817e; filter: saturate(0.62); }}
     body:not(.detailMode) td {{ display: block; border: 0; padding: 0; white-space: normal; }}
     body:not(.detailMode) td:first-child,
     body:not(.detailMode) td:nth-child(3),
@@ -3031,34 +3052,45 @@ class ColorTableManager:
     body:not(.detailMode) td.name {{ grid-column: 1 / -1; grid-row: 1; min-height: 0; padding-right: 24%; font-size: 21px; line-height: 1.08; color: inherit; font-weight: 850; z-index: 1; }}
     body:not(.detailMode) .colorNameText {{ display: -webkit-box; max-width: 100%; overflow: hidden; overflow-wrap: anywhere; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }}
     body:not(.detailMode) .machineCmyk {{ display: block; max-width: calc(100% - 4px); margin-top: 5px; color: #626b75; font-size: 12px; line-height: 1.1; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
-    body:not(.detailMode) .customerGlow {{ display: block; position: absolute; inset: 0; z-index: 0; pointer-events: none; background: radial-gradient(circle at 96% 4%, rgba(var(--customer-rgb, 210,216,222), 0.76) 0, rgba(var(--customer-rgb, 210,216,222), 0.42) 11%, rgba(var(--customer-rgb, 210,216,222), 0.14) 27%, rgba(var(--customer-rgb, 210,216,222), 0) 46%); }}
-    body:not(.detailMode) tr.blocked .customerGlow {{ opacity: 0.22; filter: saturate(0.35); }}
+    body:not(.detailMode) .customerGlow {{ display: block; position: absolute; inset: 0; z-index: 0; pointer-events: none; background: radial-gradient(circle at 97% 3%, rgba(var(--customer-rgb, 210,216,222), 0.96) 0, rgba(var(--customer-rgb, 210,216,222), 0.66) 10%, rgba(var(--customer-rgb, 210,216,222), 0.22) 28%, rgba(var(--customer-rgb, 210,216,222), 0) 48%); }}
+    body:not(.detailMode) tr.wait .customerGlow,
+    body:not(.detailMode) tr.new .customerGlow,
+    body:not(.detailMode) tr.warn .customerGlow {{ opacity: 0.5; filter: saturate(0.42); }}
+    body:not(.detailMode) tr.blocked .customerGlow {{ opacity: 0.16; filter: saturate(0.12); }}
     body:not(.detailMode) .cornerCmyk {{ display: none; }}
     body:not(.detailMode) .cmykCell {{ display: none; }}
-    body:not(.detailMode) .printCell {{ grid-column: 1 / -1; grid-row: 2; align-self: start; padding-top: 0; z-index: 1; }}
+    body:not(.detailMode) .printCell {{ grid-column: 1; grid-row: 2; align-self: stretch; min-width: 0; padding-top: 0; z-index: 1; }}
     body:not(.detailMode) .printCell::before {{ content: none; }}
-    body:not(.detailMode) td:nth-child(6) {{ grid-column: 1 / 3; grid-row: 3; padding: 0; z-index: 1; }}
-    body:not(.detailMode) .approvalCell {{ grid-column: 3; grid-row: 3; }}
-    body:not(.detailMode) .transferCell {{ grid-column: 4; grid-row: 3; }}
+    body:not(.detailMode) td:nth-child(6) {{ grid-column: 1; grid-row: 3; padding: 0; z-index: 1; }}
+    body:not(.detailMode) .approvalCell {{ grid-column: 2; grid-row: 2; }}
+    body:not(.detailMode) .transferCell {{ grid-column: 2; grid-row: 3; }}
+    body:not(.detailMode) .skCell {{ display: grid; align-content: start; justify-items: start; gap: 7px; min-width: 0; }}
     body:not(.detailMode) .approvalCell,
-    body:not(.detailMode) .transferCell {{ display: grid; align-content: center; justify-items: center; gap: 3px; min-width: 0; padding: 0; background: transparent; border: 0; box-sizing: border-box; z-index: 1; }}
-    body:not(.detailMode) .approvalCell::before {{ content: "Prüfung"; color: #777f88; font-size: 11px; font-weight: 800; }}
-    body:not(.detailMode) .transferCell::before {{ content: "Vorlagen"; color: #777f88; font-size: 11px; font-weight: 800; }}
+    body:not(.detailMode) .transferCell {{ display: grid; align-content: start; justify-items: end; gap: 7px; min-width: 0; padding: 0; background: transparent; border: 0; box-sizing: border-box; z-index: 1; }}
+    body:not(.detailMode) .approvalCell {{ display: grid; align-content: center; justify-items: end; min-width: 76px; padding: 0; background: transparent; border: 0; box-sizing: border-box; z-index: 1; }}
+    body:not(.detailMode) .approvalCell::before {{ content: none; }}
+    body:not(.detailMode) .skCell::before,
+    body:not(.detailMode) .transferCell::before {{ color: #777f88; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0; }}
+    body:not(.detailMode) .skCell::before {{ content: "SK"; }}
+    body:not(.detailMode) .transferCell::before {{ content: "Übernahme"; }}
     body:not(.detailMode) tr.ok .approvalCell,
     body:not(.detailMode) tr.ok .transferCell {{ background: transparent; border-color: transparent; }}
-    body:not(.detailMode) .addSk {{ display: grid; width: 100%; height: 100%; margin: 0; padding: 0; align-content: center; justify-items: start; gap: 3px; background: transparent; border: 0; color: inherit; text-align: left; }}
-    body:not(.detailMode) tr.ok .addSk {{ background: transparent; border-color: transparent; }}
-    body:not(.detailMode) .templateButtonLabel {{ color: #626b75; font-size: 12px; font-weight: 900; }}
-    body:not(.detailMode) .templateButtonCount {{ color: #20242a; font-size: 26px; line-height: 1; font-weight: 900; }}
-    body:not(.detailMode) .templateButtonPlus {{ color: #626b75; font-size: 16px; line-height: 1; }}
+    body:not(.detailMode) .printDecision {{ display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; min-width: 0; height: 100%; }}
+    body:not(.detailMode) .printChoice {{ flex: 0 0 auto; padding: 6px 8px; font-size: 12px; white-space: nowrap; }}
+    body:not(.detailMode) .addSk {{ display: inline-grid; min-width: 54px; height: 34px; margin: 0; padding: 0 12px; place-items: center; background: rgba(255,255,255,0.78); border: 1px solid #c3cbd2; color: #20242a; text-align: center; cursor: pointer; }}
+    body:not(.detailMode) .addSk:hover {{ background: #fff; border-color: #9aa7b3; }}
+    body:not(.detailMode) tr.ok .addSk {{ background: #ffffff; border-color: #abc0b0; }}
+    body:not(.detailMode) .templateButtonLabel,
+    body:not(.detailMode) .templateButtonPlus {{ display: none; }}
+    body:not(.detailMode) .templateButtonCount {{ color: #20242a; font-size: 23px; line-height: 1; font-weight: 900; }}
     body:not(.detailMode) .workflow.danger {{ display: none; }}
     body:not(.detailMode) .detailStatusChange {{ display: none; }}
     body:not(.detailMode) .transferSummary {{ display: none; }}
-    body:not(.detailMode) .machineTransferSummary {{ display: block; min-width: 0; font-size: 23px; line-height: 1; font-weight: 900; white-space: nowrap; overflow: visible; }}
+    body:not(.detailMode) .machineTransferSummary {{ display: block; min-width: 0; font-size: 20px; line-height: 1; font-weight: 900; white-space: nowrap; overflow: visible; }}
     body:not(.detailMode) .machineTransferSummary.done {{ color: #3f6248; }}
     body:not(.detailMode) .machineTransferSummary.open {{ color: #6d6f72; }}
     body:not(.detailMode) .machineTransferSummary.idle {{ color: #8c939b; }}
-    body:not(.detailMode) .statusLine {{ min-width: 0; font-size: 23px; line-height: 1; font-weight: 900; white-space: nowrap; overflow: visible; }}
+    body:not(.detailMode) .statusLine {{ min-width: 0; font-size: 16px; line-height: 1; font-weight: 900; white-space: nowrap; overflow: visible; }}
     body:not(.detailMode) .statusLine.done {{ color: #3f6248; }}
     body:not(.detailMode) .statusLine.idle {{ color: #8c939b; }}
     body:not(.detailMode) .machineApproval {{ display: inline; }}
@@ -3070,8 +3102,8 @@ class ColorTableManager:
     body:not(.detailMode) tr.blocked td.name {{ grid-row: 1 / 3; min-height: 0; padding-right: 12%; }}
     body:not(.detailMode) tr.blocked .notPrintableBanner {{ display: flex; width: fit-content; margin-top: 12px; padding: 0; font-size: 14px; }}
     body:not(.detailMode) tr.blocked .notPrintableCardReason {{ display: -webkit-box; max-height: none; overflow: hidden; padding-right: 5px; font-size: 13px; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }}
-    body:not(.detailMode) tr.blocked .skCell {{ grid-column: 1 / -1; grid-row: 3; }}
-    body:not(.detailMode) tr.blocked .addSk {{ display: flex; align-items: center; justify-content: flex-start; gap: 8px; padding: 0; background: transparent; border-color: transparent; }}
+    body:not(.detailMode) tr.blocked .skCell {{ grid-column: 1; grid-row: 3; }}
+    body:not(.detailMode) tr.blocked .addSk {{ display: inline-grid; place-items: center; padding: 0 12px; background: rgba(255,255,255,0.45); border-color: #cbc4c1; }}
     body:not(.detailMode) tr.blocked .templateButtonCount {{ font-size: 20px; }}
     body:not(.detailMode) details {{ display: none; }}
     body:not(.detailMode) .skEmpty {{ display: none; }}
@@ -3081,6 +3113,8 @@ class ColorTableManager:
     body.detailMode .machineSkSummary {{ display: none; }}
     body.detailMode .skPanelButton {{ display: none; }}
     body.detailMode .machineCmyk {{ display: none; }}
+    body.detailMode .notPrintableCardReason {{ display: none; }}
+    body.detailMode .notPrintableReasonDetails {{ display: block; }}
     body.detailMode .detailApproval {{ display: inline; }}
     body.detailMode .machineTransferSummary {{ display: none; }}
     body.detailMode .detailStatusChange {{ display: inline-block; margin-left: 8px; }}
@@ -3094,7 +3128,7 @@ class ColorTableManager:
       .prepressEntry {{ grid-template-columns: 1fr; }}
       .prepressEntry textarea {{ grid-column: auto; }}
       .viewToggle {{ width: 100%; }}
-      body:not(.detailMode) tr {{ grid-template-columns: 96px minmax(0, 1fr) 56px 56px; }}
+      body:not(.detailMode) tr {{ grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }}
     }}
     .dot {{ display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: #8c939b; }}
     tr.ok .dot {{ background: #2f8f4e; }}
@@ -3139,14 +3173,16 @@ class ColorTableManager:
       <input type="search" id="colorSearch" autocomplete="off" placeholder="Farbname suchen...">
     </div>
   </div>
-  <div class="summary">{summary_html}</div>
-  <form class="entry" method="post" action="{html.escape(submit_url, quote=True)}" target="submitFrame">
-    <input name="farbe" id="farbe" autocomplete="off" placeholder="Kundenfarbe eintragen">
-    <button type="submit">Eintragen</button>
-  </form>
+  <section id="prepressControls" class="prepressControls" data-prepress-only hidden>
+    <div class="summary">{summary_html}</div>
+    <form class="entry" method="post" action="{html.escape(submit_url, quote=True)}" target="submitFrame">
+      <input name="farbe" id="farbe" autocomplete="off" placeholder="Kundenfarbe eintragen">
+      <button type="submit">Eintragen</button>
+    </form>
+  </section>
   <div id="entryStatus"></div>
   <iframe name="submitFrame" style="display:none"></iframe>
-  <section class="prepressNotes" aria-label="Vorstufen-Hinweise">
+  <section class="prepressNotes" aria-label="Vorstufen-Hinweise" data-prepress-only hidden>
     <h2>Vorstufen-Hinweise</h2>
     <form id="prepressNoteForm" class="prepressEntry">
       <input name="title" autocomplete="off" placeholder="Titel">
@@ -3334,12 +3370,20 @@ class ColorTableManager:
       colorSearch.addEventListener('input', applyColorSearch);
     }}
     var detailToggle = document.getElementById('detailToggle');
+    function syncViewMode() {{
+      var detailMode = document.body.classList.contains('detailMode');
+      document.querySelectorAll('[data-prepress-only]').forEach(function(node) {{
+        node.hidden = !detailMode;
+      }});
+      if (detailToggle) {{
+        detailToggle.textContent = detailMode ? 'Maschinenansicht' : 'Vorstufenansicht';
+      }}
+    }}
     if (detailToggle) {{
+      syncViewMode();
       detailToggle.addEventListener('click', function() {{
         document.body.classList.toggle('detailMode');
-        detailToggle.textContent = document.body.classList.contains('detailMode')
-          ? 'Maschinenansicht'
-          : 'Vorstufenansicht';
+        syncViewMode();
       }});
     }}
     function showDialog(options) {{
@@ -3406,14 +3450,10 @@ class ColorTableManager:
       if (!row) return;
       var items = row.querySelectorAll('.skItem').length;
       var summary = row.querySelector('details summary');
-      if (summary) summary.innerHTML = '<span class="machineSkSummary">Vorlagen ' + items + '</span><span class="detailSkSummary">' + items + ' Eindruckvorlage(n)</span>';
+      if (summary) summary.innerHTML = '<span class="machineSkSummary">SK ' + items + '</span><span class="detailSkSummary">' + items + ' Eindruckvorlage(n)</span>';
     }}
     function templateButtonHtml(count) {{
-      var html = '<span class="templateButtonLabel">Vorlagen</span><span class="templateButtonCount">' + String(count) + '</span>';
-      if (!count) {{
-        html += '<span class="templateButtonPlus">+</span>';
-      }}
-      return html;
+      return '<span class="templateButtonCount">' + (count ? String(count) : '+') + '</span>';
     }}
     function bindWorkflowButton(button) {{
       button.addEventListener('click', handleWorkflowClick);
@@ -3491,7 +3531,7 @@ class ColorTableManager:
       details.open = true;
       var summary = document.createElement('summary');
       summary.textContent = '0 Eindruckvorlage(n)';
-      summary.innerHTML = '<span class="machineSkSummary">Vorlagen 0</span><span class="detailSkSummary">0 Eindruckvorlage(n)</span>';
+      summary.innerHTML = '<span class="machineSkSummary">SK 0</span><span class="detailSkSummary">0 Eindruckvorlage(n)</span>';
       details.appendChild(summary);
       cell.insertBefore(details, cell.firstChild);
       return details;
@@ -3514,6 +3554,15 @@ class ColorTableManager:
         button.setAttribute('data-sk-state', JSON.stringify(currentState));
         button.innerHTML = templateButtonHtml(currentState.length);
       }});
+      var transfer = row.querySelector('.machineTransferSummary');
+      if (transfer && !row.classList.contains('blocked')) {{
+        var state = skButtons.length ? parseSkState(skButtons[0]) : [];
+        var total = state.length;
+        var done = state.filter(function(item) {{ return !!item.completed; }}).length;
+        transfer.className = 'machineTransferSummary ' + (total && done === total ? 'done' : 'open');
+        transfer.title = total && done === total ? 'Alle SK übernommen' : String(Math.max(0, total - done)) + ' SK offen';
+        transfer.textContent = total && done === total ? '✓ ' + done + ' / ' + total : done + ' / ' + total;
+      }}
       refreshRowSearchText(row);
       applyColorSearch();
     }}
@@ -3586,16 +3635,6 @@ class ColorTableManager:
               status.textContent = 'SK nicht gespeichert: ' + friendlyFetchError(error);
               checkConnection();
             }});
-        }});
-      }});
-    }});
-    document.querySelectorAll('.reasonButton').forEach(function(button) {{
-      button.addEventListener('click', function() {{
-        showDialog({{
-          title: 'Grund',
-          body: '<p>' + escapeHtml(button.getAttribute('data-reason') || 'Kein Grund erfasst.') + '</p>',
-          okText: 'Schließen',
-          hideCancel: true
         }});
       }});
     }});
@@ -3708,12 +3747,12 @@ class ColorTableManager:
                 }}
                 row.cells[4].querySelector('.printDecision').appendChild(notPrintableButton);
                 row.cells[6].innerHTML = '';
-                row.cells[6].innerHTML = '<span class="statusLine idle" title="Prüfung offen"><span class="machineApproval">○</span></span>';
-                row.cells[6].querySelector('.statusLine').appendChild(createWorkflowButton('approve', color, '', cmyk, 'Andreas freigeben', 'workflow warn detailApproval'));
+                row.cells[6].innerHTML = '<span class="statusLine idle" title="Prüfung offen"><span class="machineApproval">○ Prüfung</span></span>';
+                row.cells[6].querySelector('.statusLine').appendChild(createWorkflowButton('approve', color, '', cmyk, 'Prüfung abschließen', 'workflow warn detailApproval'));
               }} else if (action === 'approve') {{
-                row.cells[6].innerHTML = '<span class="statusLine done" title="Prüfung abgeschlossen"><span class="machineApproval">✓</span><span class="detailApproval">✓ Andreas</span></span>';
+                row.cells[6].innerHTML = '<span class="statusLine done" title="Prüfung abgeschlossen"><span class="machineApproval">✓ Geprüft</span><span class="detailApproval">✓ geprüft</span></span>';
                 row.cells[7].innerHTML = '';
-                row.cells[7].innerHTML = '<div class="transferSummary open">0 / 0 Vorlagen übernommen</div><div class="machineTransferSummary idle" title="Vorlagen offen">○</div>';
+                row.cells[7].innerHTML = '<div class="transferSummary idle">Keine SK hinterlegt</div><div class="machineTransferSummary idle" title="Keine SK hinterlegt">–</div>';
                 var templateButton = createWorkflowButton('template', color, '', cmyk, 'Übernahmen verwalten', 'workflow danger');
                 templateButton.setAttribute('data-open-count', '0');
                 row.cells[7].appendChild(templateButton);
@@ -3774,6 +3813,50 @@ class ColorTableManager:
       }});
     }});
     var prepressForm = document.getElementById('prepressNoteForm');
+    var prepressNoteList = document.getElementById('prepressNoteList');
+    function prepressNoteHtml(note) {{
+      note = note || {{}};
+      var id = escapeHtml(note.id || '');
+      var title = escapeHtml(note.title || 'Ohne Titel');
+      var text = escapeHtml(note.text || '');
+      var metaParts = [];
+      if (note.customer) metaParts.push('Kunde: ' + escapeHtml(note.customer));
+      if (note.color) metaParts.push('Farbe: ' + escapeHtml(note.color));
+      if (note.sk_number) metaParts.push('SK: ' + escapeHtml(note.sk_number));
+      var meta = metaParts.length ? metaParts.join(' · ') : 'kein direkter Farb-/SK-Bezug';
+      var created = 'Erstellt: ' + escapeHtml(note.created_at || 'nicht erfasst');
+      if (note.created_by) created += ' · ' + escapeHtml(note.created_by);
+      var done = String(note.status || '').toLowerCase() === 'erledigt';
+      var statusText = done ? '✓ übernommen ' + escapeHtml(note.completed_at || '') : 'offen';
+      if (done && note.completed_by) statusText += ' · ' + escapeHtml(note.completed_by);
+      var action = done ? '' : '<button type="button" class="completePrepressNote" data-note-id="' + id + '">Als übernommen markieren</button>';
+      return '<div class="prepressNote ' + (done ? 'done' : 'open') + '" data-note-id="' + id + '">'
+        + '<strong>' + title + '</strong>'
+        + '<p>' + text + '</p>'
+        + '<div class="skMeta">' + meta + '</div>'
+        + '<div class="skMeta">' + created + '</div>'
+        + '<div class="prepressNoteStatus">' + statusText + '</div>'
+        + action
+        + '</div>';
+    }}
+    function upsertPrepressNote(note) {{
+      if (!prepressNoteList || !note || !note.id) return;
+      var existing = null;
+      prepressNoteList.querySelectorAll('.prepressNote[data-note-id]').forEach(function(item) {{
+        if ((item.getAttribute('data-note-id') || '') === String(note.id)) {{
+          existing = item;
+        }}
+      }});
+      var html = prepressNoteHtml(note);
+      if (existing) {{
+        existing.outerHTML = html;
+        return;
+      }}
+      if (prepressNoteList.querySelector('.muted')) {{
+        prepressNoteList.innerHTML = '';
+      }}
+      prepressNoteList.insertAdjacentHTML('beforeend', html);
+    }}
     if (prepressForm) {{
       prepressForm.addEventListener('submit', function(event) {{
         event.preventDefault();
@@ -3796,15 +3879,20 @@ class ColorTableManager:
         }})
           .then(function(payload) {{
             status.textContent = payloadMessage(payload, 'Vorstufen-Hinweis gespeichert.');
-            window.setTimeout(function() {{ window.location.reload(); }}, 500);
+            upsertPrepressNote(payload.note);
+            prepressForm.reset();
+            document.body.classList.add('detailMode');
+            syncViewMode();
           }})
           .catch(function(error) {{
-            status.textContent = 'Hinweis nicht gespeichert: ' + friendlyFetchError(error);
+            status.textContent = 'Vorstufen-Hinweis konnte nicht gespeichert werden: ' + friendlyFetchError(error);
           }});
       }});
     }}
-    document.querySelectorAll('.completePrepressNote').forEach(function(button) {{
-      button.addEventListener('click', function() {{
+    if (prepressNoteList) {{
+      prepressNoteList.addEventListener('click', function(event) {{
+        var button = event.target.closest('.completePrepressNote');
+        if (!button || !prepressNoteList.contains(button)) return;
         var status = document.getElementById('entryStatus');
         showDialog({{
           title: 'Hinweis übernehmen?',
@@ -3819,14 +3907,16 @@ class ColorTableManager:
           }})
             .then(function(payload) {{
               status.textContent = payloadMessage(payload, 'Vorstufen-Hinweis übernommen.');
-              window.setTimeout(function() {{ window.location.reload(); }}, 500);
+              upsertPrepressNote(payload.note);
+              document.body.classList.add('detailMode');
+              syncViewMode();
             }})
             .catch(function(error) {{
-              status.textContent = 'Hinweis nicht aktualisiert: ' + friendlyFetchError(error);
+              status.textContent = 'Vorstufen-Hinweis konnte nicht aktualisiert werden: ' + friendlyFetchError(error);
             }});
         }});
       }});
-    }});
+    }}
   </script>
 </body>
 </html>
