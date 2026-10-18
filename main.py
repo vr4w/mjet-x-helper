@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import ast
+import base64
 import copy
 import csv
 import ctypes
+import difflib
 import datetime as dt
 import argparse
 import fnmatch
+import hashlib
 import html
 import json
 import operator
@@ -30,13 +33,18 @@ from io import BytesIO
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from urllib.parse import parse_qs
-from urllib.request import urlopen
 
 from color_mixer import ColorMixerWindow
+from update_service import (
+    RELEASE_API_URL,
+    download_verified_installer,
+    is_installable_release,
+    load_update_info as load_release_update_info,
+)
 
 
 APP_NAME = "MJET-X Helper"
-APP_VERSION = "1.1.2"
+APP_VERSION = "1.1.3"
 APP_AUTHOR = "AE / Marvin Schöffel"
 APP_CONTACT = "ms@graphic-druck.de"
 CONFIG_NAME = "helper_config.json"
@@ -97,7 +105,7 @@ DEFAULT_CONFIG = {
     "always_on_top": True,
     "window_width": 260,
     "update_check_enabled": True,
-    "update_check_url": "https://raw.githubusercontent.com/vr4w/mjet-x-helper/main/update_info.json",
+    "update_check_url": RELEASE_API_URL,
     "known_processes": [
         "Productionserver25.exe",
         "lp2000i.exe",
@@ -284,6 +292,18 @@ class SingleColorCandidate:
     source_file: Path
     mtime: float
     ignored_names: list[str] = field(default_factory=list)
+    passthrough: bool = False
+
+
+@dataclass
+class SingleColorIssue:
+    path: Path
+    digest: str
+    kind: str
+    file_color: str
+    entries: list[str]
+    can_rename: bool = False
+    can_accept_without_replacement: bool = False
 
 
 class ColorTableManager:
@@ -338,6 +358,7 @@ class ColorTableManager:
         candidates_by_name: dict[str, list[SingleColorCandidate]] = {}
         display_names: dict[str, str] = {}
         extra_entry_files = 0
+        passthrough_files = 0
 
         for color_file in color_files:
             candidate, read_errors, read_warnings = self._single_color_candidate_from_file(color_file)
@@ -349,6 +370,10 @@ class ColorTableManager:
                 self.logger.log(warning, "WARNING")
             if candidate is None:
                 continue
+            if candidate.passthrough:
+                passthrough_files += 1
+                self.logger.log(f"{color_file.name}: keine Ersatzfarbe gewählt; Originalfarbe bleibt unverändert")
+                continue
             if candidate.ignored_names:
                 extra_entry_files += 1
                 self.logger.log(
@@ -358,7 +383,7 @@ class ColorTableManager:
             candidates_by_name.setdefault(key, []).append(candidate)
             display_names.setdefault(key, candidate.name)
 
-        if not candidates_by_name:
+        if not candidates_by_name and not passthrough_files:
             error = "Keine gültigen Einzel-Farbexports gefunden. Der Master wurde nicht verändert."
             errors.append(error)
             self.logger.log(error, "ERROR")
@@ -422,7 +447,7 @@ class ColorTableManager:
                 source_files,
             )
 
-        if write_master:
+        if write_master and unique_entries:
             try:
                 self._write_master_atomically(master_path, backup_dir, unique_entries)
             except Exception as exc:
@@ -437,12 +462,14 @@ class ColorTableManager:
                     errors + [error],
                     source_files,
                 )
-        else:
+        elif not write_master:
             self.logger.log("Nur Prüfung: Master wurde nicht geschrieben")
+        else:
+            self.logger.log("Keine Ersatzfarben erforderlich: bestehender Master bleibt unverändert")
 
         try:
             self.import_corrections = dict(import_corrections)
-            master_names = color_names if write_master else self._master_color_names(master_path)
+            master_names = color_names if write_master and unique_entries else self._master_color_names(master_path)
             overview_warning = self._write_color_overview(color_names, master_names)
             if overview_warning:
                 warnings.append(overview_warning)
@@ -458,6 +485,8 @@ class ColorTableManager:
             self.logger.log(
                 f"{extra_entry_files} Mehrfarben-Exportdatei(en) automatisch auf Dateiname-Farbe reduziert"
             )
+        if passthrough_files:
+            self.logger.log(f"{passthrough_files} Datei(en) ohne Ersatzfarbe regulär akzeptiert")
         if automatic_conflicts:
             self.logger.log(f"{automatic_conflicts} mehrdeutige Quellen automatisch nach Änderungsdatum aufgelöst")
         if updated_colors:
@@ -473,7 +502,7 @@ class ColorTableManager:
                 errors,
                 source_files,
             )
-        operation_done = "Master gebaut" if write_master else "Master geprüft"
+        operation_done = "Master gebaut" if write_master and unique_entries else "Master geprüft"
         if warnings:
             if import_corrections:
                 return SyncResult(
@@ -494,7 +523,13 @@ class ColorTableManager:
                 errors,
                 source_files,
             )
-        success_message = "Master erfolgreich gebaut" if write_master else "Master-Prüfung erfolgreich"
+        success_message = (
+            "Master erfolgreich gebaut"
+            if write_master and unique_entries
+            else "Farbabgleich erfolgreich: keine Ersatzfarbe nötig"
+            if write_master
+            else "Master-Prüfung erfolgreich"
+        )
         success_notes: list[str] = []
         if extra_entry_files:
             success_notes.append(
@@ -554,17 +589,22 @@ class ColorTableManager:
         import_corrections: dict[str, dict[str, str]] = {}
         candidates_by_name: dict[str, list[SingleColorCandidate]] = {}
         display_names: dict[str, str] = {}
+        passthrough_files = 0
         for color_file in color_files:
             candidate, read_errors, read_warnings = self._single_color_candidate_from_file(color_file)
             errors.extend(read_errors)
             warnings.extend(read_warnings)
             if candidate is None:
                 continue
+            if candidate.passthrough:
+                passthrough_files += 1
+                self.logger.log(f"{color_file.name}: keine Ersatzfarbe gewählt; kein Master-Abgleich nötig")
+                continue
             key = self._normalized_color_key(candidate.name)
             candidates_by_name.setdefault(key, []).append(candidate)
             display_names.setdefault(key, candidate.name)
 
-        if not candidates_by_name:
+        if not candidates_by_name and not passthrough_files:
             error = "Keine gültigen Einzel-Farbexports gefunden"
             errors.append(error)
 
@@ -689,6 +729,142 @@ class ColorTableManager:
             files.append(path)
         return files
 
+    def inspect_single_color_issues(self) -> list[SingleColorIssue]:
+        single_dir = as_path(self.config["single_color_dir"])
+        master_path = as_path(self.config["master_cct"])
+        if not single_dir.is_dir():
+            return []  # The regular sync reports missing directories.
+        issues: list[SingleColorIssue] = []
+        for path in self._find_color_files(single_dir, master_path):
+            raw = path.read_bytes()
+            digest = hashlib.sha256(raw).hexdigest()
+            file_color = self._target_color_name_from_file(path)
+            try:
+                root = ET.fromstring(raw)
+            except ET.ParseError as exc:
+                issues.append(SingleColorIssue(path, digest, "invalid_xml", file_color, [str(exc)]))
+                continue
+            entries = [entry for entry in root.iter() if local_name(entry.tag) == "ColorEntry"]
+            if not entries:
+                issues.append(SingleColorIssue(path, digest, "empty", file_color, []))
+                continue
+
+            descriptions: list[str] = []
+            for entry in entries:
+                name = self._clean_color_name(self._color_entry_name(entry))
+                color_out = next((part for part in entry.iter() if local_name(part.tag) == "ColorOut"), None)
+                model = color_out.get("ColorModel", "unbekannt") if color_out is not None else "fehlt"
+                values = self._color_entry_cmyk(entry)
+                descriptions.append(
+                    f"{name}\n  Ersatz aktiv: {entry.get('ReplacementEnabled', 'unbekannt')}"
+                    f" | Farbmodell: {model} | Werte: {values or 'keine'}"
+                )
+
+            matching = [entry for entry in entries if self._normalized_color_key(self._color_entry_name(entry)) == self._normalized_color_key(file_color)]
+            if len(matching) > 1:
+                issues.append(SingleColorIssue(path, digest, "duplicate", file_color, descriptions))
+                continue
+            inconsistent = [entry for entry in entries if self._replacement_flag_without_values(entry)]
+            if matching and not inconsistent:
+                continue
+            if not matching and all(self._entry_without_replacement(entry) for entry in entries):
+                continue
+
+            one_entry = len(entries) == 1
+            entry_name = self._clean_color_name(self._color_entry_name(entries[0])) if one_entry else ""
+            similar = one_entry and self._names_probably_related(file_color, entry_name)
+            different_names = self._normalized_color_key(file_color) != self._normalized_color_key(entry_name)
+            foreign = not matching and not similar
+            kind = "foreign" if foreign else ("missing_replacement" if inconsistent else "mismatch")
+            issues.append(SingleColorIssue(
+                path, digest, kind, file_color, descriptions,
+                can_rename=bool(similar and different_names and entry_name),
+                can_accept_without_replacement=bool(one_entry and inconsistent and not foreign),
+            ))
+        return issues
+
+    def _replacement_flag_without_values(self, entry: ET.Element) -> bool:
+        if str(entry.get("ReplacementEnabled", "")).casefold() != "true":
+            return False
+        color_out = next((part for part in entry.iter() if local_name(part.tag) == "ColorOut"), None)
+        if color_out is None:
+            return True
+        if color_out.get("ColorModel", "").casefold() != "none":
+            return False
+        return not any(
+            local_name(part.tag) == "ComponentValues" and (part.text or "").strip()
+            for part in color_out.iter()
+        )
+
+    def _names_probably_related(self, file_name: str, entry_name: str) -> bool:
+        left = re.findall(r"\w+", unicodedata.normalize("NFC", file_name).casefold())
+        right = re.findall(r"\w+", unicodedata.normalize("NFC", entry_name).casefold())
+        if not left or not right:
+            return False
+        if sorted(left) == sorted(right):
+            return True
+        left_numbers = {word for word in left if word.isdigit()}
+        right_numbers = {word for word in right if word.isdigit()}
+        if left_numbers and right_numbers and left_numbers != right_numbers:
+            return False
+        if left[0] == right[0] and len(left[0]) >= 5:
+            return True
+        if left_numbers != right_numbers:
+            return False
+        return difflib.SequenceMatcher(None, " ".join(left), " ".join(right)).ratio() >= 0.82
+
+    def resolve_single_color_issue(self, issue: SingleColorIssue, action: str) -> Path:
+        current = next((item for item in self.inspect_single_color_issues() if item.path == issue.path), None)
+        if current is None or current.digest != issue.digest:
+            raise RuntimeError("Die Farbdatei wurde inzwischen verändert. Bitte Farbabgleich erneut starten.")
+        if action in {"rename_file", "rename_entry"} and not current.can_rename:
+            raise ValueError("Diese Farbnamen sind nicht eindeutig ähnlich. Bitte Datei manuell prüfen.")
+        if action == "without_replacement" and not current.can_accept_without_replacement:
+            raise ValueError("Die Datei enthält möglicherweise echte Ersatzwerte. Keine automatische Änderung.")
+
+        path = issue.path
+        tree = ET.parse(path)
+        entry = next((part for part in tree.getroot().iter() if local_name(part.tag) == "ColorEntry"), None)
+        if entry is None:
+            raise ValueError("Kein Farbeintrag vorhanden.")
+        target = path
+        if action == "rename_file":
+            name = self._clean_color_name(self._color_entry_name(entry))
+            if not name or name in {".", ".."} or re.search(r'[<>:"/\\|?*]', name) or name.endswith((" ", ".")):
+                raise ValueError("Der enthaltene Farbname ist kein gültiger Dateiname.")
+            target = path.with_name(name + path.suffix)
+            if any(other.name.casefold() == target.name.casefold() for other in path.parent.iterdir() if other != path):
+                raise FileExistsError(f"Eine Datei mit diesem Namen existiert bereits: {target.name}")
+        elif action not in {"rename_entry", "without_replacement"}:
+            raise ValueError("Unbekannte Korrekturaktion.")
+
+        backup_dir = as_path(self.config["backup_dir"])
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        backup_path = backup_dir / f"{path.stem}_vor_Korrektur_{dt.datetime.now():%Y%m%d_%H%M%S_%f}{path.suffix}"
+        shutil.copy2(path, backup_path)
+        self.logger.log(f"Farbdatei vor Korrektur gesichert: {backup_path}")
+
+        if action == "rename_file":
+            path.rename(target)
+        else:
+            if action == "rename_entry":
+                entry.set("Name", issue.file_color)
+            else:
+                entry.set("ReplacementEnabled", "false")
+                if not any(local_name(part.tag) == "ColorOut" for part in entry.iter()):
+                    ET.SubElement(entry, f"{{{COLOR_NS}}}ColorOut", ColorModel="None")
+            fd, temp_name = tempfile.mkstemp(prefix="farbe-korrektur-", suffix=".tmp", dir=str(path.parent))
+            os.close(fd)
+            temp_path = Path(temp_name)
+            try:
+                tree.write(temp_path, encoding="utf-8", xml_declaration=True, short_empty_elements=True)
+                ET.parse(temp_path)
+                os.replace(temp_path, path)
+            finally:
+                temp_path.unlink(missing_ok=True)
+        self.logger.log(f"Farbdatei korrigiert ({action}): {path.name} -> {target.name}")
+        return target
+
     def _single_color_candidate_from_file(
         self,
         color_file: Path,
@@ -721,11 +897,42 @@ class ColorTableManager:
             elif entry_name:
                 ignored_names.append(entry_name)
 
-        if not matching:
+        if any(self._replacement_flag_without_values(entry) for entry in entries):
             warnings.append(
-                f"{color_file.name} enthält keinen passenden Farbeintrag '{target_name}'. "
+                f"{color_file.name}: Ersatzfarbe aktiv, aber keine Ersatz-Farbwerte vorhanden. "
                 "Die Datei wurde nicht übernommen."
             )
+            return None, errors, warnings
+
+        if not matching:
+            if entries and all(self._entry_without_replacement(entry) for entry in entries):
+                return (
+                    SingleColorCandidate(
+                        name=target_name,
+                        entry=entries[0],
+                        source_file=color_file,
+                        mtime=file_mtime,
+                        passthrough=True,
+                    ),
+                    errors,
+                    warnings,
+                )
+            active_names = [
+                self._clean_color_name(self._color_entry_name(entry))
+                for entry in entries
+                if str(entry.get("ReplacementEnabled", "")).casefold() == "true"
+            ]
+            if active_names:
+                warnings.append(
+                    f"{color_file.name}: Ersatzfarbe aktiv, aber enthaltener Farbname "
+                    f"'{self._short_text(', '.join(active_names), 100)}' passt nicht zum Dateinamen "
+                    f"'{target_name}'. Die Datei wurde nicht übernommen."
+                )
+            else:
+                warnings.append(
+                    f"{color_file.name} enthält keinen passenden Farbeintrag '{target_name}'. "
+                    "Die Datei wurde nicht übernommen."
+                )
             return None, errors, warnings
 
         if len(matching) > 1:
@@ -745,6 +952,12 @@ class ColorTableManager:
             errors,
             warnings,
         )
+
+    def _entry_without_replacement(self, entry: ET.Element) -> bool:
+        if str(entry.get("ReplacementEnabled", "")).casefold() != "false":
+            return False
+        color_out = next((part for part in entry.iter() if local_name(part.tag) == "ColorOut"), None)
+        return color_out is not None and color_out.get("ColorModel", "").casefold() == "none"
 
     def _target_color_name_from_file(self, color_file: Path) -> str:
         return self._clean_color_name(unicodedata.normalize("NFC", color_file.stem))
@@ -968,7 +1181,7 @@ class ColorTableManager:
 
         id_lookup = self._existing_color_ids(existing_rows, name_column)
         next_color_number = self._next_color_id_number_from_values(id_lookup.values())
-        for name in single_names + master_names:
+        for name in single_names + master_names + [info["name"] for info in single_info.values()]:
             key = name.casefold()
             display_names[key] = name
 
@@ -977,10 +1190,12 @@ class ColorTableManager:
         for key in sorted(display_names, key=lambda item: display_names[item].casefold()):
             name = display_names[key]
             existing = row_lookup.get(key, {})
-            in_single = key in single_lookup
-            in_master = key in master_lookup
             info = single_info.get(key, {})
-            if in_single and in_master:
+            in_single = key in single_lookup or bool(info.get("passthrough"))
+            in_master = key in master_lookup
+            if info.get("passthrough"):
+                status = "Originalfarbe ohne Ersatzfarbe"
+            elif in_single and in_master:
                 status = "MPRINT angepasst / druckbar"
             elif in_single:
                 status = "Einzelfarbe vorhanden - Farbabgleich offen"
@@ -1402,6 +1617,66 @@ class ColorTableManager:
 
         self.refresh_color_overview()
         return f"Farbe ausgeblendet: {cleaned}"
+
+    def rename_overview_color(self, old_name: str, new_name: str) -> dict:
+        old_name = self._clean_color_name(old_name)
+        new_name = self._clean_color_name(new_name)
+        if not old_name or not new_name:
+            return self._api_result(False, "Bitte alten und neuen Farbnamen eintragen.", 400)
+        if len(new_name) > 160:
+            return self._api_result(False, "Die Farbbezeichnung ist zu lang.", 400)
+        if self._normalized_color_key(old_name) == self._normalized_color_key(new_name):
+            return self._api_result(False, "Bitte einen anderen Farbnamen eintragen.", 400)
+
+        csv_path = self._overview_csv_path()
+        with self.overview_lock:
+            rows, fields = self._read_color_overview_with_legacy(csv_path)
+            name_column = self._find_name_column(fields) or "Farbbezeichnung"
+            target = next(
+                (row for row in rows if self._normalized_color_key(row.get(name_column, "")) == self._normalized_color_key(old_name)),
+                None,
+            )
+            if target is None:
+                return self._api_result(False, f"Kundenfarbe nicht gefunden: {old_name}", 404)
+            if any(
+                self._normalized_color_key(row.get(name_column, "")) == self._normalized_color_key(new_name)
+                for row in rows
+            ):
+                return self._api_result(False, f"Kundenfarbe ist bereits vorhanden: {new_name}", 409)
+            if (
+                self._technical_color_source(target.get("source", "") or target.get("Quelle", "")) != "PREPRESS"
+                or self._truthy(target.get("Einzelfarbe vorhanden", ""))
+                or self._truthy(target.get("In Masterdatei", ""))
+            ):
+                return self._api_result(
+                    False,
+                    "Diese Maschinenfarbe kommt aus einer CCT-Datei. Bitte den Namen dort korrigieren und danach Farbabgleich starten.",
+                    409,
+                )
+
+            backup_dir = csv_path.parent / "Backup"
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            if csv_path.exists():
+                backup_path = backup_dir / f"{csv_path.stem}_vor_umbenennung_{dt.datetime.now():%Y%m%d_%H%M%S_%f}{csv_path.suffix}"
+                shutil.copy2(csv_path, backup_path)
+            target[name_column] = new_name
+            target["Farbbezeichnung"] = new_name
+            if "Farbbezeichnung" not in fields:
+                fields.append("Farbbezeichnung")
+            csv_path.parent.mkdir(parents=True, exist_ok=True)
+            temp_csv = csv_path.with_suffix(csv_path.suffix + ".tmp")
+            with temp_csv.open("w", encoding="utf-8-sig", newline="") as handle:
+                writer = csv.DictWriter(handle, fieldnames=fields, delimiter=";")
+                writer.writeheader()
+                writer.writerows({field: row.get(field, "") for field in fields} for row in rows)
+            os.replace(temp_csv, csv_path)
+            self.logger.log(f"Vorstufenfarbe umbenannt: {old_name} -> {new_name}")
+
+        self.refresh_color_overview()
+        result = self._api_result(True, f"Farbname korrigiert: {new_name}")
+        result["old_name"] = old_name
+        result["new_name"] = new_name
+        return result
 
     def _update_sk_assignment(self, color_name: str, sk_number: str | None, update: callable) -> dict:
         csv_path = self._overview_csv_path()
@@ -2286,9 +2561,10 @@ class ColorTableManager:
                 continue
             info_by_key[key] = {
                 "name": candidate.name,
-                "cmyk": self._color_entry_cmyk(candidate.entry),
+                "cmyk": "" if candidate.passthrough else self._color_entry_cmyk(candidate.entry),
                 "mtime": str(candidate.mtime),
                 "source_file": candidate.source_file.name,
+                "passthrough": candidate.passthrough or self._entry_without_replacement(candidate.entry),
             }
         return info_by_key
 
@@ -2669,6 +2945,7 @@ class ColorTableManager:
     ) -> None:
         submit_url = self._color_request_submit_url()
         hide_url = submit_url.rsplit("/", 1)[0] + "/farbe-ausblenden"
+        rename_url = submit_url.rsplit("/", 1)[0] + "/farbe-umbenennen"
         status_url = submit_url.rsplit("/", 1)[0] + "/status"
         sk_add_url = submit_url.rsplit("/", 1)[0] + "/sk-hinzufuegen"
         sk_printed_url = submit_url.rsplit("/", 1)[0] + "/sk-gedruckt"
@@ -2679,6 +2956,7 @@ class ColorTableManager:
         prepress_note_done_url = submit_url.rsplit("/", 1)[0] + "/vorstufen-hinweis-erledigt"
         submit_url_json = json.dumps(submit_url)
         hide_url_json = json.dumps(hide_url)
+        rename_url_json = json.dumps(rename_url)
         status_url_json = json.dumps(status_url)
         sk_add_url_json = json.dumps(sk_add_url)
         sk_printed_url_json = json.dumps(sk_printed_url)
@@ -2693,6 +2971,13 @@ class ColorTableManager:
         open_template_updates = 0
         prepress_notes = self._read_prepress_notes()
         prepress_note_html = self._prepress_notes_html(prepress_notes)
+        logo_path = Path(getattr(sys, "_MEIPASS", APP_DIR)) / "assets" / "mprint_logo.svg"
+        logo_html = ""
+        try:
+            logo_data = base64.b64encode(logo_path.read_bytes()).decode("ascii")
+            logo_html = f'<img class="brandLogo" src="data:image/svg+xml;base64,{logo_data}" alt="MPRINT">'
+        except OSError as exc:
+            self.logger.log(f"MPRINT-Logo konnte nicht geladen werden: {exc}", "WARNING")
         preview_mode = bool(self.config.get("ui_preview_mode"))
         preview_banner = (
             "<div class=\"previewBanner\">UI PREVIEW - keine Produktionsdaten</div>"
@@ -2742,6 +3027,8 @@ class ColorTableManager:
                 open_template_updates += max(0, transfer_total_count - transfer_done_count)
             if not_printable:
                 css = "blocked"
+            elif status == "Originalfarbe ohne Ersatzfarbe":
+                css = "passthrough"
             elif "druckbar" in status:
                 css = "ok"
             elif "offen" in status:
@@ -2867,9 +3154,9 @@ class ColorTableManager:
                 "<details class=\"historyDetails\">"
                 f"<summary>{html.escape(history_summary)}</summary>"
                 f"<div class=\"historyList\">{history_body_html}</div>"
-                "</details>"
                 f"<div class=\"historyMeta\"><span title=\"Angelegt am\">Angelegt: {escaped_angelegt_am}</span><br>"
                 f"<span title=\"Abgeglichen am\">Abgleich: {escaped_abgeglichen_am}</span></div>"
+                "</details>"
             )
             if assignments:
                 detail_items = []
@@ -2910,28 +3197,28 @@ class ColorTableManager:
             if not_printable:
                 not_printable_banner = (
                     "<div class=\"notPrintableBanner\">✕ NICHT DRUCKBAR</div>"
-                    f"<div class=\"notPrintableCardReason\">{escaped_not_printable_reason_short}</div>"
+                    f"<div class=\"notPrintableCardReason\" title=\"{html.escape(not_printable_reason, quote=True)}\">{escaped_not_printable_reason_short}</div>"
                     "<details class=\"notPrintableReasonDetails\">"
                     "<summary>Grund</summary>"
                     f"<div>{escaped_not_printable_reason}</div>"
                     "</details>"
                 )
                 clear_not_printable_button = (
-                    f"<br><button type=\"button\" class=\"workflow clearNotPrintable\" data-action=\"clearNotPrintable\" "
-                    f"data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\">Nicht-druckbar-Status aufheben</button>"
+                    f"<button type=\"button\" class=\"workflow clearNotPrintable\" data-action=\"clearNotPrintable\" "
+                    f"data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\">Status aufheben</button>"
                 )
             body_rows.append(
                 f"<tr class=\"{css}\" style=\"--machine-order:{machine_sort.get(row_index, row_index + 1)}\" data-color-search=\"{search_attr}\">"
                 f"<td><span class=\"dot\" aria-hidden=\"true\"></span></td>"
                 f"<td class=\"name\"><span class=\"customerGlow\" data-cmyk=\"{button_cmyk}\" title=\"{button_name} · {button_cmyk}\" aria-hidden=\"true\"></span><span class=\"colorNameText\" title=\"{button_name}\">{escaped_name}</span><span class=\"machineCmyk\" title=\"{button_cmyk}\">{escaped_cmyk}</span>{not_printable_banner}</td>"
-                f"<td><button type=\"button\" class=\"copy\" data-name=\"{button_name}\">Kopieren</button></td>"
+                f"<td><button type=\"button\" class=\"copy\" data-name=\"{button_name}\" title=\"Farbnamen kopieren\" aria-label=\"Farbnamen kopieren\">⧉</button></td>"
                 f"<td class=\"cmykCell\">{escaped_cmyk}</td>"
                 f"<td class=\"printCell\">{print_summary}</td>"
                 f"<td class=\"skCell\">{sk_html}{sk_button}</td>"
                 f"<td class=\"approvalCell\">{approval_summary}</td>"
                 f"<td class=\"transferCell\">{template_summary}</td>"
                 f"<td class=\"history\">{history_html}{clear_not_printable_button}</td>"
-                f"<td class=\"adminOnly\"><button type=\"button\" class=\"hideColor\" data-name=\"{button_name}\">Ausblenden</button></td>"
+                f"<td class=\"adminOnly adminActions\"><button type=\"button\" class=\"renameColor\" data-name=\"{button_name}\" title=\"Farbname bearbeiten\" aria-label=\"Farbname bearbeiten\">✎</button><button type=\"button\" class=\"hideColor\" data-name=\"{button_name}\">Ausblenden</button></td>"
                 f"</tr>"
             )
 
@@ -2951,13 +3238,15 @@ class ColorTableManager:
     h1 {{ margin: 0 0 6px; font-size: 25px; }}
     .meta {{ margin: 0 0 12px; color: #626b75; font-size: 13px; }}
     .machineHeader {{ display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; margin: 0 0 14px; }}
-    .titleBlock {{ min-width: 0; }}
+    .titleBlock {{ display: flex; align-items: center; gap: 18px; min-width: 0; }}
+    .brandLogo {{ width: 144px; height: auto; flex: none; }}
     .headerActions {{ display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }}
     .previewBanner {{ display: inline-flex; margin: 0 0 10px; padding: 7px 10px; background: #fff4cc; color: #6b4d00; border: 1px solid #e5ca72; font-weight: 800; font-size: 13px; }}
-    .topBar {{ display: grid; grid-template-columns: minmax(280px, 760px); gap: 14px; align-items: end; margin: 0 0 14px; }}
+    .topBar {{ display: grid; grid-template-columns: minmax(280px, 640px) minmax(240px, 420px); gap: 14px; align-items: end; margin: 0 0 14px; }}
     .searchBar {{ display: flex; flex-direction: column; gap: 6px; }}
-    .searchBar label {{ color: #1d3348; font-weight: 800; font-size: 14px; }}
-    .searchBar input {{ font-size: 20px; padding: 14px 16px; }}
+    .searchBar label {{ color: #626b75; font-weight: 700; font-size: 13px; }}
+    .searchBar input {{ font-size: 16px; padding: 11px 13px; }}
+    body:not(.detailMode) .searchBar {{ grid-column: 1 / -1; max-width: 640px; }}
     .viewControls {{ margin: 0 0 16px; }}
     .viewToggle {{ min-width: 155px; }}
     .prepressControls {{ margin: 0 0 14px; }}
@@ -2965,7 +3254,12 @@ class ColorTableManager:
     .summaryPill {{ display: flex; align-items: baseline; gap: 8px; padding: 12px 14px; background: #fff; border-color: #d1d6dc; text-align: left; }}
     .summaryPill strong {{ font-size: 22px; color: #20242a; }}
     .summaryPill span {{ color: #626b75; }}
-    .entry {{ display: flex; gap: 8px; margin: 0 0 10px; max-width: 720px; }}
+    .entry {{ display: flex; flex-direction: column; gap: 6px; margin: 0; min-width: 0; }}
+    .entry label {{ color: #1d3348; font-weight: 800; font-size: 14px; }}
+    .entryRow {{ display: flex; gap: 8px; min-width: 0; }}
+    .entryRow input {{ min-width: 0; font-size: 16px; }}
+    .entryRow button {{ flex: none; background: #2f6545; border-color: #2f6545; color: #fff; }}
+    .entryRow button:hover {{ background: #245136; }}
     input {{ flex: 1; padding: 10px 12px; border: 1px solid #c8cdd3; font-size: 15px; }}
     button {{ border: 1px solid #b7c0ca; background: #d8e1ec; color: #1d3348; padding: 9px 12px; cursor: pointer; font-weight: 600; }}
     button:hover {{ background: #c7d5e5; }}
@@ -2976,14 +3270,28 @@ class ColorTableManager:
     .connection.checking::before {{ background: #c9901a; }}
     #entryStatus {{ margin: -8px 0 16px; color: #626b75; min-height: 20px; }}
     table {{ width: 100%; border-collapse: collapse; background: white; box-shadow: 0 0 0 1px #c8cdd3; }}
+    .tableWrap {{ width: 100%; overflow-x: auto; }}
+    body.detailMode table {{ table-layout: fixed; min-width: 1350px; }}
+    body.detailMode th, body.detailMode td {{ white-space: normal; overflow-wrap: anywhere; }}
+    body.detailMode th.indicator {{ width: 20px; }}
+    body.detailMode th:nth-child(3) {{ width: 55px; }}
+    body.detailMode th:nth-child(4) {{ width: 140px; }}
+    body.detailMode th:nth-child(5) {{ width: 120px; }}
+    body.detailMode th:nth-child(6) {{ width: 140px; }}
+    body.detailMode th:nth-child(7) {{ width: 100px; }}
+    body.detailMode th:nth-child(8) {{ width: 150px; }}
+    body.detailMode th:nth-child(9) {{ width: 155px; }}
+    body.detailMode th:nth-child(10) {{ width: 110px; }}
     .noResults {{ display: none; margin: 12px 0 0; color: #626b75; font-weight: 700; }}
     .noResults.visible {{ display: block; }}
     th, td {{ padding: 9px 10px; border-bottom: 1px solid #dfe3e7; text-align: left; font-size: 14px; vertical-align: top; }}
     th {{ background: #e7e9ec; }}
     tr[hidden] {{ display: none !important; }}
+    [data-prepress-only][hidden] {{ display: none !important; }}
     th.indicator, td:first-child {{ width: 34px; text-align: center; }}
     .name {{ font-weight: 600; }}
     .copy, .addSk, .workflow {{ padding: 6px 9px; font-size: 12px; }}
+    .copy {{ width: 32px; height: 30px; padding: 0; font-size: 20px; line-height: 1; }}
     .addSk {{ margin-top: 7px; margin-right: 6px; }}
     td:nth-child(4), td:nth-child(5), td:nth-child(7), td:nth-child(8), .history {{ color: #626b75; white-space: nowrap; }}
     details summary {{ cursor: pointer; color: #1d3348; font-weight: 700; }}
@@ -3018,12 +3326,17 @@ class ColorTableManager:
     .historyDetails summary {{ display: inline-flex; align-items: center; gap: 6px; padding: 3px 0; color: #4f5964; font-weight: 800; cursor: pointer; }}
     .historyList {{ margin-top: 6px; line-height: 1.35; white-space: normal; overflow-wrap: anywhere; }}
     .historyMeta {{ margin-top: 4px; color: #626b75; line-height: 1.25; }}
-    .hideColor {{ padding: 6px 9px; font-size: 12px; background: #f0dfbc; color: #4a3510; }}
+    body.detailMode .adminActions {{ white-space: nowrap; }}
+    .adminActions button {{ padding: 6px 7px; font-size: 12px; margin-right: 4px; }}
+    .hideColor {{ background: #f0dfbc; color: #4a3510; }}
+    .renameColor {{ width: 28px; height: 28px; padding: 0 !important; background: #e7edf3; color: #1d3348; font-size: 17px !important; }}
     .adminOnly {{ display: none; }}
     body.admin .adminOnly {{ display: table-cell; }}
-    .prepressNotes {{ display: none; margin: 18px 0; padding: 16px; background: #fff; border: 1px solid #dfe3e7; }}
+    .prepressNotes {{ display: none; margin: 14px 0; background: #fff; border: 1px solid #cbd3d9; }}
     body.detailMode .prepressNotes {{ display: block; }}
-    .prepressNotes h2 {{ margin: 0 0 10px; font-size: 19px; }}
+    .prepressNotes > summary {{ padding: 11px 14px; font-size: 15px; font-weight: 800; }}
+    .prepressNotes > summary span {{ margin-left: 6px; color: #626b75; font-size: 13px; font-weight: 600; }}
+    .prepressNotesBody {{ padding: 8px 14px 14px; }}
     .prepressEntry {{ display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)) auto; gap: 8px; margin-bottom: 12px; }}
     .prepressEntry input {{ min-width: 0; font-size: 13px; }}
     .prepressEntry textarea {{ grid-column: 1 / -2; min-height: 62px; padding: 10px 12px; border: 1px solid #c8cdd3; font: inherit; }}
@@ -3037,26 +3350,27 @@ class ColorTableManager:
     body:not(.detailMode) table {{ display: block; background: transparent; box-shadow: none; }}
     body:not(.detailMode) #entryStatus {{ margin-top: 0; }}
     body:not(.detailMode) .viewToggle {{ min-width: 142px; }}
-    body:not(.detailMode) tbody {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; align-items: start; }}
-    body:not(.detailMode) tr {{ order: var(--machine-order, 0); position: relative; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr) max-content; grid-template-rows: 76px 42px 58px; gap: 12px 16px; height: 220px; padding: 18px; background: #e4e8eb; border: 1px solid #c4cbd1; border-left: 4px solid #aeb8c0; box-shadow: 0 1px 1px rgba(32,36,42,0.015); box-sizing: border-box; color: #6b737b; }}
-    body:not(.detailMode) tr.ok {{ background: #ffffff; border-color: #bed2c1; border-left-color: #3f8050; box-shadow: 0 10px 26px rgba(32,36,42,0.16); color: #151a20; }}
+    body:not(.detailMode) tbody {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 12px; align-items: start; }}
+    body:not(.detailMode) tr {{ order: var(--machine-order, 0); position: relative; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr) max-content; grid-template-rows: 57px 33px 46px; gap: 8px 12px; height: 180px; padding: 14px; background: #f8fafb; border: 1px solid #cbd3d9; border-left: 3px solid #aeb8c0; box-shadow: 0 2px 8px rgba(32,36,42,0.06); box-sizing: border-box; color: #5c6770; }}
+    body:not(.detailMode) tr.ok {{ background: #ffffff; border-color: #bfd2c5; border-left-color: #3f8050; box-shadow: 0 2px 9px rgba(32,36,42,0.09); color: #151a20; }}
     body:not(.detailMode) tr.wait,
     body:not(.detailMode) tr.new,
-    body:not(.detailMode) tr.warn {{ background: #e2e6e9; border-color: #c7cfd6; border-left-color: #aeb8c0; color: #656f79; box-shadow: 0 1px 1px rgba(32,36,42,0.012); }}
-    body:not(.detailMode) tr.blocked {{ background: #e6e2df; border-color: #d6ceca; border-left-color: #b9aaa4; box-shadow: none; color: #89817e; filter: saturate(0.62); }}
+    body:not(.detailMode) tr.warn,
+    body:not(.detailMode) tr.passthrough {{ background: #f8fafb; border-color: #cbd3d9; border-left-color: #aeb8c0; color: #5c6770; box-shadow: 0 2px 8px rgba(32,36,42,0.06); }}
+    body:not(.detailMode) tr.blocked {{ background: #fbf7f6; border-color: #dccdca; border-left-color: #a76560; box-shadow: 0 2px 8px rgba(32,36,42,0.04); color: #695c5b; }}
     body:not(.detailMode) td {{ display: block; border: 0; padding: 0; white-space: normal; }}
     body:not(.detailMode) td:first-child,
     body:not(.detailMode) td:nth-child(3),
     body:not(.detailMode) td:nth-child(9),
     body:not(.detailMode) td:nth-child(10) {{ display: none; }}
-    body:not(.detailMode) td.name {{ grid-column: 1 / -1; grid-row: 1; min-height: 0; padding-right: 24%; font-size: 21px; line-height: 1.08; color: inherit; font-weight: 850; z-index: 1; }}
+    body:not(.detailMode) td.name {{ grid-column: 1 / -1; grid-row: 1; min-height: 0; padding-right: 48px; font-size: 18px; line-height: 1.15; color: inherit; font-weight: 800; z-index: 1; }}
     body:not(.detailMode) .colorNameText {{ display: -webkit-box; max-width: 100%; overflow: hidden; overflow-wrap: anywhere; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }}
     body:not(.detailMode) .machineCmyk {{ display: block; max-width: calc(100% - 4px); margin-top: 5px; color: #626b75; font-size: 12px; line-height: 1.1; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
-    body:not(.detailMode) .customerGlow {{ display: block; position: absolute; inset: 0; z-index: 0; pointer-events: none; background: radial-gradient(circle at 97% 3%, rgba(var(--customer-rgb, 210,216,222), 0.96) 0, rgba(var(--customer-rgb, 210,216,222), 0.66) 10%, rgba(var(--customer-rgb, 210,216,222), 0.22) 28%, rgba(var(--customer-rgb, 210,216,222), 0) 48%); }}
+    body:not(.detailMode) .customerGlow {{ display: block; position: absolute; top: 14px; right: 14px; width: 34px; height: 34px; z-index: 0; pointer-events: none; border: 1px solid rgba(32,36,42,0.16); border-radius: 4px; background: rgb(var(--customer-rgb, 210,216,222)); }}
     body:not(.detailMode) tr.wait .customerGlow,
     body:not(.detailMode) tr.new .customerGlow,
-    body:not(.detailMode) tr.warn .customerGlow {{ opacity: 0.5; filter: saturate(0.42); }}
-    body:not(.detailMode) tr.blocked .customerGlow {{ opacity: 0.16; filter: saturate(0.12); }}
+    body:not(.detailMode) tr.warn .customerGlow {{ opacity: 0.8; }}
+    body:not(.detailMode) tr.blocked .customerGlow {{ opacity: 0.65; }}
     body:not(.detailMode) .cornerCmyk {{ display: none; }}
     body:not(.detailMode) .cmykCell {{ display: none; }}
     body:not(.detailMode) .printCell {{ grid-column: 1; grid-row: 2; align-self: stretch; min-width: 0; padding-top: 0; z-index: 1; }}
@@ -3099,9 +3413,9 @@ class ColorTableManager:
     body:not(.detailMode) tr.blocked .printCell,
     body:not(.detailMode) tr.blocked .approvalCell,
     body:not(.detailMode) tr.blocked .transferCell {{ display: none; }}
-    body:not(.detailMode) tr.blocked td.name {{ grid-row: 1 / 3; min-height: 0; padding-right: 12%; }}
-    body:not(.detailMode) tr.blocked .notPrintableBanner {{ display: flex; width: fit-content; margin-top: 12px; padding: 0; font-size: 14px; }}
-    body:not(.detailMode) tr.blocked .notPrintableCardReason {{ display: -webkit-box; max-height: none; overflow: hidden; padding-right: 5px; font-size: 13px; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }}
+    body:not(.detailMode) tr.blocked td.name {{ grid-row: 1 / 3; min-height: 0; }}
+    body:not(.detailMode) tr.blocked .notPrintableBanner {{ display: flex; width: fit-content; margin-top: 6px; padding: 0; font-size: 12px; }}
+    body:not(.detailMode) tr.blocked .notPrintableCardReason {{ display: block; overflow: hidden; padding-right: 4px; font-size: 12px; white-space: nowrap; text-overflow: ellipsis; }}
     body:not(.detailMode) tr.blocked .skCell {{ grid-column: 1; grid-row: 3; }}
     body:not(.detailMode) tr.blocked .addSk {{ display: inline-grid; place-items: center; padding: 0 12px; background: rgba(255,255,255,0.45); border-color: #cbc4c1; }}
     body:not(.detailMode) tr.blocked .templateButtonCount {{ font-size: 20px; }}
@@ -3115,6 +3429,13 @@ class ColorTableManager:
     body.detailMode .machineCmyk {{ display: none; }}
     body.detailMode .notPrintableCardReason {{ display: none; }}
     body.detailMode .notPrintableReasonDetails {{ display: block; }}
+    body.detailMode tr.blocked .printCell,
+    body.detailMode tr.blocked .approvalCell,
+    body.detailMode tr.blocked .transferCell {{ visibility: hidden; }}
+    body.detailMode tr.blocked .historyMeta {{ display: none; }}
+    body.detailMode tr.blocked .notPrintableBanner {{ display: block; margin-top: 5px; font-size: 12px; }}
+    body.detailMode tr.blocked .notPrintableReasonDetails {{ margin-top: 4px; }}
+    body.detailMode tr.blocked .clearNotPrintable {{ margin-top: 4px; }}
     body.detailMode .detailApproval {{ display: inline; }}
     body.detailMode .machineTransferSummary {{ display: none; }}
     body.detailMode .detailStatusChange {{ display: inline-block; margin-left: 8px; }}
@@ -3122,9 +3443,12 @@ class ColorTableManager:
     @media (max-width: 760px) {{
       body {{ margin: 16px; }}
       .machineHeader {{ display: grid; gap: 10px; }}
+      .titleBlock {{ gap: 10px; }}
+      .brandLogo {{ width: 108px; }}
       .headerActions {{ justify-content: stretch; }}
       .headerActions .connection {{ flex: 1; }}
       .topBar, .summary {{ grid-template-columns: 1fr; }}
+      .searchBar {{ grid-column: 1; }}
       .prepressEntry {{ grid-template-columns: 1fr; }}
       .prepressEntry textarea {{ grid-column: auto; }}
       .viewToggle {{ width: 100%; }}
@@ -3158,8 +3482,11 @@ class ColorTableManager:
 <body>
   <header class="machineHeader">
     <div class="titleBlock">
-      <h1 id="title">MPRINT Farbübersicht</h1>
-      <p class="meta">Automatisch aktualisiert: {html.escape(now_stamp())}</p>
+      {logo_html}
+      <div>
+        <h1 id="title">Farbübersicht</h1>
+        <p class="meta">Automatisch aktualisiert: {html.escape(now_stamp())}</p>
+      </div>
     </div>
     <div class="headerActions">
       <div id="connectionStatus" class="connection checking">Verbindung wird geprüft</div>
@@ -3168,22 +3495,26 @@ class ColorTableManager:
   </header>
   {preview_banner}
   <div class="topBar">
+    <form class="entry" method="post" action="{html.escape(submit_url, quote=True)}" target="submitFrame" data-prepress-only hidden>
+      <label for="farbe">Kundenfarbe eintragen</label>
+      <div class="entryRow">
+        <input name="farbe" id="farbe" autocomplete="off" placeholder="Neue Farbbezeichnung">
+        <button type="submit">Eintragen</button>
+      </div>
+    </form>
     <div class="searchBar">
-      <label for="colorSearch">Farbsuche</label>
+      <label for="colorSearch">Farbname suchen</label>
       <input type="search" id="colorSearch" autocomplete="off" placeholder="Farbname suchen...">
     </div>
   </div>
   <section id="prepressControls" class="prepressControls" data-prepress-only hidden>
     <div class="summary">{summary_html}</div>
-    <form class="entry" method="post" action="{html.escape(submit_url, quote=True)}" target="submitFrame">
-      <input name="farbe" id="farbe" autocomplete="off" placeholder="Kundenfarbe eintragen">
-      <button type="submit">Eintragen</button>
-    </form>
   </section>
   <div id="entryStatus"></div>
   <iframe name="submitFrame" style="display:none"></iframe>
-  <section class="prepressNotes" aria-label="Vorstufen-Hinweise" data-prepress-only hidden>
-    <h2>Vorstufen-Hinweise</h2>
+  <details class="prepressNotes" aria-label="Vorstufen-Hinweise" data-prepress-only hidden>
+    <summary>Vorstufen-Hinweise <span id="prepressNoteCount">{len(prepress_notes)}</span></summary>
+    <div class="prepressNotesBody">
     <form id="prepressNoteForm" class="prepressEntry">
       <input name="title" autocomplete="off" placeholder="Titel">
       <input name="customer" autocomplete="off" placeholder="Kunde optional">
@@ -3194,11 +3525,12 @@ class ColorTableManager:
       <textarea name="text" placeholder="Information"></textarea>
     </form>
     <div id="prepressNoteList" class="prepressNoteList">{prepress_note_html}</div>
-  </section>
-  <table>
+    </div>
+  </details>
+  <div class="tableWrap"><table>
     <thead><tr><th class="indicator"></th><th>Kundenfarbe</th><th></th><th>CMYK</th><th>Druck</th><th>Betroffene Eindruckvorlagen</th><th>Prüfung</th><th>Übernahme</th><th>Historie</th><th class="adminOnly"></th></tr></thead>
     <tbody>{''.join(body_rows)}</tbody>
-  </table>
+  </table></div>
   <div id="noSearchResults" class="noResults">Keine passenden Farben gefunden</div>
   <div id="dialogBackdrop" class="dialogBackdrop" role="dialog" aria-modal="true">
     <div class="dialogBox">
@@ -3272,8 +3604,9 @@ class ColorTableManager:
         if (navigator.clipboard) {{
           navigator.clipboard.writeText(name);
         }}
-        button.textContent = 'Kopiert';
-        window.setTimeout(function() {{ button.textContent = 'Kopieren'; }}, 1200);
+        button.textContent = '✓';
+        button.title = 'Kopiert';
+        window.setTimeout(function() {{ button.textContent = '⧉'; button.title = 'Farbnamen kopieren'; }}, 1200);
       }});
     }});
     function postHelper(url, data) {{
@@ -3370,8 +3703,12 @@ class ColorTableManager:
       colorSearch.addEventListener('input', applyColorSearch);
     }}
     var detailToggle = document.getElementById('detailToggle');
+    try {{
+      if (window.sessionStorage.getItem('mjetDetailMode') === '1') document.body.classList.add('detailMode');
+    }} catch (_error) {{}}
     function syncViewMode() {{
       var detailMode = document.body.classList.contains('detailMode');
+      try {{ window.sessionStorage.setItem('mjetDetailMode', detailMode ? '1' : '0'); }} catch (_error) {{}}
       document.querySelectorAll('[data-prepress-only]').forEach(function(node) {{
         node.hidden = !detailMode;
       }});
@@ -3568,7 +3905,7 @@ class ColorTableManager:
     }}
     document.querySelectorAll('.summaryPill').forEach(function(button) {{
       button.addEventListener('click', function() {{
-        document.querySelectorAll('details').forEach(function(details) {{ details.open = true; }});
+        document.querySelectorAll('tbody details').forEach(function(details) {{ details.open = true; }});
         document.getElementById('entryStatus').textContent = 'SK-Details geöffnet.';
       }});
     }});
@@ -3602,6 +3939,43 @@ class ColorTableManager:
           .catch(function(error) {{
             status.textContent = 'Farbe nicht ausgeblendet: ' + friendlyFetchError(error);
           }});
+        }});
+      }});
+    }});
+    document.querySelectorAll('.renameColor').forEach(function(button) {{
+      button.addEventListener('click', function() {{
+        var oldName = button.getAttribute('data-name') || '';
+        var status = document.getElementById('entryStatus');
+        var row = button.closest('tr');
+        showDialog({{
+          title: 'Farbnamen korrigieren',
+          body: '<label>Neuer Farbname<input id="renamedColor" value="' + escapeHtml(oldName) + '" maxlength="160" autocomplete="off"></label>',
+          okText: 'Speichern',
+          returnInput: true
+        }}).then(function(newName) {{
+          if (newName === null) return;
+          newName = String(newName).trim();
+          if (!newName) {{
+            status.textContent = 'Bitte einen Farbnamen eintragen.';
+            return;
+          }}
+          status.textContent = 'Farbname wird korrigiert...';
+          postHelper({rename_url_json}, {{ farbe: oldName, neuer_name: newName }})
+            .then(function(payload) {{
+              status.textContent = payloadMessage(payload, 'Farbname korrigiert.');
+              if (!row) return;
+              row.querySelector('.colorNameText').textContent = newName;
+              row.querySelectorAll('[data-name]').forEach(function(item) {{ item.setAttribute('data-name', newName); }});
+              row.querySelectorAll('[data-color]').forEach(function(item) {{ item.setAttribute('data-color', newName); }});
+              row.querySelector('.colorNameText').title = newName;
+              var swatch = row.querySelector('.customerGlow');
+              if (swatch) swatch.title = newName + ' · ' + (swatch.getAttribute('data-cmyk') || '');
+              var skNames = Array.from(row.querySelectorAll('.skItem strong')).map(function(item) {{ return item.textContent; }}).join(' ');
+              row.setAttribute('data-color-search', newName + ' ' + (row.querySelector('.cmykCell') || {{ textContent: '' }}).textContent + ' ' + skNames);
+              refreshRowSearchText(row);
+              applyColorSearch();
+            }})
+            .catch(function(error) {{ status.textContent = 'Farbname nicht korrigiert: ' + friendlyFetchError(error); }});
         }});
       }});
     }});
@@ -3856,6 +4230,8 @@ class ColorTableManager:
         prepressNoteList.innerHTML = '';
       }}
       prepressNoteList.insertAdjacentHTML('beforeend', html);
+      var count = document.getElementById('prepressNoteCount');
+      if (count) count.textContent = String(prepressNoteList.querySelectorAll('.prepressNote').length);
     }}
     if (prepressForm) {{
       prepressForm.addEventListener('submit', function(event) {{
@@ -4307,6 +4683,7 @@ class ColorRequestServer:
                     "/farbe",
                     "/farbe-loeschen",
                     "/farbe-ausblenden",
+                    "/farbe-umbenennen",
                     "/sk-hinzufuegen",
                     "/sk-gedruckt",
                     "/sk-freigeben",
@@ -4348,6 +4725,13 @@ class ColorRequestServer:
                             self._send_json({"ok": False, "message": message}, status=409)
                             return
                         self._send_json({"ok": True, "message": message})
+                        return
+                    if path == "/farbe-umbenennen":
+                        result = color_manager.rename_overview_color(
+                            color_name,
+                            values.get("neuer_name", [""])[0],
+                        )
+                        self._send_json(result, status=int(result.get("status", 200)))
                         return
                     if path == "/farbe-nicht-druckbar":
                         if clear_flag:
@@ -5807,20 +6191,7 @@ def is_newer_version(candidate: str, current: str) -> bool:
 
 
 def load_update_info(update_source: str) -> dict:
-    source = update_source.strip()
-    if not source:
-        raise ValueError("Keine Prüfung auf neue Version eingerichtet.")
-    if re.match(r"^https?://", source, re.IGNORECASE):
-        with urlopen(source, timeout=6) as response:
-            raw = response.read(512_000).decode("utf-8")
-    else:
-        raw = Path(source).read_text(encoding="utf-8")
-    data = json.loads(raw)
-    if not isinstance(data, dict):
-        raise ValueError("Versionsinformation konnte nicht gelesen werden.")
-    if not str(data.get("version", "")).strip():
-        raise ValueError("Versionsinformation enthält keine Versionsnummer.")
-    return data
+    return load_release_update_info(update_source)
 
 
 class MainApp:
@@ -5838,6 +6209,8 @@ class MainApp:
         self.pdf_reduce_running = False
         self.pdf_reduce_cancel_event = threading.Event()
         self.last_sync_result: SyncResult | None = None
+        self._preflight_issue_files: set[str] = set()
+        self.update_install_running = False
         self.last_auto_clean_at = 0.0
         self.color_mixer_window: ColorMixerWindow | None = None
 
@@ -6359,8 +6732,106 @@ class MainApp:
         return f"{value:.4f}".rstrip("0").rstrip(".")
 
     def start_color_sync(self) -> None:
+        try:
+            issues = self.color_manager.inspect_single_color_issues()
+        except Exception as exc:
+            messagebox.showerror(APP_NAME, f"Farbdateien konnten nicht geprüft werden:\n{exc}")
+            return
+        self._preflight_issue_files = {issue.path.name for issue in issues}
+        for issue in issues:
+            choice = self._show_single_color_issue(issue)
+            if choice == "abort":
+                self._preflight_issue_files = set()
+                self.main_status_label.configure(text="Farbabgleich abgebrochen; keine Änderung am Master")
+                return
         self.main_status_label.configure(text="Farbabgleich läuft...")
         self._run_background(self._sync_worker, write_master=True)
+
+    def _show_single_color_issue(self, issue: SingleColorIssue) -> str:
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Farbdatei prüfen")
+        dialog.configure(bg=THEME["window"])
+        dialog.transient(self.root)
+        dialog.resizable(True, False)
+        dialog.geometry("650x410")
+        result = {"choice": "abort"}
+
+        if issue.kind == "foreign":
+            names = ", ".join(line.split("\n", 1)[0] for line in issue.entries)
+            notice = (
+                f"ACHTUNG: Die gespeicherte Farbdatei enthält eine andere Farbe: {names}. "
+                "Vielleicht wurde die falsche Datei abgelegt. Diese Farbe wird nicht übernommen. "
+                "Bitte die Datei im Ordner prüfen und korrigieren."
+            )
+        elif issue.kind == "missing_replacement":
+            notice = (
+                "Ersatzfarbe ist eingeschaltet, aber die CCT enthält keine Ersatz-Farbwerte. "
+                "Sie können die Farbe ausdrücklich ohne Ersatz akzeptieren."
+            )
+        elif issue.kind == "mismatch":
+            notice = (
+                "Dateiname und enthaltener Farbname unterscheiden sich. Prüfen Sie, welcher Name "
+                "wirklich zur Kundenfarbe und zur PDF-Sonderfarbe gehört."
+            )
+        elif issue.kind == "duplicate":
+            notice = "Die CCT enthält mehrere passende Farbeinträge. Bitte die Datei manuell prüfen."
+        elif issue.kind == "empty":
+            notice = "Die CCT enthält überhaupt keinen ColorEntry-Farbeintrag. Sie wird nicht übernommen."
+        else:
+            notice = "Die CCT ist nicht lesbar. Sie wird nicht übernommen."
+
+        tk.Label(dialog, text=notice, bg=THEME["window"], fg=THEME["red"] if issue.kind in {"foreign", "empty", "invalid_xml"} else THEME["text"],
+                 justify="left", anchor="w", wraplength=600, font=("Segoe UI", 10, "bold")).pack(fill="x", padx=16, pady=(16, 10))
+        tk.Label(dialog, text=f"Datei: {issue.path.name}\nErwartete Farbe laut Dateiname: {issue.file_color}",
+                 bg=THEME["window"], fg=THEME["text"], justify="left", anchor="w", wraplength=600).pack(fill="x", padx=16, pady=(0, 8))
+        tk.Label(dialog, text="Tatsächlicher Inhalt der CCT:", bg=THEME["window"], fg=THEME["text"], anchor="w").pack(fill="x", padx=16)
+        contents = tk.Text(dialog, height=5, wrap="word", bg=THEME["entry"], fg=THEME["text"], relief="solid", borderwidth=1)
+        contents.pack(fill="both", expand=True, padx=16, pady=(4, 10))
+        contents.insert("1.0", "\n\n".join(issue.entries) if issue.entries else "Kein Farbeintrag vorhanden")
+        contents.configure(state="disabled")
+
+        buttons = tk.Frame(dialog, bg=THEME["window"])
+        buttons.pack(fill="x", padx=16, pady=(0, 4))
+        navigation = tk.Frame(dialog, bg=THEME["window"])
+        navigation.pack(fill="x", padx=16, pady=(0, 16))
+
+        def finish(choice: str) -> None:
+            result["choice"] = choice
+            dialog.destroy()
+
+        def correct(action: str) -> None:
+            if action == "rename_file":
+                new_name = issue.entries[0].split("\n", 1)[0]
+                question = f"{issue.path.name} wirklich in {new_name}{issue.path.suffix} umbenennen?\n\nVorher wird ein Backup erstellt."
+            elif action == "rename_entry":
+                question = (
+                    f"Enthaltenen Farbnamen wirklich in '{issue.file_color}' ändern?\n\n"
+                    "Das kann die Zuordnung zur PDF-Sonderfarbe verändern. Nur bei einem sicheren Tippfehler bestätigen. "
+                    "Vorher wird ein Backup erstellt."
+                )
+            else:
+                question = "Ersatzfunktion dieser Datei wirklich ausschalten?\n\nEs sind keine Ersatz-Farbwerte vorhanden. Vorher wird ein Backup erstellt."
+            if not messagebox.askyesno("Farbdatei korrigieren", question, parent=dialog):
+                return
+            try:
+                self.color_manager.resolve_single_color_issue(issue, action)
+            except Exception as exc:
+                messagebox.showerror(APP_NAME, f"Korrektur nicht möglich:\n{exc}", parent=dialog)
+                return
+            finish("fixed")
+
+        if issue.can_rename:
+            tk.Button(buttons, text="CCT-Datei umbenennen", command=lambda: correct("rename_file")).pack(side="left", padx=(0, 6))
+            tk.Button(buttons, text="Farbe in CCT umbenennen", command=lambda: correct("rename_entry")).pack(side="left", padx=(0, 6))
+        if issue.can_accept_without_replacement:
+            tk.Button(buttons, text="Ohne Ersatz akzeptieren", command=lambda: correct("without_replacement")).pack(side="left", padx=(0, 6))
+        tk.Button(navigation, text="Ordner öffnen", command=lambda: (self.open_path(issue.path.parent), finish("skip"))).pack(side="left")
+        tk.Button(navigation, text="Überspringen", command=lambda: finish("skip")).pack(side="right", padx=(6, 0))
+        tk.Button(navigation, text="Abbrechen", command=lambda: finish("abort")).pack(side="right")
+        dialog.protocol("WM_DELETE_WINDOW", lambda: finish("abort"))
+        dialog.grab_set()
+        self.root.wait_window(dialog)
+        return result["choice"]
 
     def startup_color_check(self) -> None:
         if self.setup_required():
@@ -6391,10 +6862,16 @@ class MainApp:
         self.status_match.set(result.severity, self._sync_short_text(result))
         self._update_color_overview_status()
         self._update_expert_details(result)
+        explained = self._preflight_issue_files
+        self._preflight_issue_files = set()
+        remaining_warnings = [warning for warning in result.warnings if not any(warning.startswith(name + ":") or warning.startswith(name + " enthält") for name in explained)]
         if result.severity == "red":
             messagebox.showerror(APP_NAME, result.message + self._detail_suffix(result))
         elif result.severity == "yellow":
-            messagebox.showwarning(APP_NAME, result.message + self._detail_suffix(result))
+            if remaining_warnings or result.errors or not explained:
+                shown = copy.copy(result)
+                shown.warnings = remaining_warnings
+                messagebox.showwarning(APP_NAME, result.message + self._detail_suffix(shown))
         else:
             messagebox.showinfo(APP_NAME, result.message)
 
@@ -6818,6 +7295,13 @@ class MainApp:
         return result["value"]
 
     def shutdown_flow(self) -> None:
+        if not messagebox.askyesno(
+            APP_NAME,
+            "Wollen Sie den Rechner wirklich herunterfahren?",
+            default=messagebox.NO,
+        ):
+            self.main_status_label.configure(text="Herunterfahren abgebrochen.")
+            return
         self.main_status_label.configure(text="Feierabend läuft. Sie müssen nichts mehr tun.")
         self._run_background(self._shutdown_prepare_worker)
 
@@ -7008,17 +7492,68 @@ class MainApp:
                 f"Neue Version verfügbar: {latest_version}",
                 f"Aktuelle Version: {APP_VERSION}",
             ]
-            if download_url:
-                message_lines.extend(["", f"Quelle: {download_url}"])
             if notes:
-                message_lines.extend(["", notes])
+                message_lines.extend(["", notes[:500]])
             self.main_status_label.configure(text=f"Update verfügbar: {latest_version}")
-            messagebox.showinfo(APP_NAME, "\n".join(message_lines))
+            if os.name == "nt" and getattr(sys, "frozen", False) and is_installable_release(info):
+                if self.update_install_running:
+                    return
+                message_lines.extend(["", "Update herunterladen? Die Installation startet erst nach einer weiteren Bestätigung."])
+                if messagebox.askyesno(APP_NAME, "\n".join(message_lines), parent=self.root):
+                    self.update_install_running = True
+                    self.main_status_label.configure(text=f"Update {latest_version} wird geladen...")
+                    self._run_background(self._download_update_worker, info=dict(info))
+            else:
+                if download_url:
+                    message_lines.extend(["", f"Download: {download_url}"])
+                message_lines.extend(["", "Die Installation per Klick ist nur in der Windows-EXE aus einem geprüften GitHub-Release verfügbar."])
+                messagebox.showinfo(APP_NAME, "\n".join(message_lines), parent=self.root)
             return
 
         self.main_status_label.configure(text=f"{APP_NAME} ist aktuell")
         if show_if_current:
             messagebox.showinfo(APP_NAME, f"{APP_NAME} ist aktuell.\n\nInstalliert: {APP_VERSION}")
+
+    def _download_update_worker(self, info: dict) -> None:
+        try:
+            installer = download_verified_installer(info)
+            self.root.after(0, lambda: self._offer_verified_update(installer, str(info["version"])))
+        except Exception as exc:
+            self.logger.log(f"Update-Download fehlgeschlagen: {exc}", "WARNING")
+            self.root.after(0, lambda error=str(exc): self._update_download_failed(error))
+
+    def _update_download_failed(self, error: str) -> None:
+        self.update_install_running = False
+        self.main_status_label.configure(text="Update konnte nicht geladen werden")
+        messagebox.showerror(APP_NAME, f"Das Update wurde nicht gestartet:\n{error}", parent=self.root)
+
+    def _offer_verified_update(self, installer: Path, version: str) -> None:
+        self.main_status_label.configure(text=f"Update {version} bereit")
+        confirmed = messagebox.askyesno(
+            APP_NAME,
+            f"Version {version} ist heruntergeladen und geprüft.\n\n"
+            "Jetzt installieren? Der Helper wird dafür beendet. "
+            "Bitte nur fortfahren, wenn gerade kein Druckauftrag läuft.",
+            parent=self.root,
+        )
+        if not confirmed:
+            self.update_install_running = False
+            shutil.rmtree(installer.parent, ignore_errors=True)
+            self.main_status_label.configure(text="Update auf später verschoben")
+            return
+        try:
+            subprocess.Popen(
+                [str(installer), "/SILENT", "/NORESTART", "/SP-"],
+                cwd=str(installer.parent),
+                close_fds=True,
+            )
+        except Exception as exc:
+            self.update_install_running = False
+            shutil.rmtree(installer.parent, ignore_errors=True)
+            messagebox.showerror(APP_NAME, f"Installer konnte nicht gestartet werden:\n{exc}", parent=self.root)
+            return
+        self.logger.log(f"Update-Installer für Version {version} gestartet")
+        self._on_close()
 
     def maybe_open_initial_setup(self) -> None:
         if os.name != "nt" and not default_config_created():

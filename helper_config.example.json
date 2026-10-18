@@ -29,7 +29,7 @@
   "always_on_top": true,
   "window_width": 260,
   "update_check_enabled": true,
-  "update_check_url": "https://raw.githubusercontent.com/vr4w/mjet-x-helper/main/update_info.json",
+  "update_check_url": "https://api.github.com/repos/vr4w/mjet-x-helper/releases/latest",
   "known_processes": [
     "Productionserver25.exe",
     "lp2000i.exe"
