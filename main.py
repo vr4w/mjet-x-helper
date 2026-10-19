@@ -44,7 +44,7 @@ from update_service import (
 
 
 APP_NAME = "MJET-X Helper"
-APP_VERSION = "1.1.4"
+APP_VERSION = "1.1.5"
 APP_AUTHOR = "AE / Marvin Schöffel"
 APP_CONTACT = "ms@graphic-druck.de"
 CONFIG_NAME = "helper_config.json"
@@ -790,10 +790,10 @@ class ColorTableManager:
             if len(matching) > 1:
                 issues.append(SingleColorIssue(path, digest, "duplicate", file_color, descriptions))
                 continue
+            if all(self._entry_without_replacement(entry) for entry in entries):
+                continue
             inconsistent = [entry for entry in entries if self._replacement_flag_without_values(entry)]
             if matching and not inconsistent:
-                continue
-            if not matching and all(self._entry_without_replacement(entry) for entry in entries):
                 continue
 
             one_entry = len(entries) == 1
@@ -923,12 +923,19 @@ class ColorTableManager:
             elif entry_name:
                 ignored_names.append(entry_name)
 
-        if any(self._replacement_flag_without_values(entry) for entry in entries):
-            warnings.append(
-                f"{color_file.name}: Ersatzfarbe aktiv, aber keine Ersatz-Farbwerte vorhanden. "
-                "Die Datei wurde nicht übernommen."
+        if entries and all(self._entry_without_replacement(entry) for entry in entries):
+            passthrough = not matching
+            return (
+                SingleColorCandidate(
+                    name=target_name,
+                    entry=matching[0] if matching else entries[0],
+                    source_file=color_file,
+                    mtime=file_mtime,
+                    passthrough=passthrough,
+                ),
+                errors,
+                warnings,
             )
-            return None, errors, warnings
 
         if not matching:
             if entries and all(self._entry_without_replacement(entry) for entry in entries):
@@ -980,10 +987,15 @@ class ColorTableManager:
         )
 
     def _entry_without_replacement(self, entry: ET.Element) -> bool:
-        if str(entry.get("ReplacementEnabled", "")).casefold() != "false":
-            return False
+        if str(entry.get("ReplacementEnabled", "")).casefold() == "false":
+            return True
         color_out = next((part for part in entry.iter() if local_name(part.tag) == "ColorOut"), None)
-        return color_out is not None and color_out.get("ColorModel", "").casefold() == "none"
+        if color_out is None or color_out.get("ColorModel", "").casefold() == "none":
+            return True
+        return not any(
+            local_name(part.tag) == "ComponentValues" and (part.text or "").strip()
+            for part in color_out.iter()
+        )
 
     def _target_color_name_from_file(self, color_file: Path) -> str:
         return self._clean_color_name(unicodedata.normalize("NFC", color_file.stem))
@@ -6247,6 +6259,9 @@ class MainApp:
         self.last_sync_result: SyncResult | None = None
         self._preflight_issue_files: set[str] = set()
         self.update_install_running = False
+        self.update_progress_window: tk.Toplevel | None = None
+        self.update_progress_label: tk.Label | None = None
+        self.update_progress_bar: ttk.Progressbar | None = None
         self.last_auto_clean_at = 0.0
         self.color_mixer_window: ColorMixerWindow | None = None
 
@@ -6295,7 +6310,8 @@ class MainApp:
             font=("Segoe UI", 13, "bold"),
         )
         self.title_label.pack(side="left", fill="x", expand=True)
-        self._small_button(title_row, "...", self.toggle_expert).pack(side="right")
+        self.expert_toggle_button = self._small_button(title_row, "...", self.toggle_expert)
+        self.expert_toggle_button.pack(side="right")
 
         status_box = tk.Frame(
             self.normal_frame,
@@ -6788,43 +6804,77 @@ class MainApp:
         dialog.title("Farbdatei prüfen")
         dialog.configure(bg=THEME["window"])
         dialog.transient(self.root)
-        dialog.resizable(True, False)
-        dialog.geometry("650x410")
+        dialog.resizable(False, False)
+        dialog.geometry("560x410")
         result = {"choice": "abort"}
 
+        entry_names = [line.split("\n", 1)[0] for line in issue.entries if line.strip()]
+        actual_name = entry_names[0] if entry_names else "Kein Farbname gespeichert"
         if issue.kind == "foreign":
-            names = ", ".join(line.split("\n", 1)[0] for line in issue.entries)
-            notice = (
-                f"ACHTUNG: Die gespeicherte Farbdatei enthält eine andere Farbe: {names}. "
-                "Vielleicht wurde die falsche Datei abgelegt. Diese Farbe wird nicht übernommen. "
-                "Bitte die Datei im Ordner prüfen und korrigieren."
-            )
+            title = "Achtung: anderer Farbname gespeichert"
+            notice = "Diese Datei sieht nicht nach einem einfachen Tippfehler aus. Sie wird nicht übernommen."
+            notice_color = THEME["red"]
         elif issue.kind == "missing_replacement":
-            notice = (
-                "Ersatzfarbe ist eingeschaltet, aber die CCT enthält keine Ersatz-Farbwerte. "
-                "Sie können die Farbe ausdrücklich ohne Ersatz akzeptieren."
-            )
+            title = "Keine Ersatzfarbe in der Datei"
+            notice = "Die Datei enthält keine wirksamen Ersatzwerte und wird als Originalfarbe akzeptiert."
+            notice_color = THEME["text"]
         elif issue.kind == "mismatch":
-            notice = (
-                "Dateiname und enthaltener Farbname unterscheiden sich. Prüfen Sie, welcher Name "
-                "wirklich zur Kundenfarbe und zur PDF-Sonderfarbe gehört."
-            )
+            title = "Dateiname und gespeicherter Farbname unterscheiden sich"
+            notice = "Hast du dich vertippt? Wähle, welcher Name stimmen soll. Vorher wird ein Backup erstellt."
+            notice_color = THEME["text"]
         elif issue.kind == "duplicate":
-            notice = "Die CCT enthält mehrere passende Farbeinträge. Bitte die Datei manuell prüfen."
+            title = "Mehrere gleiche Farbnamen in einer Datei"
+            notice = "Bitte prüfe die Datei im Ordner. Sie wird bis dahin nicht übernommen."
+            notice_color = THEME["red"]
         elif issue.kind == "empty":
-            notice = "Die CCT enthält überhaupt keinen ColorEntry-Farbeintrag. Sie wird nicht übernommen."
+            title = "In der Datei fehlt der Farbname"
+            notice = "Die Datei enthält keinen gespeicherten Farbeintrag und wird nicht übernommen."
+            notice_color = THEME["red"]
         else:
-            notice = "Die CCT ist nicht lesbar. Sie wird nicht übernommen."
+            title = "Die Farbdatei kann nicht gelesen werden"
+            notice = "Die Datei wird nicht übernommen. Bitte prüfe sie im Ordner."
+            notice_color = THEME["red"]
 
-        tk.Label(dialog, text=notice, bg=THEME["window"], fg=THEME["red"] if issue.kind in {"foreign", "empty", "invalid_xml"} else THEME["text"],
-                 justify="left", anchor="w", wraplength=600, font=("Segoe UI", 10, "bold")).pack(fill="x", padx=16, pady=(16, 10))
-        tk.Label(dialog, text=f"Datei: {issue.path.name}\nErwartete Farbe laut Dateiname: {issue.file_color}",
-                 bg=THEME["window"], fg=THEME["text"], justify="left", anchor="w", wraplength=600).pack(fill="x", padx=16, pady=(0, 8))
-        tk.Label(dialog, text="Tatsächlicher Inhalt der CCT:", bg=THEME["window"], fg=THEME["text"], anchor="w").pack(fill="x", padx=16)
-        contents = tk.Text(dialog, height=5, wrap="word", bg=THEME["entry"], fg=THEME["text"], relief="solid", borderwidth=1)
-        contents.pack(fill="both", expand=True, padx=16, pady=(4, 10))
-        contents.insert("1.0", "\n\n".join(issue.entries) if issue.entries else "Kein Farbeintrag vorhanden")
-        contents.configure(state="disabled")
+        tk.Label(
+            dialog,
+            text=title,
+            bg=THEME["window"],
+            fg=notice_color,
+            justify="left",
+            anchor="w",
+            wraplength=500,
+            font=("Segoe UI", 13, "bold"),
+        ).pack(fill="x", padx=16, pady=(16, 6))
+        tk.Label(
+            dialog,
+            text=notice,
+            bg=THEME["window"],
+            fg=THEME["text"],
+            justify="left",
+            anchor="w",
+            wraplength=500,
+        ).pack(fill="x", padx=16, pady=(0, 10))
+
+        preview = tk.Frame(dialog, bg=THEME["panel"], padx=12, pady=10,
+                           highlightbackground=THEME["border"], highlightthickness=1)
+        preview.pack(fill="x", padx=16, pady=(0, 10))
+        file_row = tk.Frame(preview, bg=THEME["panel"])
+        file_row.pack(fill="x")
+        file_icon = tk.Canvas(file_row, width=30, height=36, bg=THEME["panel"],
+                              highlightthickness=0, bd=0)
+        file_icon.pack(side="left", padx=(0, 10))
+        file_icon.create_rectangle(7, 2, 23, 33, fill=THEME["entry"], outline=THEME["muted"])
+        file_icon.create_line(11, 11, 19, 11, fill=THEME["muted"])
+        file_icon.create_line(11, 16, 19, 16, fill=THEME["muted"])
+        file_icon.create_line(11, 21, 19, 21, fill=THEME["muted"])
+        file_text = tk.Frame(file_row, bg=THEME["panel"])
+        file_text.pack(side="left", fill="x", expand=True)
+        tk.Label(file_text, text="DATEINAME", bg=THEME["panel"], fg=THEME["muted"],
+                 anchor="w", font=("Segoe UI", 8, "bold")).pack(fill="x")
+        tk.Label(file_text, text=issue.path.name, bg=THEME["panel"], fg=THEME["text"],
+                 anchor="w", font=("Segoe UI", 11, "bold"), wraplength=455).pack(fill="x", pady=(0, 7))
+        tk.Label(file_text, text=f"Farbname in der Datei: {actual_name}", bg=THEME["panel"],
+                 fg=THEME["text"], anchor="w", font=("Segoe UI", 10), wraplength=455).pack(fill="x")
 
         buttons = tk.Frame(dialog, bg=THEME["window"])
         buttons.pack(fill="x", padx=16, pady=(0, 4))
@@ -6836,19 +6886,6 @@ class MainApp:
             dialog.destroy()
 
         def correct(action: str) -> None:
-            if action == "rename_file":
-                new_name = issue.entries[0].split("\n", 1)[0]
-                question = f"{issue.path.name} wirklich in {new_name}{issue.path.suffix} umbenennen?\n\nVorher wird ein Backup erstellt."
-            elif action == "rename_entry":
-                question = (
-                    f"Enthaltenen Farbnamen wirklich in '{issue.file_color}' ändern?\n\n"
-                    "Das kann die Zuordnung zur PDF-Sonderfarbe verändern. Nur bei einem sicheren Tippfehler bestätigen. "
-                    "Vorher wird ein Backup erstellt."
-                )
-            else:
-                question = "Ersatzfunktion dieser Datei wirklich ausschalten?\n\nEs sind keine Ersatz-Farbwerte vorhanden. Vorher wird ein Backup erstellt."
-            if not messagebox.askyesno("Farbdatei korrigieren", question, parent=dialog):
-                return
             try:
                 self.color_manager.resolve_single_color_issue(issue, action)
             except Exception as exc:
@@ -6857,11 +6894,37 @@ class MainApp:
             finish("fixed")
 
         if issue.can_rename:
-            tk.Button(buttons, text="CCT-Datei umbenennen", command=lambda: correct("rename_file")).pack(side="left", padx=(0, 6))
-            tk.Button(buttons, text="Farbe in CCT umbenennen", command=lambda: correct("rename_entry")).pack(side="left", padx=(0, 6))
-        if issue.can_accept_without_replacement:
-            tk.Button(buttons, text="Ohne Ersatz akzeptieren", command=lambda: correct("without_replacement")).pack(side="left", padx=(0, 6))
-        tk.Button(navigation, text="Ordner öffnen", command=lambda: (self.open_path(issue.path.parent), finish("skip"))).pack(side="left")
+            tk.Button(
+                buttons,
+                text="Gespeicherten Farbnamen übernehmen",
+                command=lambda: correct("rename_file"),
+                wraplength=215,
+                justify="center",
+            ).pack(side="left", fill="x", expand=True, padx=(0, 6), ipady=5)
+            tk.Button(
+                buttons,
+                text="Dateinamen übernehmen",
+                command=lambda: correct("rename_entry"),
+                wraplength=190,
+                justify="center",
+            ).pack(side="left", fill="x", expand=True, padx=(6, 0), ipady=5)
+        elif issue.kind == "foreign":
+            tk.Label(
+                buttons,
+                text=f"Datei enthält: {actual_name}\nErwartet laut Dateiname: {issue.file_color}",
+                bg=THEME["window"], fg=THEME["red"], justify="left", anchor="w",
+                wraplength=500,
+            ).pack(fill="x", pady=(0, 8))
+        tk.Label(
+            navigation,
+            text="Bei einer Änderung wird vorher automatisch eine Sicherung erstellt.",
+            bg=THEME["window"], fg=THEME["muted"], anchor="w", wraplength=500,
+        ).pack(fill="x", pady=(0, 8))
+        tk.Button(
+            navigation,
+            text="Ordner öffnen",
+            command=lambda: (self.open_path(issue.path.parent), finish("abort")),
+        ).pack(side="left")
         tk.Button(navigation, text="Überspringen", command=lambda: finish("skip")).pack(side="right", padx=(6, 0))
         tk.Button(navigation, text="Abbrechen", command=lambda: finish("abort")).pack(side="right")
         dialog.protocol("WM_DELETE_WINDOW", lambda: finish("abort"))
@@ -7462,10 +7525,8 @@ class MainApp:
             messagebox.showerror(APP_NAME, f"Shutdown fehlgeschlagen:\n{exc}")
 
     def toggle_expert(self, _event: object | None = None) -> None:
-        current_x = self.root.winfo_x()
         current_y = self.root.winfo_y()
-        current_width = self.root.winfo_width()
-        right_edge = current_x + current_width
+        right_edge = self.expert_toggle_button.winfo_rootx() + self.expert_toggle_button.winfo_width()
         self.expert_visible = not self.expert_visible
         if self.expert_visible:
             self.expert_frame.pack(fill="both", expand=True)
@@ -7509,6 +7570,8 @@ class MainApp:
         self._run_background(self._update_check_worker, show_if_current=False)
 
     def check_for_updates_manual(self) -> None:
+        if self.update_install_running:
+            return
         self.main_status_label.configure(text="Update wird geprüft...")
         self._run_background(self._update_check_worker, show_if_current=True)
 
@@ -7543,6 +7606,7 @@ class MainApp:
                 if messagebox.askyesno(APP_NAME, "\n".join(message_lines), parent=self.root):
                     self.update_install_running = True
                     self.main_status_label.configure(text=f"Update {latest_version} wird geladen...")
+                    self._show_update_progress(latest_version)
                     self._run_background(self._download_update_worker, info=dict(info))
             else:
                 if download_url:
@@ -7555,15 +7619,95 @@ class MainApp:
         if show_if_current:
             messagebox.showinfo(APP_NAME, f"{APP_NAME} ist aktuell.\n\nInstalliert: {APP_VERSION}")
 
+    def _show_update_progress(self, version: str) -> None:
+        if self.update_progress_window is not None:
+            return
+        dialog = tk.Toplevel(self.root)
+        dialog.title("MJET-X Helper aktualisieren")
+        dialog.configure(bg=THEME["window"])
+        dialog.resizable(False, False)
+        dialog.transient(self.root)
+        dialog.protocol("WM_DELETE_WINDOW", lambda: None)
+        tk.Label(
+            dialog,
+            text=f"Version {version} wird heruntergeladen und geprüft...",
+            bg=THEME["window"],
+            fg=THEME["text"],
+            anchor="w",
+            font=("Segoe UI", 10, "bold"),
+        ).pack(fill="x", padx=16, pady=(16, 8))
+        self.update_progress_label = tk.Label(
+            dialog,
+            text="Download wird vorbereitet...",
+            bg=THEME["window"],
+            fg=THEME["muted"],
+            anchor="w",
+            font=("Segoe UI", 9),
+        )
+        self.update_progress_label.pack(fill="x", padx=16, pady=(0, 8))
+        self.update_progress_bar = ttk.Progressbar(dialog, mode="indeterminate", maximum=100)
+        self.update_progress_bar.pack(fill="x", padx=16, pady=(0, 16))
+        self.update_progress_bar.start(12)
+        self.update_progress_window = dialog
+        self.root.update_idletasks()
+        width, height = 400, 128
+        x_pos = self.root.winfo_rootx() + max(0, (self.root.winfo_width() - width) // 2)
+        y_pos = self.root.winfo_rooty() + max(0, (self.root.winfo_height() - height) // 2)
+        dialog.geometry(f"{width}x{height}+{x_pos}+{y_pos}")
+        dialog.grab_set()
+
+    def _set_update_progress(self, downloaded: int, total: int | None) -> None:
+        if self.update_progress_window is None or self.update_progress_bar is None or self.update_progress_label is None:
+            return
+        if total and total > 0:
+            if str(self.update_progress_bar.cget("mode")) != "determinate":
+                self.update_progress_bar.stop()
+                self.update_progress_bar.configure(mode="determinate")
+            self.update_progress_bar.configure(maximum=100, value=min(100, downloaded * 100 / total))
+            downloaded_mb = downloaded / (1024 * 1024)
+            total_mb = total / (1024 * 1024)
+            self.update_progress_label.configure(text=f"Download: {downloaded_mb:.1f} von {total_mb:.1f} MB")
+        else:
+            if str(self.update_progress_bar.cget("mode")) != "indeterminate":
+                self.update_progress_bar.configure(mode="indeterminate")
+                self.update_progress_bar.start(12)
+            self.update_progress_label.configure(text=f"Download: {downloaded / (1024 * 1024):.1f} MB")
+
+    def _close_update_progress(self) -> None:
+        dialog = self.update_progress_window
+        self.update_progress_window = None
+        self.update_progress_bar = None
+        self.update_progress_label = None
+        if dialog is None:
+            return
+        try:
+            dialog.grab_release()
+            dialog.destroy()
+        except tk.TclError:
+            pass
+
     def _download_update_worker(self, info: dict) -> None:
         try:
-            installer = download_verified_installer(info)
-            self.root.after(0, lambda: self._offer_verified_update(installer, str(info["version"])))
+            installer = download_verified_installer(
+                info,
+                progress_callback=lambda downloaded, total: self.root.after(
+                    0, lambda done=downloaded, size=total: self._set_update_progress(done, size)
+                ),
+            )
+            self.root.after(
+                0,
+                lambda path=installer, version=str(info["version"]): self._finish_update_download(path, version),
+            )
         except Exception as exc:
             self.logger.log(f"Update-Download fehlgeschlagen: {exc}", "WARNING")
             self.root.after(0, lambda error=str(exc): self._update_download_failed(error))
 
+    def _finish_update_download(self, installer: Path, version: str) -> None:
+        self._close_update_progress()
+        self._offer_verified_update(installer, version)
+
     def _update_download_failed(self, error: str) -> None:
+        self._close_update_progress()
         self.update_install_running = False
         self.main_status_label.configure(text="Update konnte nicht geladen werden")
         messagebox.showerror(APP_NAME, f"Das Update wurde nicht gestartet:\n{error}", parent=self.root)

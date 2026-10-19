@@ -88,7 +88,7 @@ def is_installable_release(info: dict) -> bool:
     )
 
 
-def download_verified_installer(info: dict) -> Path:
+def download_verified_installer(info: dict, progress_callback=None) -> Path:
     if not is_installable_release(info):
         raise ValueError("Dieses Update stammt nicht aus einem geprüften MJET-X-Release.")
     version = str(info["version"])
@@ -102,12 +102,21 @@ def download_verified_installer(info: dict) -> Path:
         with urlopen(request, timeout=30) as response, part_path.open("wb") as output:
             if urlparse(response.geturl()).scheme != "https":
                 raise ValueError("Der Installer wurde nicht über HTTPS geladen.")
+            response_headers = getattr(response, "headers", {})
+            try:
+                expected_total = int(response_headers.get("Content-Length", "")) or None
+            except (TypeError, ValueError):
+                expected_total = None
+            if progress_callback:
+                progress_callback(0, expected_total)
             while chunk := response.read(1024 * 1024):
                 total += len(chunk)
                 if total > MAX_INSTALLER_BYTES:
                     raise ValueError("Der Installer ist ungewöhnlich groß. Download abgebrochen.")
                 output.write(chunk)
                 digest.update(chunk)
+                if progress_callback:
+                    progress_callback(total, expected_total)
         if not total or digest.hexdigest() != str(info["sha256"]).lower():
             raise ValueError("Die Prüfsumme des Installers stimmt nicht. Es wurde nichts gestartet.")
         with part_path.open("rb") as downloaded:

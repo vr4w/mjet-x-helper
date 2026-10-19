@@ -16,9 +16,10 @@ from update_service import (
 
 
 class FakeResponse(io.BytesIO):
-    def __init__(self, data, url):
+    def __init__(self, data, url, headers=None):
         super().__init__(data)
         self.url = url
+        self.headers = headers or {}
 
     def geturl(self):
         return self.url
@@ -89,6 +90,22 @@ class UpdateServiceTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "Prüfsumme"):
                     download_verified_installer(info)
             self.assertFalse(target_dir.exists())
+
+    def test_verified_download_reports_byte_progress(self):
+        content = b"MZreal installer bytes"
+        info = parse_github_release(self.release(content))
+        progress = []
+        response = FakeResponse(content, info["url"], {"Content-Length": str(len(content))})
+        with tempfile.TemporaryDirectory() as directory:
+            target_dir = Path(directory) / "update"
+            target_dir.mkdir()
+            with mock.patch("update_service.tempfile.mkdtemp", return_value=str(target_dir)), mock.patch(
+                "update_service.urlopen", return_value=response
+            ):
+                download_verified_installer(info, lambda downloaded, total: progress.append((downloaded, total)))
+        self.assertEqual(progress[0], (0, len(content)))
+        self.assertEqual(progress[-1], (len(content), len(content)))
+        self.assertGreaterEqual(len(progress), 2)
 
     def test_non_executable_asset_is_rejected_even_with_matching_checksum(self):
         content = b"not an executable"

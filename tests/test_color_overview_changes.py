@@ -54,6 +54,13 @@ class ColorOverviewChangesTest(unittest.TestCase):
 
     def test_no_replacement_needs_no_matching_entry_or_master_write(self):
         path = self.color_file("Martinushof Türkis.cct", "Acker Martinushof Blau", False)
+        tree = ET.parse(path)
+        entry = next(part for part in tree.getroot().iter() if local_name(part.tag) == "ColorEntry")
+        entry.set("ReplacementEnabled", "false")
+        color_out = next(part for part in entry.iter() if local_name(part.tag) == "ColorOut")
+        color_out.set("ColorModel", "Custom")
+        ET.SubElement(color_out, "ComponentValues").text = "10 20 30 40"
+        tree.write(path, encoding="utf-8", xml_declaration=True)
         source_bytes = path.read_bytes()
         candidate, errors, warnings = self.manager._single_color_candidate_from_file(path)
         self.assertFalse(errors)

@@ -70,52 +70,50 @@ class CctIssueResolutionTest(unittest.TestCase):
         self.assertTrue(path.exists())
         self.assertFalse(list((self.root / "Backup").glob("*.cct")))
 
-    def test_foreign_name_is_not_accepted_even_without_replacement_values(self):
-        self.make_file("FOGT BLAU.cct", "Peters ROT 300", model="None", values="")
-        issue, = self.manager.inspect_single_color_issues()
-        self.assertEqual(issue.kind, "foreign")
-        self.assertFalse(issue.can_accept_without_replacement)
-        with self.assertRaises(ValueError):
-            self.manager.resolve_single_color_issue(issue, "without_replacement")
-
-    def test_enabled_without_replacement_can_be_corrected_without_losing_name(self):
-        path = self.make_file("Eberbach Rot.cct", "Eberbach 7628 U", model="None", values="")
-        issue, = self.manager.inspect_single_color_issues()
-        self.assertEqual(issue.kind, "missing_replacement")
-        self.assertTrue(issue.can_accept_without_replacement)
-        original = path.read_bytes()
-        self.manager.resolve_single_color_issue(issue, "without_replacement")
-        self.assertIn(b'ReplacementEnabled="false"', path.read_bytes())
-        self.assertEqual(next((self.root / "Backup").glob("*.cct")).read_bytes(), original)
-        self.assertFalse(self.manager.inspect_single_color_issues())
-
-    def test_matching_name_with_no_replacement_values_is_not_imported_before_choice(self):
-        path = self.make_file("Eberbach Rot.cct", "Eberbach Rot", model="None", values="")
-        issue, = self.manager.inspect_single_color_issues()
-        self.assertEqual(issue.kind, "missing_replacement")
-        self.assertFalse(issue.can_rename)
-        self.assertTrue(issue.can_accept_without_replacement)
+    def test_foreign_name_without_replacement_values_is_accepted_as_original(self):
+        path = self.make_file("FOGT BLAU.cct", "Peters ROT 300", model="None", values="")
+        source_bytes = path.read_bytes()
+        self.assertEqual(self.manager.inspect_single_color_issues(), [])
         candidate, errors, warnings = self.manager._single_color_candidate_from_file(path)
-        self.assertIsNone(candidate)
         self.assertFalse(errors)
-        self.assertIn("keine Ersatz-Farbwerte", warnings[0])
-        self.manager.resolve_single_color_issue(issue, "without_replacement")
+        self.assertFalse(warnings)
+        self.assertTrue(candidate.passthrough)
+        self.assertEqual(path.read_bytes(), source_bytes)
+        self.assertFalse(list((self.root / "Backup").glob("*.cct")))
+
+    def test_enabled_without_replacement_values_is_accepted_without_rewriting_file(self):
+        path = self.make_file("Eberbach Rot.cct", "Eberbach 7628 U", model="None", values="")
+        original = path.read_bytes()
+        self.assertEqual(self.manager.inspect_single_color_issues(), [])
+        candidate, errors, warnings = self.manager._single_color_candidate_from_file(path)
+        self.assertFalse(errors)
+        self.assertFalse(warnings)
+        self.assertTrue(candidate.passthrough)
+        self.assertEqual(path.read_bytes(), original)
+        self.assertFalse(list((self.root / "Backup").glob("*.cct")))
+
+    def test_matching_name_with_no_replacement_values_is_accepted_automatically(self):
+        path = self.make_file("Eberbach Rot.cct", "Eberbach Rot", model="None", values="")
+        self.assertEqual(self.manager.inspect_single_color_issues(), [])
         candidate, errors, warnings = self.manager._single_color_candidate_from_file(path)
         self.assertIsNotNone(candidate)
+        self.assertFalse(candidate.passthrough)
         self.assertFalse(errors)
         self.assertFalse(warnings)
 
-    def test_missing_color_out_can_be_explicitly_accepted_without_replacement(self):
+    def test_missing_color_out_is_accepted_automatically(self):
         path = self.make_file("Eberbach Rot.cct", "Eberbach Rot")
         tree = ET.parse(path)
         tree.getroot().find("ColorEntry").remove(tree.getroot().find("ColorEntry/ColorOut"))
         tree.write(path, encoding="utf-8", xml_declaration=True)
-        issue, = self.manager.inspect_single_color_issues()
-        self.assertTrue(issue.can_accept_without_replacement)
-        self.manager.resolve_single_color_issue(issue, "without_replacement")
+        self.assertEqual(self.manager.inspect_single_color_issues(), [])
+        candidate, errors, warnings = self.manager._single_color_candidate_from_file(path)
+        self.assertIsNotNone(candidate)
+        self.assertFalse(errors)
+        self.assertFalse(warnings)
         entry = next(part for part in ET.parse(path).getroot() if part.tag.endswith("ColorEntry"))
-        self.assertEqual(entry.get("ReplacementEnabled"), "false")
-        self.assertTrue(any(child.tag.endswith("ColorOut") and child.get("ColorModel") == "None" for child in entry))
+        self.assertEqual(entry.get("ReplacementEnabled"), "true")
+        self.assertIsNone(entry.find("ColorOut"))
 
     def test_real_replacement_and_filename_collision_are_not_overwritten(self):
         path = self.make_file("Carl-Koch rot 1807.cct", "Carl Koch 1807 rot")
