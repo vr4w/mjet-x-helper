@@ -44,7 +44,7 @@ from update_service import (
 
 
 APP_NAME = "MJET-X Helper"
-APP_VERSION = "1.1.3"
+APP_VERSION = "1.1.4"
 APP_AUTHOR = "AE / Marvin Schöffel"
 APP_CONTACT = "ms@graphic-druck.de"
 CONFIG_NAME = "helper_config.json"
@@ -72,11 +72,11 @@ THEME = {
 
 
 DEFAULT_CONFIG = {
-    "nas_root": r"Z:\_MPRINT_4c",
-    "color_root": r"Z:\_MPRINT_4c\Maschinenfarben",
-    "single_color_dir": r"Z:\_MPRINT_4c\Maschinenfarben\Einzelfarben",
-    "backup_dir": r"Z:\_MPRINT_4c\Maschinenfarben\Backup",
-    "master_cct": r"Z:\_MPRINT_4c\Maschinenfarben\mprint4c-master.cct",
+    "nas_root": "Z:\\",
+    "color_root": r"Z:\Maschinenfarben",
+    "single_color_dir": r"Z:\Maschinenfarben\Einzelfarben",
+    "backup_dir": r"Z:\Maschinenfarben\Backup",
+    "master_cct": r"Z:\Maschinenfarben\mprint4c-master.cct",
     "colorgate_root": r"C:\ProgramData\ColorGATE Software\Productionserver25",
     "colorgate_ini": r"C:\ProgramData\ColorGATE Software\Productionserver25\Productionserver25.INI",
     "colorgate_cos": r"C:\ProgramData\ColorGATE Software\Productionserver25\Settings\mprint mlabel.cos",
@@ -88,10 +88,10 @@ DEFAULT_CONFIG = {
         "900X600 DPI MJET-X",
         "1200X600 DPI MJET-X",
     ],
-    "expected_master_path": r"Z:\_MPRINT_4c\Maschinenfarben\mprint4c-master.cct",
+    "expected_master_path": r"Z:\Maschinenfarben\mprint4c-master.cct",
     "color_overview_csv": r"work\MPRINT_Farbuebersicht_daten.csv",
-    "legacy_color_overview_csv": r"Z:\_MPRINT_4c\MPRINT_Farbuebersicht.csv",
-    "color_overview_html": r"Z:\_MPRINT_4c\MPRINT_Farbuebersicht.html",
+    "legacy_color_overview_csv": r"Z:\MPRINT_Farbuebersicht.csv",
+    "color_overview_html": r"Z:\MPRINT_Farbuebersicht.html",
     "color_export_json": r"export\mprint_colors.json",
     "hidden_colors_json": r"config\hidden_colors.json",
     "prepress_notes_json": r"work\prepress_notes.json",
@@ -166,10 +166,30 @@ def load_config() -> dict:
             f"Config konnte nicht gelesen werden. Kopie liegt hier: {backup_path}"
         ) from exc
 
-    merged = merge_defaults(loaded, DEFAULT_CONFIG)
+    merged = migrate_legacy_mprint_paths(merge_defaults(loaded, DEFAULT_CONFIG))
     if merged != loaded:
         save_config(merged)
     return merged
+
+
+def migrate_legacy_mprint_paths(config: dict) -> dict:
+    legacy_paths = {
+        "nas_root": (r"Z:\_MPRINT_4c", "Z:\\"),
+        "color_root": (r"Z:\_MPRINT_4c\Maschinenfarben", r"Z:\Maschinenfarben"),
+        "single_color_dir": (r"Z:\_MPRINT_4c\Maschinenfarben\Einzelfarben", r"Z:\Maschinenfarben\Einzelfarben"),
+        "backup_dir": (r"Z:\_MPRINT_4c\Maschinenfarben\Backup", r"Z:\Maschinenfarben\Backup"),
+        "master_cct": (r"Z:\_MPRINT_4c\Maschinenfarben\mprint4c-master.cct", r"Z:\Maschinenfarben\mprint4c-master.cct"),
+        "expected_master_path": (r"Z:\_MPRINT_4c\Maschinenfarben\mprint4c-master.cct", r"Z:\Maschinenfarben\mprint4c-master.cct"),
+        "legacy_color_overview_csv": (r"Z:\_MPRINT_4c\MPRINT_Farbuebersicht.csv", r"Z:\MPRINT_Farbuebersicht.csv"),
+        "color_overview_html": (r"Z:\_MPRINT_4c\MPRINT_Farbuebersicht.html", r"Z:\MPRINT_Farbuebersicht.html"),
+    }
+    migrated = dict(config)
+    for key, (old_path, new_path) in legacy_paths.items():
+        current = str(migrated.get(key, "")).strip().replace("/", "\\").rstrip("\\").casefold()
+        legacy = old_path.replace("/", "\\").rstrip("\\").casefold()
+        if current == legacy:
+            migrated[key] = new_path
+    return migrated
 
 
 def save_config(config: dict) -> None:
@@ -6091,6 +6111,13 @@ class SetupDialog(tk.Toplevel):
         for key, value in detected.items():
             if value:
                 self.vars[key].set(str(value))
+        if "nas_root" not in detected:
+            messagebox.showinfo(
+                f"{APP_NAME} Setup",
+                "Der Maschinenfarben-Ordner wurde nicht gefunden. "
+                "Bitte prüfen, ob das Netzlaufwerk verbunden ist, und den Ordner auswählen.",
+                parent=self,
+            )
 
     def save(self) -> None:
         for key, var in self.vars.items():
@@ -6135,21 +6162,24 @@ class SetupDialog(tk.Toplevel):
 
 def detect_setup_paths(config: dict) -> dict[str, str]:
     detected: dict[str, str] = {}
+    drive_roots = [Path(f"{letter}:\\") for letter in ("Z", "Y", "X")]
     root_candidates = [
-        Path(r"Z:\_MPRINT_4c"),
-        Path(r"Y:\_MPRINT_4c"),
-        Path(r"X:\_MPRINT_4c"),
+        *([Path(str(config["nas_root"]))] if str(config.get("nas_root", "")).strip() else []),
+        *drive_roots,
+        Path("/Volumes/NAS_Public"),
+        *(root / "_MPRINT_4c" for root in drive_roots),
         Path("/Volumes/NAS_Public/_MPRINT_4c"),
     ]
-    for root in root_candidates:
-        if root.exists():
-            detected["nas_root"] = str(root)
-            detected["color_root"] = str(root / "Maschinenfarben")
-            detected["single_color_dir"] = str(root / "Maschinenfarben" / "Einzelfarben")
-            detected["backup_dir"] = str(root / "Maschinenfarben" / "Backup")
-            detected["master_cct"] = str(root / "Maschinenfarben" / "mprint4c-master.cct")
-            detected["color_overview_html"] = str(root / "MPRINT_Farbuebersicht.html")
-            break
+    root = next((candidate for candidate in root_candidates if (candidate / "Maschinenfarben").is_dir()), None)
+    if root is not None:
+        detected["nas_root"] = str(root)
+        detected["color_root"] = str(root / "Maschinenfarben")
+        detected["single_color_dir"] = str(root / "Maschinenfarben" / "Einzelfarben")
+        detected["backup_dir"] = str(root / "Maschinenfarben" / "Backup")
+        detected["master_cct"] = str(root / "Maschinenfarben" / "mprint4c-master.cct")
+        detected["expected_master_path"] = str(root / "Maschinenfarben" / "mprint4c-master.cct")
+        detected["legacy_color_overview_csv"] = str(root / "MPRINT_Farbuebersicht.csv")
+        detected["color_overview_html"] = str(root / "MPRINT_Farbuebersicht.html")
 
     colorgate_candidates = [
         Path(r"C:\ProgramData\ColorGATE Software\Productionserver25"),
@@ -7426,18 +7456,23 @@ class MainApp:
             messagebox.showerror(APP_NAME, f"Shutdown fehlgeschlagen:\n{exc}")
 
     def toggle_expert(self, _event: object | None = None) -> None:
+        current_x = self.root.winfo_x()
+        current_y = self.root.winfo_y()
+        current_width = self.root.winfo_width()
+        right_edge = current_x + current_width
         self.expert_visible = not self.expert_visible
         if self.expert_visible:
             self.expert_frame.pack(fill="both", expand=True)
             self.root.minsize(520, 620)
             current_height = max(self.root.winfo_height(), 720)
-            self.root.geometry(f"520x{current_height}")
+            target_width = 520
         else:
             self.expert_frame.pack_forget()
-            width = int(self.config.get("window_width", 260))
+            target_width = int(self.config.get("window_width", 260))
             self.root.minsize(240, 520)
             current_height = max(self.root.winfo_height(), 620)
-            self.root.geometry(f"{width}x{current_height}")
+        target_x = max(0, right_edge - target_width)
+        self.root.geometry(f"{target_width}x{current_height}+{target_x}+{max(0, current_y)}")
 
     def show_about(self) -> None:
         messagebox.showinfo(

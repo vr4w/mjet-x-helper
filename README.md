@@ -60,12 +60,12 @@ Zusätzlich gibt es ColorGate-Felder. Diese sind im Setup bewusst weniger promin
 - **ColorGate-Einstellungsdatei / Profil- und Auftragsdatei / Jobordner**
   Interne ColorGate-Orte. Diese bitte nur ändern, wenn die automatische Erkennung falsch ist.
 
-Der Button `Ordner automatisch suchen` versucht typische Orte automatisch zu erkennen. Alle Vorschläge bleiben manuell änderbar.
+Der Button `Ordner automatisch suchen` sucht nach dem Unterordner `Maschinenfarben` direkt im Netzlaufwerk `Z:\`. Er erkennt außerdem noch den früheren Aufbau mit einem zusätzlichen Ordner `_MPRINT_4c`. Alle Vorschläge bleiben manuell änderbar.
 
 Beispiele für typische Orte:
 
 ```text
-Z:\_MPRINT_4c
+Z:\
 C:\ProgramData\ColorGATE Software\Productionserver25
 C:\Users\user\Desktop\OUTPUT_PRINTDATA
 ```
@@ -80,7 +80,7 @@ Das Setup kann später im Expertmodus erneut geöffnet werden:
 
 Der Helper prüft beim Start und über `... -> Update` das letzte **veröffentlichte** GitHub-Release. Eine neue Version wird nur nach Bestätigung heruntergeladen und installiert. Während eines Druckauftrags bitte kein Update starten.
 
-**Aktuelle Einschränkung:** Das Repository `vr4w/mjet-x-helper` ist privat. Ohne GitHub-Anmeldung kann der Helper dessen Releases nicht abrufen; die Ein-Klick-Update-Funktion ist damit noch nicht produktiv nutzbar. Keine Zugangsdaten in den Helper einbauen. Für den Maschinentest den Installer zunächst als GitHub-Actions-Artefakt herunterladen und manuell installieren. Vor einem späteren Auto-Update muss eine passende öffentlich erreichbare Release-Quelle festgelegt werden.
+Der Release-Abruf funktioniert ohne Anmeldung, solange das Repository öffentlich ist. Veröffentlicht wird ein Update erst, wenn ein Release mit dem passenden Installer bereitsteht.
 
 Die Einstellung liegt lokal in `helper_config.json`:
 
@@ -93,7 +93,7 @@ Bereits gespeicherte Einstellungen mit der alten Adresse zu `update_info.json` f
 
 Der Helper akzeptiert nur den Installer mit passendem Versionsnamen aus `vr4w/mjet-x-helper`. Vor dem Start vergleicht er die heruntergeladene Datei mit der SHA-256-Prüfsumme des GitHub-Release-Assets. Bei fehlendem Installer, fehlender Prüfsumme oder abweichender Datei wird nichts installiert. Die bestehende Version bleibt dann geöffnet.
 
-**Einmaliger Übergang:** Die bisherige Version 1.1.2 kann Updates nur anzeigen. Version 1.1.3 muss deshalb einmal manuell als Installer installiert werden. Erst danach funktioniert „Update installieren“ direkt im Helper. Nach Veröffentlichung von 1.1.3 kann `update_info.json` für die alte Version auf den neuen Installer zeigen; diesen Hinweis nicht vor der Veröffentlichung umstellen.
+**Einmaliger Übergang:** Version 1.1.2 kann Updates nur anzeigen und muss einmal manuell durch Version 1.1.3 oder neuer ersetzt werden. Danach kann der Helper veröffentlichte Updates nach Bestätigung direkt installieren.
 
 Wichtig: `helper_config.json` enthält lokale Maschinenpfade und wird nicht ins Repository aufgenommen. Für Weitergabe und neue Installationen gibt es `helper_config.example.json`.
 
@@ -249,7 +249,7 @@ Der Ablauf auf Windows:
 Die fertige Installer-Datei liegt danach unter:
 
 ```text
-installer_dist\MJETXHelper_Setup_v1.1.3.exe
+installer_dist\MJETXHelper_Setup_v1.1.4.exe
 ```
 
 Der Installer legt den Helper bewusst im Benutzerordner ab:
@@ -264,7 +264,7 @@ Das ist wichtig, weil der Helper dort seine lokale Einstellung, Logs und interne
 
 1. Änderungen nach `main` bringen. `APP_VERSION` in `main.py` und `MyAppVersion` in `installer.iss` müssen gleich sein.
 2. Für einen Test-Build auf einem Arbeitsbranch einen Pull Request nach `main` öffnen. Der Workflow **Windows-Installer** läuft dann automatisch und bietet den Installer als herunterladbares Workflow-Artefakt an. Nach Aufnahme des Workflows auf `main` kann er auch im GitHub-Reiter **Actions** manuell gestartet werden. Dabei wird noch kein Release veröffentlicht.
-3. Für einen fertigen Stand auf `main` einen passenden Tag setzen und pushen, zum Beispiel `v1.1.3`. Der Workflow prüft Tag und Version, führt Tests aus, baut EXE und Installer und legt einen **Release-Entwurf** mit Installer an.
+3. Für einen fertigen Stand auf `main` einen passenden Tag setzen und pushen, zum Beispiel `v1.1.4`. Der Workflow prüft Tag und Version, führt Tests aus, baut EXE und Installer und legt einen **Release-Entwurf** mit Installer an.
 4. Release-Entwurf und Installer prüfen und das Release bewusst veröffentlichen. Erst dann erscheint es bei der Update-Prüfung an der Maschine.
 
 Der Installer enthält keine `helper_config.json` und keine `work/`- oder `config/`-Arbeitsdaten. Diese bleiben bei einer Installation am bisherigen Ort erhalten. Den Installationsordner nicht vor dem Update löschen.
@@ -333,7 +333,7 @@ Im normalen Ablauf erscheint keine Bestätigung, damit Bediener nicht vor einem 
 Logs liegen unter:
 
 ```text
-Z:\_MPRINT_4c\Maschinenfarben\Backup\helper_logs
+Z:\Maschinenfarben\Backup\helper_logs
 ```
 
 Falls dieser Ordner nicht erreichbar ist, nutzt das Tool einen lokalen `helper_logs`-Ordner neben `main.py` beziehungsweise neben der EXE.
