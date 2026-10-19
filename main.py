@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 import ast
+import base64
 import copy
 import csv
 import ctypes
+import difflib
 import datetime as dt
+import argparse
+import fnmatch
+import hashlib
 import html
 import json
 import operator
@@ -19,6 +24,8 @@ import tempfile
 import threading
 import time
 import tkinter as tk
+import unicodedata
+import webbrowser
 import xml.etree.ElementTree as ET
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from dataclasses import dataclass, field
@@ -26,11 +33,18 @@ from io import BytesIO
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from urllib.parse import parse_qs
-from urllib.request import urlopen
+
+from color_mixer import ColorMixerWindow
+from update_service import (
+    RELEASE_API_URL,
+    download_verified_installer,
+    is_installable_release,
+    load_update_info as load_release_update_info,
+)
 
 
 APP_NAME = "MJET-X Helper"
-APP_VERSION = "1.1.1"
+APP_VERSION = "1.1.4"
 APP_AUTHOR = "AE / Marvin Schöffel"
 APP_CONTACT = "ms@graphic-druck.de"
 CONFIG_NAME = "helper_config.json"
@@ -58,11 +72,11 @@ THEME = {
 
 
 DEFAULT_CONFIG = {
-    "nas_root": r"Z:\_MPRINT_4c",
-    "color_root": r"Z:\_MPRINT_4c\Maschinenfarben",
-    "single_color_dir": r"Z:\_MPRINT_4c\Maschinenfarben\Einzelfarben",
-    "backup_dir": r"Z:\_MPRINT_4c\Maschinenfarben\Backup",
-    "master_cct": r"Z:\_MPRINT_4c\Maschinenfarben\mprint4c-master.cct",
+    "nas_root": "Z:\\",
+    "color_root": r"Z:\Maschinenfarben",
+    "single_color_dir": r"Z:\Maschinenfarben\Einzelfarben",
+    "backup_dir": r"Z:\Maschinenfarben\Backup",
+    "master_cct": r"Z:\Maschinenfarben\mprint4c-master.cct",
     "colorgate_root": r"C:\ProgramData\ColorGATE Software\Productionserver25",
     "colorgate_ini": r"C:\ProgramData\ColorGATE Software\Productionserver25\Productionserver25.INI",
     "colorgate_cos": r"C:\ProgramData\ColorGATE Software\Productionserver25\Settings\mprint mlabel.cos",
@@ -74,10 +88,13 @@ DEFAULT_CONFIG = {
         "900X600 DPI MJET-X",
         "1200X600 DPI MJET-X",
     ],
-    "expected_master_path": r"Z:\_MPRINT_4c\Maschinenfarben\mprint4c-master.cct",
+    "expected_master_path": r"Z:\Maschinenfarben\mprint4c-master.cct",
     "color_overview_csv": r"work\MPRINT_Farbuebersicht_daten.csv",
-    "legacy_color_overview_csv": r"Z:\_MPRINT_4c\MPRINT_Farbuebersicht.csv",
-    "color_overview_html": r"Z:\_MPRINT_4c\MPRINT_Farbuebersicht.html",
+    "legacy_color_overview_csv": r"Z:\MPRINT_Farbuebersicht.csv",
+    "color_overview_html": r"Z:\MPRINT_Farbuebersicht.html",
+    "color_export_json": r"export\mprint_colors.json",
+    "hidden_colors_json": r"config\hidden_colors.json",
+    "prepress_notes_json": r"work\prepress_notes.json",
     "color_request_server_enabled": True,
     "color_request_server_host": "0.0.0.0",
     "color_request_server_port": 8765,
@@ -88,7 +105,7 @@ DEFAULT_CONFIG = {
     "always_on_top": True,
     "window_width": 260,
     "update_check_enabled": True,
-    "update_check_url": "https://raw.githubusercontent.com/vr4w/mjet-x-helper/main/update_info.json",
+    "update_check_url": RELEASE_API_URL,
     "known_processes": [
         "Productionserver25.exe",
         "lp2000i.exe",
@@ -149,10 +166,36 @@ def load_config() -> dict:
             f"Config konnte nicht gelesen werden. Kopie liegt hier: {backup_path}"
         ) from exc
 
-    merged = merge_defaults(loaded, DEFAULT_CONFIG)
+    with_defaults = merge_defaults(loaded, DEFAULT_CONFIG)
+    merged = migrate_legacy_mprint_paths(with_defaults)
     if merged != loaded:
+        if merged != with_defaults:
+            backup_path = CONFIG_PATH.with_name(
+                f"{CONFIG_PATH.stem}.before-path-migration-{int(time.time())}{CONFIG_PATH.suffix}"
+            )
+            shutil.copy2(CONFIG_PATH, backup_path)
         save_config(merged)
     return merged
+
+
+def migrate_legacy_mprint_paths(config: dict) -> dict:
+    legacy_paths = {
+        "nas_root": (r"Z:\_MPRINT_4c", "Z:\\"),
+        "color_root": (r"Z:\_MPRINT_4c\Maschinenfarben", r"Z:\Maschinenfarben"),
+        "single_color_dir": (r"Z:\_MPRINT_4c\Maschinenfarben\Einzelfarben", r"Z:\Maschinenfarben\Einzelfarben"),
+        "backup_dir": (r"Z:\_MPRINT_4c\Maschinenfarben\Backup", r"Z:\Maschinenfarben\Backup"),
+        "master_cct": (r"Z:\_MPRINT_4c\Maschinenfarben\mprint4c-master.cct", r"Z:\Maschinenfarben\mprint4c-master.cct"),
+        "expected_master_path": (r"Z:\_MPRINT_4c\Maschinenfarben\mprint4c-master.cct", r"Z:\Maschinenfarben\mprint4c-master.cct"),
+        "legacy_color_overview_csv": (r"Z:\_MPRINT_4c\MPRINT_Farbuebersicht.csv", r"Z:\MPRINT_Farbuebersicht.csv"),
+        "color_overview_html": (r"Z:\_MPRINT_4c\MPRINT_Farbuebersicht.html", r"Z:\MPRINT_Farbuebersicht.html"),
+    }
+    migrated = dict(config)
+    for key, (old_path, new_path) in legacy_paths.items():
+        current = str(migrated.get(key, "")).strip().replace("/", "\\").rstrip("\\").casefold()
+        legacy = old_path.replace("/", "\\").rstrip("\\").casefold()
+        if current == legacy:
+            migrated[key] = new_path
+    return migrated
 
 
 def save_config(config: dict) -> None:
@@ -268,11 +311,33 @@ class CosCheckResult:
     master_hits: list[str] = field(default_factory=list)
 
 
+@dataclass
+class SingleColorCandidate:
+    name: str
+    entry: ET.Element
+    source_file: Path
+    mtime: float
+    ignored_names: list[str] = field(default_factory=list)
+    passthrough: bool = False
+
+
+@dataclass
+class SingleColorIssue:
+    path: Path
+    digest: str
+    kind: str
+    file_color: str
+    entries: list[str]
+    can_rename: bool = False
+    can_accept_without_replacement: bool = False
+
+
 class ColorTableManager:
     def __init__(self, config: dict, logger: HelperLogger):
         self.config = config
         self.logger = logger
         self.overview_lock = threading.RLock()
+        self.import_corrections: dict[str, dict[str, str]] = {}
         ET.register_namespace("", COLOR_NS)
 
     def rebuild_master(self, write_master: bool = True) -> SyncResult:
@@ -314,57 +379,88 @@ class ColorTableManager:
             self.logger.log(error, "ERROR")
             return SyncResult("red", error, errors=[error])
 
-        unique_entries: list[ET.Element] = []
-        seen_by_name: dict[str, tuple[str, int, Path, float]] = {}
-        duplicate_same = 0
+        master_entries = self._master_entries_by_name(master_path) if master_path.exists() else {}
+        import_corrections: dict[str, dict[str, str]] = {}
+        candidates_by_name: dict[str, list[SingleColorCandidate]] = {}
+        display_names: dict[str, str] = {}
+        extra_entry_files = 0
+        passthrough_files = 0
 
         for color_file in color_files:
-            file_mtime = self._safe_mtime(color_file)
-            try:
-                tree = ET.parse(color_file)
-            except ET.ParseError as exc:
-                errors.append(f"XML fehlerhaft in {color_file.name}: {exc}")
-                self.logger.log(f"XML fehlerhaft in {color_file}: {exc}", "ERROR")
+            candidate, read_errors, read_warnings = self._single_color_candidate_from_file(color_file)
+            for error in read_errors:
+                errors.append(error)
+                self.logger.log(error, "ERROR")
+            for warning in read_warnings:
+                warnings.append(warning)
+                self.logger.log(warning, "WARNING")
+            if candidate is None:
                 continue
-            except Exception as exc:
-                errors.append(f"Datei konnte nicht gelesen werden: {color_file.name}: {exc}")
-                self.logger.log(f"Datei konnte nicht gelesen werden: {color_file}: {exc}", "ERROR")
+            if candidate.passthrough:
+                passthrough_files += 1
+                self.logger.log(f"{color_file.name}: keine Ersatzfarbe gewählt; Originalfarbe bleibt unverändert")
                 continue
+            if candidate.ignored_names:
+                extra_entry_files += 1
+                self.logger.log(
+                    f"{color_file.name}: verwendet {candidate.name}; ignoriert: {', '.join(candidate.ignored_names)}"
+                )
+            key = self._normalized_color_key(candidate.name)
+            candidates_by_name.setdefault(key, []).append(candidate)
+            display_names.setdefault(key, candidate.name)
 
-            entries = [
-                copy.deepcopy(elem)
-                for elem in tree.getroot().iter()
-                if local_name(elem.tag) == "ColorEntry"
-            ]
-            self.logger.log(f"{color_file.name}: {len(entries)} ColorEntry-Einträge")
+        if not candidates_by_name and not passthrough_files:
+            error = "Keine gültigen Einzel-Farbexports gefunden. Der Master wurde nicht verändert."
+            errors.append(error)
+            self.logger.log(error, "ERROR")
 
-            for entry in entries:
-                name = self._color_entry_name(entry)
-                content = self._entry_signature(entry)
-                if name in seen_by_name:
-                    previous_content, previous_index, previous_file, previous_mtime = seen_by_name[name]
-                    if previous_content == content:
-                        duplicate_same += 1
-                        self.logger.log(f"Doppelte Farbe identisch übersprungen: {name}")
-                    else:
-                        warning = f"Doppelte Farbe: {name} - bitte prüfen."
+        unique_entries: list[ET.Element] = []
+        color_names: list[str] = []
+        automatic_conflicts = 0
+        updated_colors: list[str] = []
+        for key in sorted(candidates_by_name, key=lambda item: display_names[item].casefold()):
+            candidates = sorted(
+                candidates_by_name[key],
+                key=lambda candidate: (candidate.mtime, candidate.source_file.name.casefold()),
+                reverse=True,
+            )
+            winner = candidates[0]
+            if len(candidates) > 1:
+                automatic_conflicts += 1
+                self.logger.log(
+                    "Mehrere Quellen für "
+                    f"{winner.name} erkannt. Verwendet wurde die zuletzt geänderte Datei: "
+                    f"{winner.source_file.name} ({self._mtime_text(winner.mtime)})",
+                    "WARNING",
+                )
+            entry = copy.deepcopy(winner.entry)
+            original_name = self._color_entry_name(entry)
+            name = winner.name
+            correction = self._detect_import_correction(
+                name=name,
+                original_name=original_name,
+                incoming_entry=entry,
+                master_entries=master_entries,
+            )
+            if correction:
+                master_entry = master_entries.get(self._normalized_color_key(name))
+                if master_entry is not None:
+                    entry = copy.deepcopy(master_entry)
+                    warning = self._import_correction_warning_text()
+                    if warning not in warnings:
                         warnings.append(warning)
-                        if file_mtime >= previous_mtime:
-                            unique_entries[previous_index] = entry
-                            seen_by_name[name] = (content, previous_index, color_file, file_mtime)
-                            winner = color_file
-                            loser = previous_file
-                        else:
-                            winner = previous_file
-                            loser = color_file
-                        self.logger.log(
-                            f"{warning} Gewinner: {winner.name}; übersprungen: {loser.name}",
-                            "WARNING",
-                        )
-                    continue
-                seen_by_name[name] = (content, len(unique_entries), color_file, file_mtime)
-                unique_entries.append(entry)
-                color_names.append(name)
+                    import_corrections[self._normalized_color_key(name)] = correction
+                    self.logger.log(
+                        f"Farbimport-Schutz: {name} aus {winner.source_file.name} korrigiert. "
+                        "Bestehende MPRINT-Zuordnung beibehalten.",
+                        "WARNING",
+                    )
+            master_entry = master_entries.get(self._normalized_color_key(name))
+            if master_entry is not None and self._entry_signature(master_entry) != self._entry_signature(entry):
+                updated_colors.append(name)
+                self.logger.log(f"{name} wurde aus {winner.source_file.name} aktualisiert.")
+            unique_entries.append(entry)
+            color_names.append(name)
 
         if errors:
             return SyncResult(
@@ -377,7 +473,7 @@ class ColorTableManager:
                 source_files,
             )
 
-        if write_master:
+        if write_master and unique_entries:
             try:
                 self._write_master_atomically(master_path, backup_dir, unique_entries)
             except Exception as exc:
@@ -392,11 +488,14 @@ class ColorTableManager:
                     errors + [error],
                     source_files,
                 )
-        else:
+        elif not write_master:
             self.logger.log("Nur Prüfung: Master wurde nicht geschrieben")
+        else:
+            self.logger.log("Keine Ersatzfarben erforderlich: bestehender Master bleibt unverändert")
 
         try:
-            master_names = color_names if write_master else self._master_color_names(master_path)
+            self.import_corrections = dict(import_corrections)
+            master_names = color_names if write_master and unique_entries else self._master_color_names(master_path)
             overview_warning = self._write_color_overview(color_names, master_names)
             if overview_warning:
                 warnings.append(overview_warning)
@@ -404,10 +503,20 @@ class ColorTableManager:
             warning = f"Farbübersicht konnte nicht geschrieben werden: {exc}"
             warnings.append(warning)
             self.logger.log(warning, "WARNING")
+        finally:
+            self.import_corrections = {}
 
         self.logger.log(f"Übernommene Farben: {len(unique_entries)}")
-        if duplicate_same:
-            self.logger.log(f"Identische doppelte Farben übersprungen: {duplicate_same}")
+        if extra_entry_files:
+            self.logger.log(
+                f"{extra_entry_files} Mehrfarben-Exportdatei(en) automatisch auf Dateiname-Farbe reduziert"
+            )
+        if passthrough_files:
+            self.logger.log(f"{passthrough_files} Datei(en) ohne Ersatzfarbe regulär akzeptiert")
+        if automatic_conflicts:
+            self.logger.log(f"{automatic_conflicts} mehrdeutige Quellen automatisch nach Änderungsdatum aufgelöst")
+        if updated_colors:
+            self.logger.log("Aktualisierte Farben: " + ", ".join(updated_colors[:20]))
 
         if errors:
             return SyncResult(
@@ -419,8 +528,18 @@ class ColorTableManager:
                 errors,
                 source_files,
             )
-        operation_done = "Master gebaut" if write_master else "Master geprüft"
+        operation_done = "Master gebaut" if write_master and unique_entries else "Master geprüft"
         if warnings:
+            if import_corrections:
+                return SyncResult(
+                    "yellow",
+                    "Farbänderung erkannt und automatisch korrigiert",
+                    color_names,
+                    profiles,
+                    warnings,
+                    errors,
+                    source_files,
+                )
             return SyncResult(
                 "yellow",
                 f"{operation_done}, aber Warnungen vorhanden",
@@ -430,9 +549,30 @@ class ColorTableManager:
                 errors,
                 source_files,
             )
+        success_message = (
+            "Master erfolgreich gebaut"
+            if write_master and unique_entries
+            else "Farbabgleich erfolgreich: keine Ersatzfarbe nötig"
+            if write_master
+            else "Master-Prüfung erfolgreich"
+        )
+        success_notes: list[str] = []
+        if extra_entry_files:
+            success_notes.append(
+                "Mehrfarben-Exports wurden automatisch auf die passende Dateiname-Farbe reduziert."
+            )
+        if automatic_conflicts:
+            success_notes.append("Mehrere Quellen wurden nach Änderungsdatum eindeutig aufgelöst.")
+        if updated_colors:
+            color_list = ", ".join(updated_colors[:10])
+            if len(updated_colors) > 10:
+                color_list += f" und {len(updated_colors) - 10} weitere"
+            success_notes.append(f"Aktualisierte Farben: {color_list}.")
+        if success_notes:
+            success_message = "Farbabgleich erfolgreich. " + " ".join(success_notes)
         return SyncResult(
             "green",
-            "Master erfolgreich gebaut" if write_master else "Master-Prüfung erfolgreich",
+            success_message,
             color_names,
             profiles,
             warnings,
@@ -471,29 +611,67 @@ class ColorTableManager:
             return SyncResult("red", error, errors=[error], files=source_files)
 
         single_signatures: dict[str, str] = {}
-        seen_sources: dict[str, Path] = {}
+        master_entries = self._master_entries_by_name(master_path)
+        import_corrections: dict[str, dict[str, str]] = {}
+        candidates_by_name: dict[str, list[SingleColorCandidate]] = {}
+        display_names: dict[str, str] = {}
+        passthrough_files = 0
         for color_file in color_files:
-            try:
-                tree = ET.parse(color_file)
-            except ET.ParseError as exc:
-                errors.append(f"XML fehlerhaft in {color_file.name}: {exc}")
+            candidate, read_errors, read_warnings = self._single_color_candidate_from_file(color_file)
+            errors.extend(read_errors)
+            warnings.extend(read_warnings)
+            if candidate is None:
                 continue
-            except Exception as exc:
-                errors.append(f"Datei konnte nicht gelesen werden: {color_file.name}: {exc}")
+            if candidate.passthrough:
+                passthrough_files += 1
+                self.logger.log(f"{color_file.name}: keine Ersatzfarbe gewählt; kein Master-Abgleich nötig")
                 continue
+            key = self._normalized_color_key(candidate.name)
+            candidates_by_name.setdefault(key, []).append(candidate)
+            display_names.setdefault(key, candidate.name)
 
-            for entry in tree.getroot().iter():
-                if local_name(entry.tag) != "ColorEntry":
-                    continue
-                name = self._color_entry_name(entry)
-                signature = self._entry_signature(entry)
-                if name in single_signatures:
-                    if single_signatures[name] != signature:
-                        warnings.append(f"Doppelte Farbe: {name} - bitte prüfen.")
-                    continue
-                single_signatures[name] = signature
-                seen_sources[name] = color_file
-                color_names.append(name)
+        if not candidates_by_name and not passthrough_files:
+            error = "Keine gültigen Einzel-Farbexports gefunden"
+            errors.append(error)
+
+        for key in sorted(candidates_by_name, key=lambda item: display_names[item].casefold()):
+            candidates = sorted(
+                candidates_by_name[key],
+                key=lambda candidate: (candidate.mtime, candidate.source_file.name.casefold()),
+                reverse=True,
+            )
+            winner = candidates[0]
+            normalized_entry = copy.deepcopy(winner.entry)
+            original_name = self._color_entry_name(normalized_entry)
+            name = winner.name
+            if len(candidates) > 1:
+                self.logger.log(
+                    "Mehrere Quellen für "
+                    f"{name} erkannt. Verwendet wurde die zuletzt geänderte Datei: "
+                    f"{winner.source_file.name} ({self._mtime_text(winner.mtime)})",
+                    "WARNING",
+                )
+            correction = self._detect_import_correction(
+                name=name,
+                original_name=original_name,
+                incoming_entry=normalized_entry,
+                master_entries=master_entries,
+            )
+            if correction:
+                master_entry = master_entries.get(self._normalized_color_key(name))
+                if master_entry is not None:
+                    normalized_entry = copy.deepcopy(master_entry)
+                    warning = self._import_correction_warning_text()
+                    if warning not in warnings:
+                        warnings.append(warning)
+                    import_corrections[self._normalized_color_key(name)] = correction
+                    self.logger.log(
+                        f"Farbimport-Schutz: {name} aus {winner.source_file.name} erkannt. "
+                        "Bestehende MPRINT-Zuordnung bleibt maßgeblich.",
+                        "WARNING",
+                    )
+            single_signatures[name] = self._entry_signature(normalized_entry)
+            color_names.append(name)
 
         if errors:
             for error in errors:
@@ -508,13 +686,18 @@ class ColorTableManager:
             )
 
         master_signatures = self._master_entry_signatures(master_path)
+        master_signature_lookup = {
+            self._normalized_color_key(name): signature
+            for name, signature in master_signatures.items()
+        }
         missing_or_changed = [
             name
             for name, signature in single_signatures.items()
-            if master_signatures.get(name) != signature
+            if master_signature_lookup.get(self._normalized_color_key(name)) != signature
         ]
 
         try:
+            self.import_corrections = dict(import_corrections)
             overview_warning = self._write_color_overview(color_names, list(master_signatures.keys()))
             if overview_warning:
                 warnings.append(overview_warning)
@@ -522,6 +705,8 @@ class ColorTableManager:
             warning = f"Farbübersicht konnte nicht geschrieben werden: {exc}"
             warnings.append(warning)
             self.logger.log(warning, "WARNING")
+        finally:
+            self.import_corrections = {}
 
         if missing_or_changed:
             warning = f"{len(missing_or_changed)} Farbe(n) noch nicht in der Masterdatei"
@@ -569,6 +754,251 @@ class ColorTableManager:
                 continue
             files.append(path)
         return files
+
+    def inspect_single_color_issues(self) -> list[SingleColorIssue]:
+        single_dir = as_path(self.config["single_color_dir"])
+        master_path = as_path(self.config["master_cct"])
+        if not single_dir.is_dir():
+            return []  # The regular sync reports missing directories.
+        issues: list[SingleColorIssue] = []
+        for path in self._find_color_files(single_dir, master_path):
+            raw = path.read_bytes()
+            digest = hashlib.sha256(raw).hexdigest()
+            file_color = self._target_color_name_from_file(path)
+            try:
+                root = ET.fromstring(raw)
+            except ET.ParseError as exc:
+                issues.append(SingleColorIssue(path, digest, "invalid_xml", file_color, [str(exc)]))
+                continue
+            entries = [entry for entry in root.iter() if local_name(entry.tag) == "ColorEntry"]
+            if not entries:
+                issues.append(SingleColorIssue(path, digest, "empty", file_color, []))
+                continue
+
+            descriptions: list[str] = []
+            for entry in entries:
+                name = self._clean_color_name(self._color_entry_name(entry))
+                color_out = next((part for part in entry.iter() if local_name(part.tag) == "ColorOut"), None)
+                model = color_out.get("ColorModel", "unbekannt") if color_out is not None else "fehlt"
+                values = self._color_entry_cmyk(entry)
+                descriptions.append(
+                    f"{name}\n  Ersatz aktiv: {entry.get('ReplacementEnabled', 'unbekannt')}"
+                    f" | Farbmodell: {model} | Werte: {values or 'keine'}"
+                )
+
+            matching = [entry for entry in entries if self._normalized_color_key(self._color_entry_name(entry)) == self._normalized_color_key(file_color)]
+            if len(matching) > 1:
+                issues.append(SingleColorIssue(path, digest, "duplicate", file_color, descriptions))
+                continue
+            inconsistent = [entry for entry in entries if self._replacement_flag_without_values(entry)]
+            if matching and not inconsistent:
+                continue
+            if not matching and all(self._entry_without_replacement(entry) for entry in entries):
+                continue
+
+            one_entry = len(entries) == 1
+            entry_name = self._clean_color_name(self._color_entry_name(entries[0])) if one_entry else ""
+            similar = one_entry and self._names_probably_related(file_color, entry_name)
+            different_names = self._normalized_color_key(file_color) != self._normalized_color_key(entry_name)
+            foreign = not matching and not similar
+            kind = "foreign" if foreign else ("missing_replacement" if inconsistent else "mismatch")
+            issues.append(SingleColorIssue(
+                path, digest, kind, file_color, descriptions,
+                can_rename=bool(similar and different_names and entry_name),
+                can_accept_without_replacement=bool(one_entry and inconsistent and not foreign),
+            ))
+        return issues
+
+    def _replacement_flag_without_values(self, entry: ET.Element) -> bool:
+        if str(entry.get("ReplacementEnabled", "")).casefold() != "true":
+            return False
+        color_out = next((part for part in entry.iter() if local_name(part.tag) == "ColorOut"), None)
+        if color_out is None:
+            return True
+        if color_out.get("ColorModel", "").casefold() != "none":
+            return False
+        return not any(
+            local_name(part.tag) == "ComponentValues" and (part.text or "").strip()
+            for part in color_out.iter()
+        )
+
+    def _names_probably_related(self, file_name: str, entry_name: str) -> bool:
+        left = re.findall(r"\w+", unicodedata.normalize("NFC", file_name).casefold())
+        right = re.findall(r"\w+", unicodedata.normalize("NFC", entry_name).casefold())
+        if not left or not right:
+            return False
+        if sorted(left) == sorted(right):
+            return True
+        left_numbers = {word for word in left if word.isdigit()}
+        right_numbers = {word for word in right if word.isdigit()}
+        if left_numbers and right_numbers and left_numbers != right_numbers:
+            return False
+        if left[0] == right[0] and len(left[0]) >= 5:
+            return True
+        if left_numbers != right_numbers:
+            return False
+        return difflib.SequenceMatcher(None, " ".join(left), " ".join(right)).ratio() >= 0.82
+
+    def resolve_single_color_issue(self, issue: SingleColorIssue, action: str) -> Path:
+        current = next((item for item in self.inspect_single_color_issues() if item.path == issue.path), None)
+        if current is None or current.digest != issue.digest:
+            raise RuntimeError("Die Farbdatei wurde inzwischen verändert. Bitte Farbabgleich erneut starten.")
+        if action in {"rename_file", "rename_entry"} and not current.can_rename:
+            raise ValueError("Diese Farbnamen sind nicht eindeutig ähnlich. Bitte Datei manuell prüfen.")
+        if action == "without_replacement" and not current.can_accept_without_replacement:
+            raise ValueError("Die Datei enthält möglicherweise echte Ersatzwerte. Keine automatische Änderung.")
+
+        path = issue.path
+        tree = ET.parse(path)
+        entry = next((part for part in tree.getroot().iter() if local_name(part.tag) == "ColorEntry"), None)
+        if entry is None:
+            raise ValueError("Kein Farbeintrag vorhanden.")
+        target = path
+        if action == "rename_file":
+            name = self._clean_color_name(self._color_entry_name(entry))
+            if not name or name in {".", ".."} or re.search(r'[<>:"/\\|?*]', name) or name.endswith((" ", ".")):
+                raise ValueError("Der enthaltene Farbname ist kein gültiger Dateiname.")
+            target = path.with_name(name + path.suffix)
+            if any(other.name.casefold() == target.name.casefold() for other in path.parent.iterdir() if other != path):
+                raise FileExistsError(f"Eine Datei mit diesem Namen existiert bereits: {target.name}")
+        elif action not in {"rename_entry", "without_replacement"}:
+            raise ValueError("Unbekannte Korrekturaktion.")
+
+        backup_dir = as_path(self.config["backup_dir"])
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        backup_path = backup_dir / f"{path.stem}_vor_Korrektur_{dt.datetime.now():%Y%m%d_%H%M%S_%f}{path.suffix}"
+        shutil.copy2(path, backup_path)
+        self.logger.log(f"Farbdatei vor Korrektur gesichert: {backup_path}")
+
+        if action == "rename_file":
+            path.rename(target)
+        else:
+            if action == "rename_entry":
+                entry.set("Name", issue.file_color)
+            else:
+                entry.set("ReplacementEnabled", "false")
+                if not any(local_name(part.tag) == "ColorOut" for part in entry.iter()):
+                    ET.SubElement(entry, f"{{{COLOR_NS}}}ColorOut", ColorModel="None")
+            fd, temp_name = tempfile.mkstemp(prefix="farbe-korrektur-", suffix=".tmp", dir=str(path.parent))
+            os.close(fd)
+            temp_path = Path(temp_name)
+            try:
+                tree.write(temp_path, encoding="utf-8", xml_declaration=True, short_empty_elements=True)
+                ET.parse(temp_path)
+                os.replace(temp_path, path)
+            finally:
+                temp_path.unlink(missing_ok=True)
+        self.logger.log(f"Farbdatei korrigiert ({action}): {path.name} -> {target.name}")
+        return target
+
+    def _single_color_candidate_from_file(
+        self,
+        color_file: Path,
+    ) -> tuple[SingleColorCandidate | None, list[str], list[str]]:
+        file_mtime = self._safe_mtime(color_file)
+        target_name = self._target_color_name_from_file(color_file)
+        errors: list[str] = []
+        warnings: list[str] = []
+        try:
+            tree = ET.parse(color_file)
+        except ET.ParseError as exc:
+            return None, [f"XML fehlerhaft in {color_file.name}: {exc}"], []
+        except Exception as exc:
+            return None, [f"Datei konnte nicht gelesen werden: {color_file.name}: {exc}"], []
+
+        entries = [
+            copy.deepcopy(elem)
+            for elem in tree.getroot().iter()
+            if local_name(elem.tag) == "ColorEntry"
+        ]
+        self.logger.log(f"{color_file.name}: {len(entries)} ColorEntry-Einträge")
+        matching: list[ET.Element] = []
+        ignored_names: list[str] = []
+        target_key = self._normalized_color_key(target_name)
+        for entry in entries:
+            entry_name = self._clean_color_name(self._color_entry_name(entry))
+            if self._normalized_color_key(entry_name) == target_key:
+                entry.set("Name", target_name)
+                matching.append(entry)
+            elif entry_name:
+                ignored_names.append(entry_name)
+
+        if any(self._replacement_flag_without_values(entry) for entry in entries):
+            warnings.append(
+                f"{color_file.name}: Ersatzfarbe aktiv, aber keine Ersatz-Farbwerte vorhanden. "
+                "Die Datei wurde nicht übernommen."
+            )
+            return None, errors, warnings
+
+        if not matching:
+            if entries and all(self._entry_without_replacement(entry) for entry in entries):
+                return (
+                    SingleColorCandidate(
+                        name=target_name,
+                        entry=entries[0],
+                        source_file=color_file,
+                        mtime=file_mtime,
+                        passthrough=True,
+                    ),
+                    errors,
+                    warnings,
+                )
+            active_names = [
+                self._clean_color_name(self._color_entry_name(entry))
+                for entry in entries
+                if str(entry.get("ReplacementEnabled", "")).casefold() == "true"
+            ]
+            if active_names:
+                warnings.append(
+                    f"{color_file.name}: Ersatzfarbe aktiv, aber enthaltener Farbname "
+                    f"'{self._short_text(', '.join(active_names), 100)}' passt nicht zum Dateinamen "
+                    f"'{target_name}'. Die Datei wurde nicht übernommen."
+                )
+            else:
+                warnings.append(
+                    f"{color_file.name} enthält keinen passenden Farbeintrag '{target_name}'. "
+                    "Die Datei wurde nicht übernommen."
+                )
+            return None, errors, warnings
+
+        if len(matching) > 1:
+            warnings.append(
+                f"{color_file.name} enthält mehrere passende Farbeinträge '{target_name}'. "
+                "Der erste passende Eintrag wurde verwendet."
+            )
+
+        return (
+            SingleColorCandidate(
+                name=target_name,
+                entry=matching[0],
+                source_file=color_file,
+                mtime=file_mtime,
+                ignored_names=ignored_names,
+            ),
+            errors,
+            warnings,
+        )
+
+    def _entry_without_replacement(self, entry: ET.Element) -> bool:
+        if str(entry.get("ReplacementEnabled", "")).casefold() != "false":
+            return False
+        color_out = next((part for part in entry.iter() if local_name(part.tag) == "ColorOut"), None)
+        return color_out is not None and color_out.get("ColorModel", "").casefold() == "none"
+
+    def _target_color_name_from_file(self, color_file: Path) -> str:
+        return self._clean_color_name(unicodedata.normalize("NFC", color_file.stem))
+
+    def _normalized_color_key(self, value: str) -> str:
+        normalized = unicodedata.normalize("NFC", self._clean_color_name(value))
+        return normalized.casefold()
+
+    def _mtime_text(self, value: float) -> str:
+        if not value:
+            return "Datum nicht lesbar"
+        try:
+            return dt.datetime.fromtimestamp(value).strftime("%d.%m.%Y %H:%M")
+        except Exception:
+            return "Datum nicht lesbar"
 
     def _is_ignored_file(self, path: Path) -> bool:
         name = path.name
@@ -624,6 +1054,92 @@ class ColorTableManager:
                 signatures[self._color_entry_name(entry)] = self._entry_signature(entry)
         return signatures
 
+    def _master_entries_by_name(self, master_path: Path) -> dict[str, ET.Element]:
+        if not master_path.exists():
+            return {}
+        try:
+            tree = ET.parse(master_path)
+        except Exception as exc:
+            self.logger.log(f"Master konnte für Import-Schutz nicht gelesen werden: {master_path} ({exc})", "WARNING")
+            return {}
+        entries: dict[str, ET.Element] = {}
+        for entry in tree.getroot().iter():
+            if local_name(entry.tag) == "ColorEntry":
+                name = self._clean_color_name(self._color_entry_name(entry))
+                if name:
+                    entries[self._normalized_color_key(name)] = copy.deepcopy(entry)
+        return entries
+
+    def _detect_import_correction(
+        self,
+        name: str,
+        original_name: str,
+        incoming_entry: ET.Element,
+        master_entries: dict[str, ET.Element],
+    ) -> dict[str, str] | None:
+        cleaned_name = self._clean_color_name(name)
+        cleaned_original = self._clean_color_name(original_name)
+        if not cleaned_name:
+            return None
+        master_entry = master_entries.get(self._normalized_color_key(cleaned_name))
+        if master_entry is None:
+            return None
+        if not self._is_technical_color_name(cleaned_original):
+            return None
+        if cleaned_original.casefold() == cleaned_name.casefold():
+            return None
+        incoming_values = self._entry_cmyk_values(incoming_entry)
+        master_values = self._entry_cmyk_values(master_entry)
+        if incoming_values is None or master_values is None:
+            return None
+        if incoming_values == master_values:
+            return None
+        return {
+            "event": "import_correction",
+            "timestamp": self._event_timestamp(now_stamp()),
+            "user": "MJET Helper",
+            "details": (
+                "Importabweichung erkannt. Eine technische Farbe wurde versehentlich als "
+                "Produktionsfarbe verwendet. Die ursprüngliche MPRINT-Zuordnung wurde beibehalten."
+            ),
+            "original_name": cleaned_original,
+            "target_name": cleaned_name,
+            "old_cmyk": self._cmyk_values_text(master_values),
+            "incoming_cmyk": self._cmyk_values_text(incoming_values),
+        }
+
+    def _is_technical_color_name(self, name: str) -> bool:
+        normalized = re.sub(r"[^a-z0-9äöüß]+", "", str(name).casefold())
+        return normalized in {
+            "eindruckfarbe",
+            "eindruckfarbe2",
+            "passer",
+            "cut",
+            "crop",
+            "custom",
+            "sonderfarbe",
+            "technical",
+            "hilfsfarbe",
+        }
+
+    def _entry_cmyk_values(self, entry: ET.Element) -> tuple[int, int, int, int] | None:
+        text = self._color_entry_cmyk(entry)
+        values = self._parse_cmyk_values(text)
+        if values is None:
+            return None
+        return (values["c"], values["m"], values["y"], values["k"])
+
+    def _cmyk_values_text(self, values: tuple[int, int, int, int]) -> str:
+        return f"C {values[0]} / M {values[1]} / Y {values[2]} / K {values[3]}"
+
+    def _import_correction_warning_text(self) -> str:
+        return (
+            "⚠️ Farbänderung erkannt\n\n"
+            "Eine unplausible Änderung in der Farbtabelle wurde erkannt.\n\n"
+            "Der MJET Helper hat die Änderung automatisch korrigiert.\n\n"
+            "Die bestätigten Produktionsfarben wurden nicht verändert."
+        )
+
     def _master_color_names(self, master_path: Path) -> list[str]:
         return list(self._master_entry_signatures(master_path).keys())
 
@@ -637,15 +1153,37 @@ class ColorTableManager:
         existing_rows, existing_fields = self._read_color_overview_with_legacy(csv_path)
         name_column = self._find_name_column(existing_fields) or "Farbbezeichnung"
         generated_fields = [
+            "color_id",
             "Farbbezeichnung",
             "Status",
             "Angelegt am",
             "Gedruckt am",
+            "Abgeglichen am",
             "CMYK",
             "Einzelfarbe vorhanden",
             "In Masterdatei",
             "Letzter Abgleich",
             "Quelle",
+            "created_at",
+            "last_printed_at",
+            "last_synced_at",
+            "legacy_created_at",
+            "legacy_printed_at",
+            "sk_assignments",
+            "printed",
+            "printed_at",
+            "approved",
+            "approved_at",
+            "transfer",
+            "not_printable",
+            "not_printable_at",
+            "not_printable_by",
+            "not_printable_reason",
+            "approval_notification_json",
+            "approval_mail_preview",
+            "source",
+            "machine_values",
+            "history_events",
         ]
         extra_fields = [
             field
@@ -667,7 +1205,9 @@ class ColorTableManager:
             row_lookup.setdefault(key, row)
             display_names.setdefault(key, raw_name)
 
-        for name in single_names + master_names:
+        id_lookup = self._existing_color_ids(existing_rows, name_column)
+        next_color_number = self._next_color_id_number_from_values(id_lookup.values())
+        for name in single_names + master_names + [info["name"] for info in single_info.values()]:
             key = name.casefold()
             display_names[key] = name
 
@@ -676,10 +1216,12 @@ class ColorTableManager:
         for key in sorted(display_names, key=lambda item: display_names[item].casefold()):
             name = display_names[key]
             existing = row_lookup.get(key, {})
-            in_single = key in single_lookup
-            in_master = key in master_lookup
             info = single_info.get(key, {})
-            if in_single and in_master:
+            in_single = key in single_lookup or bool(info.get("passthrough"))
+            in_master = key in master_lookup
+            if info.get("passthrough"):
+                status = "Originalfarbe ohne Ersatzfarbe"
+            elif in_single and in_master:
                 status = "MPRINT angepasst / druckbar"
             elif in_single:
                 status = "Einzelfarbe vorhanden - Farbabgleich offen"
@@ -696,33 +1238,108 @@ class ColorTableManager:
                 source = "MPRINT"
             else:
                 source = "Vorstufe"
+            if in_single or in_master:
+                technical_source = "MPRINT"
+            else:
+                technical_source = self._technical_color_source(existing.get("source", "") or source)
 
-            angelegt_am = existing.get("Angelegt am", "").strip() or existing.get("AngelegtAm", "").strip()
-            if not angelegt_am:
-                angelegt_am = now_text
-            gedruckt_am = existing.get("Gedruckt am", "").strip() or existing.get("GedrucktAm", "").strip()
-            if in_single and in_master and not gedruckt_am:
-                gedruckt_am = now_text
+            legacy_created_at = (
+                existing.get("legacy_created_at", "").strip()
+                or existing.get("Angelegt am", "").strip()
+                or existing.get("AngelegtAm", "").strip()
+            )
+            legacy_printed_at = (
+                existing.get("legacy_printed_at", "").strip()
+                or existing.get("Gedruckt am", "").strip()
+                or existing.get("GedrucktAm", "").strip()
+            )
+            created_at = existing.get("created_at", "").strip()
+            if not created_at and not existing:
+                created_at = now_text
+            last_printed_at = existing.get("last_printed_at", "").strip()
+            last_synced_at = now_text
+            correction_event = self.import_corrections.get(key)
             cmyk = str(info.get("cmyk", "") or existing.get("CMYK", "")).strip()
+            if correction_event and correction_event.get("old_cmyk"):
+                cmyk = str(correction_event.get("old_cmyk") or cmyk).strip()
+            sk_assignments = self._parse_sk_assignments(existing)
+            printed, printed_at, approved, approved_at, transfer = self._color_workflow_from_row(existing, sk_assignments)
+            not_printable = self._truthy(existing.get("not_printable", ""))
+            not_printable_at = existing.get("not_printable_at", "").strip()
+            not_printable_by = existing.get("not_printable_by", "").strip()
+            not_printable_reason = existing.get("not_printable_reason", "").strip()
+            color_id = existing.get("color_id", "").strip() or id_lookup.get(key, "")
+            if not color_id:
+                color_id = self._format_color_id(next_color_number)
+                next_color_number += 1
+            history_events = self._merge_history_events(
+                existing.get("history_events", ""),
+                printed=printed,
+                printed_at=printed_at,
+                approved=approved,
+                approved_at=approved_at,
+                transfer=transfer,
+                assignments=sk_assignments,
+                not_printable=not_printable,
+                not_printable_at=not_printable_at,
+                not_printable_by=not_printable_by,
+                not_printable_reason=not_printable_reason,
+            )
+            if correction_event:
+                history_events.append(correction_event)
+                history_events = self._dedupe_history_events(history_events)
+            machine_values = self._machine_values_for_row(
+                cmyk,
+                technical_source,
+                printed=printed,
+                approved=approved,
+                transfer=transfer,
+            )
 
             output_row = {field: existing.get(field, "") for field in extra_fields}
             output_row.update(
                 {
+                    "color_id": color_id,
                     "Farbbezeichnung": name,
                     "Status": status,
-                    "Angelegt am": angelegt_am,
-                    "Gedruckt am": gedruckt_am,
+                    "Angelegt am": created_at,
+                    "Gedruckt am": last_printed_at,
+                    "Abgeglichen am": last_synced_at,
                     "CMYK": cmyk,
                     "Einzelfarbe vorhanden": "ja" if in_single else "nein",
                     "In Masterdatei": "ja" if in_master else "nein",
-                    "Letzter Abgleich": now_text,
+                    "Letzter Abgleich": last_synced_at,
                     "Quelle": source,
+                    "created_at": created_at,
+                    "last_printed_at": last_printed_at,
+                    "last_synced_at": last_synced_at,
+                    "legacy_created_at": legacy_created_at,
+                    "legacy_printed_at": legacy_printed_at,
+                    "sk_assignments": self._dump_sk_assignments(sk_assignments),
+                    "printed": "ja" if printed else "nein",
+                    "printed_at": printed_at,
+                    "approved": "ja" if approved else "nein",
+                    "approved_at": approved_at,
+                    "transfer": self._dump_transfer(transfer),
+                    "not_printable": "ja" if not_printable else "nein",
+                    "not_printable_at": not_printable_at,
+                    "not_printable_by": not_printable_by,
+                    "not_printable_reason": not_printable_reason,
+                    "approval_notification_json": existing.get("approval_notification_json", ""),
+                    "approval_mail_preview": existing.get("approval_mail_preview", ""),
+                    "source": technical_source,
+                    "machine_values": self._dump_machine_values(machine_values),
+                    "history_events": self._dump_history_events(history_events),
                 }
             )
             rows.append(output_row)
 
         with self.overview_lock:
             csv_path.parent.mkdir(parents=True, exist_ok=True)
+            self._backup_color_overview_before_timestamp_migration(csv_path, existing_fields)
+            self._backup_color_overview_before_sk_migration(csv_path, existing_fields)
+            self._backup_color_overview_before_transfer_migration(csv_path, existing_fields)
+            self._backup_color_overview_before_router_migration(csv_path, existing_fields)
             temp_csv = csv_path.with_suffix(csv_path.suffix + ".tmp")
             with temp_csv.open("w", encoding="utf-8-sig", newline="") as handle:
                 writer = csv.DictWriter(handle, fieldnames=fieldnames, delimiter=";")
@@ -731,7 +1348,8 @@ class ColorTableManager:
             os.replace(temp_csv, csv_path)
             self.logger.log(f"Interne Farbdaten geschrieben: {csv_path}")
 
-            self._write_color_overview_html(html_path, rows)
+            self._write_color_overview_html(html_path, self._visible_overview_rows(rows))
+            self._write_color_export(rows)
         return None
 
     def add_requested_color(self, color_name: str) -> str:
@@ -744,19 +1362,69 @@ class ColorTableManager:
         csv_path = self._overview_csv_path()
         with self.overview_lock:
             rows, fields = self._read_color_overview_with_legacy(csv_path)
+            original_fields = list(fields)
             name_column = self._find_name_column(fields) or "Farbbezeichnung"
             if "Farbbezeichnung" not in fields:
                 fields = ["Farbbezeichnung"] + [field for field in fields if field != name_column]
                 name_column = "Farbbezeichnung"
             if "Quelle" not in fields:
                 fields.append("Quelle")
+            for field in (
+                "color_id",
+                "created_at",
+                "last_printed_at",
+                "last_synced_at",
+                "sk_assignments",
+                "printed",
+                "printed_at",
+                "approved",
+                "approved_at",
+                "transfer",
+                "not_printable",
+                "not_printable_at",
+                "not_printable_by",
+                "not_printable_reason",
+                "approval_notification_json",
+                "approval_mail_preview",
+                "source",
+                "machine_values",
+                "history_events",
+            ):
+                if field not in fields:
+                    fields.append(field)
 
             existing_keys = {
                 (row.get(name_column) or row.get("Farbbezeichnung") or "").strip().casefold()
                 for row in rows
             }
             if cleaned.casefold() not in existing_keys:
-                rows.append({"Farbbezeichnung": cleaned, "Quelle": "Vorstufe"})
+                created_at = now_stamp()
+                color_id = self._format_color_id(self._next_color_id_number(rows))
+                rows.append(
+                    {
+                        "color_id": color_id,
+                        "Farbbezeichnung": cleaned,
+                        "Quelle": "Vorstufe",
+                        "created_at": created_at,
+                        "last_printed_at": "",
+                        "last_synced_at": created_at,
+                        "sk_assignments": "[]",
+                        "printed": "nein",
+                        "printed_at": "",
+                        "approved": "nein",
+                        "approved_at": "",
+                        "transfer": self._dump_transfer(self._empty_transfer()),
+                        "not_printable": "nein",
+                        "not_printable_at": "",
+                        "not_printable_by": "",
+                        "not_printable_reason": "",
+                        "approval_notification_json": "",
+                        "approval_mail_preview": "",
+                        "source": "PREPRESS",
+                        "machine_values": "[]",
+                        "history_events": "[]",
+                    }
+                )
                 csv_path.parent.mkdir(parents=True, exist_ok=True)
                 temp_csv = csv_path.with_suffix(csv_path.suffix + ".tmp")
                 with temp_csv.open("w", encoding="utf-8-sig", newline="") as handle:
@@ -769,49 +1437,1129 @@ class ColorTableManager:
                         writer.writerow({field: normalized.get(field, "") for field in fields})
                 os.replace(temp_csv, csv_path)
                 self.logger.log(f"Kundenfarbe eingetragen: {cleaned}")
+            else:
+                return f"Kundenfarbe ist bereits in der Übersicht: {cleaned}"
 
         self.refresh_color_overview()
         return f"Kundenfarbe eingetragen: {cleaned}"
 
-    def delete_overview_color(self, color_name: str) -> str:
+    def add_sk_assignment(self, color_name: str, sk_number: str) -> dict:
+        cleaned_color = self._clean_color_name(color_name)
+        cleaned_sk = self._clean_sk_number(sk_number)
+        if not cleaned_color:
+            return self._api_result(False, "Keine Kundenfarbe übergeben.", 400)
+        if not cleaned_sk:
+            return self._api_result(False, "Bitte eine SK-Nr. eintragen.", 400)
+
+        def update(row: dict[str, str], assignments: list[dict[str, object]]) -> tuple[bool, str]:
+            if any(str(item.get("sk_number", "")).casefold() == cleaned_sk.casefold() for item in assignments):
+                return False, f"Diese SK-Nr. ist bei {cleaned_color} bereits eingetragen."
+            assignments.append(
+                {
+                    "sk_number": cleaned_sk,
+                    "printed": False,
+                    "printed_at": "",
+                    "approved": False,
+                    "approved_at": "",
+                    "template_updated": False,
+                    "template_updated_at": "",
+                    "portal_informed": False,
+                    "transfer_completed": False,
+                    "transfer_completed_at": "",
+                    "transfer_completed_by": "",
+                    "transfer_note": "",
+                }
+            )
+            row["sk_assignments"] = self._dump_sk_assignments(assignments)
+            return True, f"{self._sk_label(cleaned_sk)} wurde bei {cleaned_color} hinzugefügt."
+
+        return self._update_sk_assignment(cleaned_color, cleaned_sk, update)
+
+    def mark_sk_printed(self, color_name: str, sk_number: str) -> dict:
+        cleaned_color = self._clean_color_name(color_name)
+        if not cleaned_color:
+            return self._api_result(False, "Keine Kundenfarbe übergeben.", 400)
+        return self._update_color_workflow(
+            cleaned_color,
+            lambda row, assignments: self._set_color_printed(row, assignments),
+        )
+
+    def approve_sk_assignment(self, color_name: str, sk_number: str) -> dict:
+        cleaned_color = self._clean_color_name(color_name)
+        if not cleaned_color:
+            return self._api_result(False, "Keine Kundenfarbe übergeben.", 400)
+        return self._update_color_workflow(
+            cleaned_color,
+            lambda row, assignments: self._set_color_approved(row, assignments),
+        )
+
+    def mark_template_updated(
+        self,
+        color_name: str,
+        sk_number: str,
+        template_updated: bool = False,
+        portal_informed: bool = False,
+        completed_by: str = "",
+        note: str = "",
+    ) -> dict:
+        cleaned_color = self._clean_color_name(color_name)
+        if not cleaned_color:
+            return self._api_result(False, "Keine Kundenfarbe übergeben.", 400)
+        if not template_updated and not portal_informed:
+            return self._api_result(False, "Bitte mindestens eine Übernahmeart auswählen.", 400)
+        cleaned_sk = self._clean_sk_number(sk_number)
+        if not cleaned_sk:
+            return self._api_result(False, "Bitte eine SK-Nr. auswählen.", 400)
+        return self._update_sk_assignment(
+            cleaned_color,
+            cleaned_sk,
+            lambda row, assignments: self._set_sk_transfer(
+                row,
+                assignments,
+                sk_number=cleaned_sk,
+                template_updated=template_updated,
+                portal_informed=portal_informed,
+                completed_by=self._clean_color_name(completed_by),
+                note=str(note).strip(),
+            ),
+        )
+
+    def set_color_not_printable(
+        self,
+        color_name: str,
+        reason: str,
+        completed_by: str = "",
+    ) -> dict:
+        cleaned_color = self._clean_color_name(color_name)
+        cleaned_reason = str(reason or "").strip()
+        if not cleaned_color:
+            return self._api_result(False, "Keine Kundenfarbe übergeben.", 400)
+        if not cleaned_reason:
+            return self._api_result(False, "Bitte einen Grund eintragen.", 400)
+        return self._update_color_workflow(
+            cleaned_color,
+            lambda row, assignments: self._set_not_printable(row, assignments, cleaned_reason, self._clean_color_name(completed_by)),
+        )
+
+    def clear_color_not_printable(self, color_name: str, completed_by: str = "") -> dict:
+        cleaned_color = self._clean_color_name(color_name)
+        if not cleaned_color:
+            return self._api_result(False, "Keine Kundenfarbe übergeben.", 400)
+        return self._update_color_workflow(
+            cleaned_color,
+            lambda row, assignments: self._clear_not_printable(row, assignments, self._clean_color_name(completed_by)),
+        )
+
+    def add_prepress_note(
+        self,
+        title: str,
+        text: str,
+        customer: str = "",
+        color_name: str = "",
+        sk_number: str = "",
+        created_by: str = "",
+    ) -> dict:
+        cleaned_title = self._clean_color_name(title)
+        cleaned_text = str(text or "").strip()
+        if not cleaned_title:
+            return self._api_result(False, "Bitte einen Titel eintragen.", 400)
+        if not cleaned_text:
+            return self._api_result(False, "Bitte eine Information eintragen.", 400)
+        notes = self._read_prepress_notes()
+        now_text = now_stamp()
+        note = {
+            "id": self._next_prepress_note_id(notes),
+            "title": cleaned_title,
+            "text": cleaned_text,
+            "customer": self._clean_color_name(customer),
+            "color": self._clean_color_name(color_name),
+            "sk_number": self._clean_sk_number(sk_number),
+            "created_at": now_text,
+            "created_by": self._clean_color_name(created_by),
+            "status": "offen",
+            "completed_at": "",
+            "completed_by": "",
+            "history": [
+                {
+                    "event": "prepress_note_created",
+                    "timestamp": self._event_timestamp(now_text),
+                    "user": self._clean_color_name(created_by),
+                }
+            ],
+        }
+        notes.append(note)
+        self._write_prepress_notes(notes)
+        self.refresh_color_overview()
+        result = self._api_result(True, "Vorstufen-Hinweis wurde gespeichert.", 200)
+        result["note"] = note
+        return result
+
+    def complete_prepress_note(self, note_id: str, completed_by: str = "") -> dict:
+        cleaned_id = str(note_id or "").strip()
+        if not cleaned_id:
+            return self._api_result(False, "Kein Hinweis ausgewählt.", 400)
+        notes = self._read_prepress_notes()
+        for note in notes:
+            if str(note.get("id") or "") != cleaned_id:
+                continue
+            if str(note.get("status") or "") == "erledigt":
+                result = self._api_result(True, "Vorstufen-Hinweis war bereits übernommen.", 200)
+                result["note"] = note
+                return result
+            note["status"] = "erledigt"
+            completed_at = now_stamp()
+            note["completed_at"] = completed_at
+            note["completed_by"] = self._clean_color_name(completed_by)
+            history = note.get("history") if isinstance(note.get("history"), list) else []
+            history.append(
+                {
+                    "event": "prepress_note_completed",
+                    "timestamp": self._event_timestamp(completed_at),
+                    "user": self._clean_color_name(completed_by),
+                }
+            )
+            note["history"] = history
+            self._write_prepress_notes(notes)
+            self.refresh_color_overview()
+            result = self._api_result(True, "Vorstufen-Hinweis wurde als übernommen markiert.", 200)
+            result["note"] = note
+            return result
+        return self._api_result(False, "Vorstufen-Hinweis nicht gefunden.", 404)
+
+    def hide_overview_color(self, color_name: str) -> str:
         cleaned = re.sub(r"\s+", " ", color_name).strip()
         if not cleaned:
             return "Keine Farbbezeichnung übergeben."
+
+        hidden_path = self._hidden_colors_path()
+        with self.overview_lock:
+            hidden = self._read_hidden_colors()
+            if any(item.casefold() == cleaned.casefold() for item in hidden):
+                return f"Farbe ist bereits ausgeblendet: {cleaned}"
+            self._backup_hidden_colors_before_change(hidden_path, hidden)
+            hidden.append(cleaned)
+            self._write_hidden_colors(hidden)
+            self.logger.log(f"Farbe aus Übersicht ausgeblendet: {cleaned}")
+
+        self.refresh_color_overview()
+        return f"Farbe ausgeblendet: {cleaned}"
+
+    def rename_overview_color(self, old_name: str, new_name: str) -> dict:
+        old_name = self._clean_color_name(old_name)
+        new_name = self._clean_color_name(new_name)
+        if not old_name or not new_name:
+            return self._api_result(False, "Bitte alten und neuen Farbnamen eintragen.", 400)
+        if len(new_name) > 160:
+            return self._api_result(False, "Die Farbbezeichnung ist zu lang.", 400)
+        if self._normalized_color_key(old_name) == self._normalized_color_key(new_name):
+            return self._api_result(False, "Bitte einen anderen Farbnamen eintragen.", 400)
 
         csv_path = self._overview_csv_path()
         with self.overview_lock:
             rows, fields = self._read_color_overview_with_legacy(csv_path)
             name_column = self._find_name_column(fields) or "Farbbezeichnung"
-            remaining_rows = []
-            removed = 0
-            for row in rows:
-                raw_name = (row.get(name_column) or row.get("Farbbezeichnung") or "").strip()
-                if raw_name.casefold() == cleaned.casefold():
-                    removed += 1
-                    continue
-                remaining_rows.append(row)
+            target = next(
+                (row for row in rows if self._normalized_color_key(row.get(name_column, "")) == self._normalized_color_key(old_name)),
+                None,
+            )
+            if target is None:
+                return self._api_result(False, f"Kundenfarbe nicht gefunden: {old_name}", 404)
+            if any(
+                self._normalized_color_key(row.get(name_column, "")) == self._normalized_color_key(new_name)
+                for row in rows
+            ):
+                return self._api_result(False, f"Kundenfarbe ist bereits vorhanden: {new_name}", 409)
+            if (
+                self._technical_color_source(target.get("source", "") or target.get("Quelle", "")) != "PREPRESS"
+                or self._truthy(target.get("Einzelfarbe vorhanden", ""))
+                or self._truthy(target.get("In Masterdatei", ""))
+            ):
+                return self._api_result(
+                    False,
+                    "Diese Maschinenfarbe kommt aus einer CCT-Datei. Bitte den Namen dort korrigieren und danach Farbabgleich starten.",
+                    409,
+                )
 
-            if removed:
-                if "Farbbezeichnung" not in fields:
-                    fields = ["Farbbezeichnung"] + [field for field in fields if field != name_column]
-                    name_column = "Farbbezeichnung"
-                csv_path.parent.mkdir(parents=True, exist_ok=True)
-                temp_csv = csv_path.with_suffix(csv_path.suffix + ".tmp")
-                with temp_csv.open("w", encoding="utf-8-sig", newline="") as handle:
-                    writer = csv.DictWriter(handle, fieldnames=fields, delimiter=";")
-                    writer.writeheader()
-                    for row in remaining_rows:
-                        normalized = dict(row)
-                        if name_column != "Farbbezeichnung":
-                            normalized["Farbbezeichnung"] = row.get(name_column, "")
-                        writer.writerow({field: normalized.get(field, "") for field in fields})
-                os.replace(temp_csv, csv_path)
-                self.logger.log(f"Farbübersicht-Eintrag gelöscht: {cleaned}")
+            backup_dir = csv_path.parent / "Backup"
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            if csv_path.exists():
+                backup_path = backup_dir / f"{csv_path.stem}_vor_umbenennung_{dt.datetime.now():%Y%m%d_%H%M%S_%f}{csv_path.suffix}"
+                shutil.copy2(csv_path, backup_path)
+            target[name_column] = new_name
+            target["Farbbezeichnung"] = new_name
+            if "Farbbezeichnung" not in fields:
+                fields.append("Farbbezeichnung")
+            csv_path.parent.mkdir(parents=True, exist_ok=True)
+            temp_csv = csv_path.with_suffix(csv_path.suffix + ".tmp")
+            with temp_csv.open("w", encoding="utf-8-sig", newline="") as handle:
+                writer = csv.DictWriter(handle, fieldnames=fields, delimiter=";")
+                writer.writeheader()
+                writer.writerows({field: row.get(field, "") for field in fields} for row in rows)
+            os.replace(temp_csv, csv_path)
+            self.logger.log(f"Vorstufenfarbe umbenannt: {old_name} -> {new_name}")
 
         self.refresh_color_overview()
-        if removed:
-            return f"Eintrag gelöscht: {cleaned}"
-        return f"Eintrag nicht gefunden oder wird von Einzelfarben/Master wieder erzeugt: {cleaned}"
+        result = self._api_result(True, f"Farbname korrigiert: {new_name}")
+        result["old_name"] = old_name
+        result["new_name"] = new_name
+        return result
+
+    def _update_sk_assignment(self, color_name: str, sk_number: str | None, update: callable) -> dict:
+        csv_path = self._overview_csv_path()
+        changed = False
+        result_message = ""
+        result_status = 200
+        with self.overview_lock:
+            rows, fields = self._read_color_overview_with_legacy(csv_path)
+            original_fields = list(fields)
+            name_column = self._find_name_column(fields) or "Farbbezeichnung"
+            if "Farbbezeichnung" not in fields:
+                fields = ["Farbbezeichnung"] + [field for field in fields if field != name_column]
+                name_column = "Farbbezeichnung"
+            if "sk_assignments" not in fields:
+                fields.append("sk_assignments")
+
+            target_row = None
+            for row in rows:
+                raw_name = self._clean_color_name(row.get(name_column) or row.get("Farbbezeichnung") or "")
+                if raw_name.casefold() == color_name.casefold():
+                    target_row = row
+                    break
+            if target_row is None:
+                return self._api_result(False, f"Kundenfarbe nicht gefunden: {color_name}", 404)
+
+            assignments = self._parse_sk_assignments(target_row)
+            target_row["Farbbezeichnung"] = target_row.get(name_column) or target_row.get("Farbbezeichnung") or color_name
+            changed, result_message = update(target_row, assignments)
+            if not changed:
+                result_status = 409 if sk_number else 400
+                return self._api_result(False, result_message, result_status)
+
+            self._backup_color_overview_before_sk_migration(csv_path, original_fields)
+            target_row["sk_assignments"] = self._dump_sk_assignments(assignments)
+            csv_path.parent.mkdir(parents=True, exist_ok=True)
+            temp_csv = csv_path.with_suffix(csv_path.suffix + ".tmp")
+            with temp_csv.open("w", encoding="utf-8-sig", newline="") as handle:
+                writer = csv.DictWriter(handle, fieldnames=fields, delimiter=";")
+                writer.writeheader()
+                for row in rows:
+                    normalized = dict(row)
+                    if name_column != "Farbbezeichnung":
+                        normalized["Farbbezeichnung"] = row.get(name_column, "")
+                    writer.writerow({field: normalized.get(field, "") for field in fields})
+            os.replace(temp_csv, csv_path)
+
+        self.refresh_color_overview()
+        return self._api_result(True, result_message, 200)
+
+    def _update_color_workflow(self, color_name: str, update: callable) -> dict:
+        csv_path = self._overview_csv_path()
+        with self.overview_lock:
+            rows, fields = self._read_color_overview_with_legacy(csv_path)
+            original_fields = list(fields)
+            name_column = self._find_name_column(fields) or "Farbbezeichnung"
+            if "Farbbezeichnung" not in fields:
+                fields = ["Farbbezeichnung"] + [field for field in fields if field != name_column]
+                name_column = "Farbbezeichnung"
+            for field in (
+                "printed",
+                "printed_at",
+                "approved",
+                "approved_at",
+                "transfer",
+                "not_printable",
+                "not_printable_at",
+                "not_printable_by",
+                "not_printable_reason",
+                "approval_notification_json",
+                "approval_mail_preview",
+                "history_events",
+                "machine_values",
+            ):
+                if field not in fields:
+                    fields.append(field)
+
+            target_row = None
+            assignments: list[dict[str, object]] = []
+            for row in rows:
+                raw_name = self._clean_color_name(row.get(name_column) or row.get("Farbbezeichnung") or "")
+                if raw_name.casefold() == color_name.casefold():
+                    target_row = row
+                    assignments = self._parse_sk_assignments(row)
+                    break
+            if target_row is None:
+                return self._api_result(False, f"Kundenfarbe nicht gefunden: {color_name}", 404)
+
+            target_row["Farbbezeichnung"] = target_row.get(name_column) or target_row.get("Farbbezeichnung") or color_name
+            changed, message = update(target_row, assignments)
+            if not changed:
+                return self._api_result(False, message, 409)
+
+            self._backup_color_overview_before_transfer_migration(csv_path, original_fields)
+            csv_path.parent.mkdir(parents=True, exist_ok=True)
+            temp_csv = csv_path.with_suffix(csv_path.suffix + ".tmp")
+            with temp_csv.open("w", encoding="utf-8-sig", newline="") as handle:
+                writer = csv.DictWriter(handle, fieldnames=fields, delimiter=";")
+                writer.writeheader()
+                for row in rows:
+                    normalized = dict(row)
+                    if name_column != "Farbbezeichnung":
+                        normalized["Farbbezeichnung"] = row.get(name_column, "")
+                    writer.writerow({field: normalized.get(field, "") for field in fields})
+            os.replace(temp_csv, csv_path)
+
+        self.refresh_color_overview()
+        return self._api_result(True, message, 200)
+
+    def _set_color_printed(
+        self,
+        row: dict[str, str],
+        assignments: list[dict[str, object]],
+    ) -> tuple[bool, str]:
+        printed, printed_at, approved, approved_at, transfer = self._color_workflow_from_row(row, assignments)
+        if printed:
+            return True, "Farbe ist bereits als gedruckt markiert."
+        printed_at = now_stamp()
+        row["printed"] = "ja"
+        row["printed_at"] = printed_at
+        row["last_printed_at"] = printed_at
+        row["Gedruckt am"] = printed_at
+        row["approved"] = "ja" if approved else "nein"
+        row["approved_at"] = approved_at
+        row["transfer"] = self._dump_transfer(transfer)
+        return True, "Farbe wurde als gedruckt markiert."
+
+    def _set_color_approved(
+        self,
+        row: dict[str, str],
+        assignments: list[dict[str, object]],
+    ) -> tuple[bool, str]:
+        printed, printed_at, approved, approved_at, transfer = self._color_workflow_from_row(row, assignments)
+        if not printed:
+            return False, "Die Farbe muss zuerst als gedruckt markiert werden."
+        if approved:
+            return True, "Farbe ist bereits freigegeben."
+        row["printed"] = "ja"
+        row["printed_at"] = printed_at or now_stamp()
+        row["approved"] = "ja"
+        row["approved_at"] = now_stamp()
+        row["transfer"] = self._dump_transfer(transfer)
+        notification = self._approval_notification_payload(row, assignments)
+        row["approval_notification_json"] = json.dumps(notification, ensure_ascii=False, separators=(",", ":"))
+        row["approval_mail_preview"] = self._approval_mail_preview(notification)
+        events = self._parse_history_events(row.get("history_events", ""))
+        events.append(
+            {
+                "event": "approval",
+                "timestamp": self._event_timestamp(str(row.get("approved_at") or "")),
+                "user": "Andreas",
+                "details": "Benachrichtigung vorbereitet",
+            }
+        )
+        row["history_events"] = self._dump_history_events(events)
+        return True, "Farbe wurde freigegeben."
+
+    def _set_sk_transfer(
+        self,
+        row: dict[str, str],
+        assignments: list[dict[str, object]],
+        sk_number: str,
+        template_updated: bool,
+        portal_informed: bool,
+        completed_by: str,
+        note: str,
+    ) -> tuple[bool, str]:
+        printed, printed_at, approved, approved_at, transfer = self._color_workflow_from_row(row, assignments)
+        if not approved:
+            return False, "Die Farbe muss zuerst freigegeben werden."
+        assignment = self._find_sk_assignment(assignments, sk_number)
+        if assignment is None:
+            return False, f"SK nicht gefunden: {sk_number}"
+        completed_at = now_stamp()
+        assignment["transfer_completed"] = True
+        assignment["template_updated"] = bool(template_updated)
+        assignment["portal_informed"] = bool(portal_informed)
+        assignment["transfer_completed_at"] = completed_at
+        assignment["template_updated_at"] = completed_at if template_updated else ""
+        assignment["transfer_completed_by"] = completed_by
+        assignment["transfer_note"] = note
+        row["printed"] = "ja" if printed else "nein"
+        row["printed_at"] = printed_at
+        row["approved"] = "ja"
+        row["approved_at"] = approved_at or now_stamp()
+        row["sk_assignments"] = self._dump_sk_assignments(assignments)
+        row["transfer"] = self._dump_transfer(self._aggregate_assignment_transfer(assignments, transfer))
+        return True, f"Übernahme für SK {sk_number} wurde gespeichert."
+
+    def _set_not_printable(
+        self,
+        row: dict[str, str],
+        assignments: list[dict[str, object]],
+        reason: str,
+        completed_by: str,
+    ) -> tuple[bool, str]:
+        timestamp = now_stamp()
+        row["not_printable"] = "ja"
+        row["not_printable_at"] = timestamp
+        row["not_printable_by"] = completed_by
+        row["not_printable_reason"] = reason
+        events = self._parse_history_events(row.get("history_events", ""))
+        events.append(
+            {
+                "event": "not_printable_set",
+                "timestamp": self._event_timestamp(timestamp),
+                "user": completed_by,
+                "details": reason,
+            }
+        )
+        row["history_events"] = self._dump_history_events(events)
+        return True, "Farbe wurde als auf MJET nicht druckbar markiert."
+
+    def _clear_not_printable(
+        self,
+        row: dict[str, str],
+        assignments: list[dict[str, object]],
+        completed_by: str,
+    ) -> tuple[bool, str]:
+        if not self._truthy(row.get("not_printable", "")):
+            return True, "Farbe war nicht als nicht druckbar markiert."
+        timestamp = now_stamp()
+        old_reason = row.get("not_printable_reason", "")
+        row["not_printable"] = "nein"
+        row["not_printable_at"] = ""
+        row["not_printable_by"] = ""
+        row["not_printable_reason"] = ""
+        events = self._parse_history_events(row.get("history_events", ""))
+        events.append(
+            {
+                "event": "not_printable_cleared",
+                "timestamp": self._event_timestamp(timestamp),
+                "user": completed_by,
+                "details": old_reason,
+            }
+        )
+        row["history_events"] = self._dump_history_events(events)
+        return True, "Nicht-druckbar-Markierung wurde aufgehoben."
+
+    def _color_workflow_from_row(
+        self,
+        row: dict[str, str],
+        assignments: list[dict[str, object]],
+    ) -> tuple[bool, str, bool, str, dict[str, object]]:
+        legacy_printed = any(bool(item.get("printed")) for item in assignments)
+        legacy_approved = any(bool(item.get("approved")) for item in assignments)
+        legacy_transfer = any(bool(item.get("template_updated")) for item in assignments)
+        printed = self._truthy(row.get("printed", "")) or legacy_printed
+        approved = self._truthy(row.get("approved", "")) or legacy_approved
+        printed_at = str(row.get("printed_at", "") or "")
+        approved_at = str(row.get("approved_at", "") or "")
+        if not printed_at:
+            printed_at = self._first_assignment_time(assignments, "printed_at")
+        if not approved_at:
+            approved_at = self._first_assignment_time(assignments, "approved_at")
+        transfer = self._parse_transfer(row.get("transfer", ""))
+        has_assignment_transfer_state = any(bool(item.get("_transfer_state_present")) for item in assignments)
+        has_completed_assignment = any(bool(self._assignment_transfer(item).get("completed")) for item in assignments)
+        if transfer.get("completed") and assignments and not has_assignment_transfer_state and not has_completed_assignment:
+            self._apply_legacy_color_transfer_to_assignments(assignments, transfer)
+        elif legacy_transfer and not has_assignment_transfer_state:
+            legacy = self._empty_transfer()
+            legacy["completed"] = True
+            legacy["template_updated"] = True
+            legacy["portal_informed"] = False
+            legacy["completed_at"] = self._first_assignment_time(assignments, "template_updated_at")
+            self._apply_legacy_color_transfer_to_assignments(assignments, legacy)
+            transfer = legacy
+        transfer = self._aggregate_assignment_transfer(assignments, transfer)
+        return printed, printed_at, approved, approved_at, transfer
+
+    def _first_assignment_time(self, assignments: list[dict[str, object]], field: str) -> str:
+        for item in assignments:
+            value = str(item.get(field) or "").strip()
+            if value:
+                return value
+        return ""
+
+    def _empty_transfer(self) -> dict[str, object]:
+        return {
+            "completed": False,
+            "template_updated": False,
+            "portal_informed": False,
+            "completed_at": "",
+            "completed_by": "",
+            "note": "",
+        }
+
+    def _parse_transfer(self, raw: object) -> dict[str, object]:
+        transfer = self._empty_transfer()
+        if isinstance(raw, dict):
+            data = raw
+        else:
+            text = str(raw or "").strip()
+            if not text:
+                return transfer
+            try:
+                data = json.loads(text)
+            except Exception:
+                return transfer
+        if not isinstance(data, dict):
+            return transfer
+        transfer["completed"] = bool(data.get("completed"))
+        transfer["template_updated"] = bool(data.get("template_updated"))
+        transfer["portal_informed"] = bool(data.get("portal_informed"))
+        transfer["completed_at"] = str(data.get("completed_at") or "")
+        transfer["completed_by"] = str(data.get("completed_by") or "")
+        transfer["note"] = str(data.get("note") or "")
+        return transfer
+
+    def _dump_transfer(self, transfer: dict[str, object]) -> str:
+        normalized = self._parse_transfer(transfer)
+        return json.dumps(normalized, ensure_ascii=False, separators=(",", ":"))
+
+    def _truthy(self, value: object) -> bool:
+        return str(value).strip().casefold() in {"1", "true", "ja", "yes", "y", "x"}
+
+    def _transfer_method_text(self, transfer: dict[str, object]) -> str:
+        template = bool(transfer.get("template_updated"))
+        portal = bool(transfer.get("portal_informed"))
+        if template and portal:
+            return "Vorlage + Portal"
+        if template:
+            return "Vorlage angepasst"
+        if portal:
+            return "Portal informiert"
+        if transfer.get("completed"):
+            return "nicht erfasst"
+        return "offen"
+
+    def _apply_legacy_color_transfer_to_assignments(
+        self,
+        assignments: list[dict[str, object]],
+        transfer: dict[str, object],
+    ) -> None:
+        if not assignments or not transfer.get("completed"):
+            return
+        for assignment in assignments:
+            if assignment.get("transfer_completed"):
+                continue
+            assignment["transfer_completed"] = True
+            assignment["template_updated"] = bool(transfer.get("template_updated"))
+            assignment["portal_informed"] = bool(transfer.get("portal_informed"))
+            assignment["transfer_completed_at"] = str(transfer.get("completed_at") or "")
+            assignment["template_updated_at"] = str(transfer.get("completed_at") or "")
+            assignment["transfer_completed_by"] = str(transfer.get("completed_by") or "")
+            assignment["transfer_note"] = str(transfer.get("note") or "")
+
+    def _assignment_transfer(self, assignment: dict[str, object]) -> dict[str, object]:
+        transfer = self._empty_transfer()
+        transfer["completed"] = bool(assignment.get("transfer_completed") or assignment.get("template_updated"))
+        transfer["template_updated"] = bool(assignment.get("template_updated"))
+        transfer["portal_informed"] = bool(assignment.get("portal_informed"))
+        transfer["completed_at"] = str(
+            assignment.get("transfer_completed_at") or assignment.get("template_updated_at") or ""
+        )
+        transfer["completed_by"] = str(assignment.get("transfer_completed_by") or "")
+        transfer["note"] = str(assignment.get("transfer_note") or "")
+        return transfer
+
+    def _aggregate_assignment_transfer(
+        self,
+        assignments: list[dict[str, object]],
+        fallback: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        transfer = self._empty_transfer()
+        if not assignments:
+            return self._parse_transfer(fallback or transfer)
+        completed = [self._assignment_transfer(item) for item in assignments if self._assignment_transfer(item).get("completed")]
+        if not completed:
+            return transfer
+        transfer["completed"] = len(completed) == len(assignments)
+        transfer["template_updated"] = any(bool(item.get("template_updated")) for item in completed)
+        transfer["portal_informed"] = any(bool(item.get("portal_informed")) for item in completed)
+        transfer["completed_at"] = str(completed[-1].get("completed_at") or "")
+        transfer["completed_by"] = str(completed[-1].get("completed_by") or "")
+        transfer["note"] = str(completed[-1].get("note") or "")
+        return transfer
+
+    def _transfer_counts(self, assignments: list[dict[str, object]]) -> tuple[int, int]:
+        total = len(assignments)
+        completed = sum(1 for item in assignments if self._assignment_transfer(item).get("completed"))
+        return completed, total
+
+    def _approval_notification_payload(
+        self,
+        row: dict[str, str],
+        assignments: list[dict[str, object]],
+    ) -> dict[str, object]:
+        done_count, total_count = self._transfer_counts(assignments)
+        return {
+            "color_id": str(row.get("color_id") or "").strip(),
+            "color_name": str(row.get("Farbbezeichnung") or "").strip(),
+            "cmyk": str(row.get("CMYK") or "").strip(),
+            "sk_numbers": [
+                str(item.get("sk_number") or "")
+                for item in assignments
+                if str(item.get("sk_number") or "").strip()
+            ],
+            "approved_at": str(row.get("approved_at") or "").strip(),
+            "approved_by": "Andreas",
+            "open_templates": max(0, total_count - done_count),
+            "prepress_status": "offen" if total_count != done_count else "übernommen",
+            "mail_subject": f"MJET Farbfreigabe - {str(row.get('Farbbezeichnung') or '').strip()}",
+        }
+
+    def _approval_mail_preview(self, payload: dict[str, object]) -> str:
+        sk_numbers = payload.get("sk_numbers") if isinstance(payload.get("sk_numbers"), list) else []
+        sk_text = "\n".join(f"- {item}" for item in sk_numbers) if sk_numbers else "- keine SK hinterlegt"
+        return (
+            f"Betreff: {payload.get('mail_subject', '')}\n\n"
+            f"Kundenfarbe:\n{payload.get('color_name', '')}\n\n"
+            f"CMYK:\n{payload.get('cmyk', '') or 'nicht erfasst'}\n\n"
+            f"Betroffene Eindruckvorlagen:\n{sk_text}\n\n"
+            f"Freigegeben:\n{payload.get('approved_at', '') or 'nicht erfasst'}\n\n"
+            f"Freigabe:\n{payload.get('approved_by', 'Andreas')}\n\n"
+            "Hinweis:\n"
+            "Die Farbe wurde an der MJET freigegeben.\n"
+            "Bitte betroffene Eindruckvorlagen beziehungsweise Portal-Daten prüfen und aktualisieren."
+        )
+
+    def _workflow_history(
+        self,
+        printed: bool,
+        printed_at: str,
+        approved: bool,
+        approved_at: str,
+        assignments: list[dict[str, object]] | None = None,
+    ) -> list[str]:
+        entries: list[str] = []
+        if printed:
+            entries.append(f"{printed_at or 'Datum nicht erfasst'} - Gedruckt")
+        if approved:
+            entries.append(f"{approved_at or 'Datum nicht erfasst'} - Prüfung abgeschlossen - Andreas")
+        for assignment in assignments or []:
+            transfer = self._assignment_transfer(assignment)
+            if not transfer.get("completed"):
+                continue
+            method = self._transfer_method_text(transfer)
+            at = str(transfer.get("completed_at") or "Datum nicht erfasst")
+            sk_number = str(assignment.get("sk_number") or "").strip()
+            entries.append(f"{at} - {self._sk_label(sk_number)}: {method}")
+        return entries
+
+    def _history_event_lines(self, raw: object) -> list[str]:
+        labels = {
+            "not_printable_set": "Auf MJET nicht druckbar markiert",
+            "not_printable_cleared": "Nicht-druckbar-Status aufgehoben",
+            "prepress_note_created": "Vorstufen-Hinweis angelegt",
+            "prepress_note_completed": "Vorstufen-Hinweis übernommen",
+            "approval": "Prüfung abgeschlossen",
+        }
+        lines: list[str] = []
+        for event in self._parse_history_events(raw):
+            label = labels.get(event.get("event", ""), "")
+            if not label:
+                continue
+            timestamp = event.get("timestamp") or "Datum nicht erfasst"
+            user = event.get("user") or ""
+            details = event.get("details") or ""
+            line = f"{timestamp} - {label}"
+            if user:
+                line += f" ({user})"
+            if details and event.get("event") != "not_printable_set":
+                line += f": {details}"
+            lines.append(line)
+        return lines
+
+    def _format_color_id(self, number: int) -> str:
+        return f"CLR-{max(1, int(number)):06d}"
+
+    def _next_color_id_number(self, rows: list[dict[str, str]]) -> int:
+        highest = 0
+        for row in rows:
+            match = re.match(r"^CLR-(\d+)$", str(row.get("color_id", "")).strip(), re.IGNORECASE)
+            if match:
+                highest = max(highest, int(match.group(1)))
+        return highest + 1
+
+    def _next_color_id_number_from_values(self, values: object) -> int:
+        highest = 0
+        for value in values:
+            match = re.match(r"^CLR-(\d+)$", str(value).strip(), re.IGNORECASE)
+            if match:
+                highest = max(highest, int(match.group(1)))
+        return highest + 1
+
+    def _existing_color_ids(self, rows: list[dict[str, str]], name_column: str) -> dict[str, str]:
+        ids: dict[str, str] = {}
+        used: set[str] = set()
+        next_number = self._next_color_id_number(rows)
+        for row in rows:
+            name = self._clean_color_name(row.get(name_column) or row.get("Farbbezeichnung") or "")
+            if not name:
+                continue
+            color_id = str(row.get("color_id", "")).strip()
+            if not re.match(r"^CLR-\d+$", color_id, re.IGNORECASE) or color_id in used:
+                color_id = self._format_color_id(next_number)
+                next_number += 1
+            used.add(color_id)
+            ids[name.casefold()] = color_id
+        return ids
+
+    def _technical_color_source(self, source_text: str) -> str:
+        text = str(source_text or "").strip().upper()
+        if text in {"MPRINT", "PANTONE_REFERENCE", "HKS_REFERENCE", "PREPRESS"}:
+            return text
+        if "PANTONE" in text:
+            return "PANTONE_REFERENCE"
+        if "HKS" in text:
+            return "HKS_REFERENCE"
+        if "MPRINT" in text:
+            return "MPRINT"
+        return "PREPRESS"
+
+    def _parse_cmyk_values(self, cmyk: str) -> dict[str, int] | None:
+        parts = re.findall(r"-?\d+(?:[.,]\d+)?", str(cmyk or ""))
+        if len(parts) < 4:
+            return None
+        values = [max(0, min(100, int(round(float(part.replace(",", ".")))))) for part in parts[:4]]
+        return {"c": values[0], "m": values[1], "y": values[2], "k": values[3]}
+
+    def _machine_values_for_row(
+        self,
+        cmyk: str,
+        source: str,
+        printed: bool,
+        approved: bool,
+        transfer: dict[str, object],
+    ) -> list[dict[str, object]]:
+        values = self._parse_cmyk_values(cmyk)
+        if source != "MPRINT" or values is None:
+            return []
+        if approved:
+            status = "approved"
+        elif printed:
+            status = "printed"
+        elif transfer.get("completed"):
+            status = "transfer_completed"
+        else:
+            status = "pending"
+        return [
+            {
+                "machine": "MJET_X",
+                **values,
+                "status": status,
+            }
+        ]
+
+    def _parse_machine_values(self, raw: object) -> list[dict[str, object]]:
+        if isinstance(raw, list):
+            data = raw
+        else:
+            text = str(raw or "").strip()
+            if not text:
+                return []
+            try:
+                data = json.loads(text)
+            except Exception:
+                return []
+        values: list[dict[str, object]] = []
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            cmyk = {
+                "c": self._clamp_percent_value(item.get("c", 0)),
+                "m": self._clamp_percent_value(item.get("m", 0)),
+                "y": self._clamp_percent_value(item.get("y", 0)),
+                "k": self._clamp_percent_value(item.get("k", 0)),
+            }
+            values.append(
+                {
+                    "machine": str(item.get("machine") or "MJET_X"),
+                    **cmyk,
+                    "status": str(item.get("status") or "pending"),
+                }
+            )
+        return values
+
+    def _dump_machine_values(self, values: list[dict[str, object]]) -> str:
+        return json.dumps(self._parse_machine_values(values), ensure_ascii=False, separators=(",", ":"))
+
+    def _merge_history_events(
+        self,
+        raw: object,
+        printed: bool,
+        printed_at: str,
+        approved: bool,
+        approved_at: str,
+        transfer: dict[str, object],
+        assignments: list[dict[str, object]] | None = None,
+        not_printable: bool = False,
+        not_printable_at: str = "",
+        not_printable_by: str = "",
+        not_printable_reason: str = "",
+    ) -> list[dict[str, str]]:
+        events = self._parse_history_events(raw)
+        if printed:
+            events.append({"event": "printed", "timestamp": self._event_timestamp(printed_at), "user": ""})
+        if approved:
+            events.append({"event": "approved", "timestamp": self._event_timestamp(approved_at), "user": "Andreas"})
+        if not_printable:
+            events.append(
+                {
+                    "event": "not_printable_set",
+                    "timestamp": self._event_timestamp(not_printable_at),
+                    "user": not_printable_by,
+                    "details": not_printable_reason,
+                }
+            )
+        for assignment in assignments or []:
+            assignment_transfer = self._assignment_transfer(assignment)
+            if not assignment_transfer.get("completed"):
+                continue
+            completed_at = self._event_timestamp(str(assignment_transfer.get("completed_at") or ""))
+            user = str(assignment_transfer.get("completed_by") or "")
+            sk_number = str(assignment.get("sk_number") or "")
+            details = f"SK {sk_number}".strip()
+            if assignment_transfer.get("template_updated"):
+                events.append({"event": "template_updated", "timestamp": completed_at, "user": user, "details": details})
+            if assignment_transfer.get("portal_informed"):
+                events.append({"event": "portal_informed", "timestamp": completed_at, "user": user, "details": details})
+        if transfer.get("completed") and not assignments:
+            completed_at = self._event_timestamp(str(transfer.get("completed_at") or ""))
+            user = str(transfer.get("completed_by") or "")
+            if transfer.get("template_updated"):
+                events.append({"event": "template_updated", "timestamp": completed_at, "user": user})
+            if transfer.get("portal_informed"):
+                events.append({"event": "portal_informed", "timestamp": completed_at, "user": user})
+        return self._dedupe_history_events(events)
+
+    def _parse_history_events(self, raw: object) -> list[dict[str, str]]:
+        if isinstance(raw, list):
+            data = raw
+        else:
+            text = str(raw or "").strip()
+            if not text:
+                return []
+            try:
+                data = json.loads(text)
+            except Exception:
+                return []
+        events: list[dict[str, str]] = []
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            event = str(item.get("event") or "").strip()
+            timestamp = self._event_timestamp(str(item.get("timestamp") or ""))
+            if not event:
+                continue
+            events.append(
+                {
+                    "event": event,
+                    "timestamp": timestamp,
+                    "user": str(item.get("user") or ""),
+                    "details": str(item.get("details") or ""),
+                }
+            )
+        return events
+
+    def _dedupe_history_events(self, events: list[dict[str, str]]) -> list[dict[str, str]]:
+        unique: list[dict[str, str]] = []
+        seen: set[tuple[str, str, str, str]] = set()
+        for event in events:
+            key = (
+                event.get("event", ""),
+                event.get("timestamp", ""),
+                event.get("user", ""),
+                event.get("details", ""),
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            unique.append(event)
+        return unique
+
+    def _dump_history_events(self, events: list[dict[str, str]]) -> str:
+        return json.dumps(self._dedupe_history_events(events), ensure_ascii=False, separators=(",", ":"))
+
+    def _event_timestamp(self, value: str) -> str:
+        text = str(value or "").strip()
+        if not text:
+            return ""
+        return text.replace(" ", "T", 1)
+
+    def _clamp_percent_value(self, value: object) -> int:
+        try:
+            number = int(round(float(str(value).replace(",", "."))))
+        except Exception:
+            number = 0
+        return max(0, min(100, number))
+
+    def _parse_sk_assignments(self, row: dict[str, str]) -> list[dict[str, object]]:
+        raw = str(row.get("sk_assignments", "") or row.get("SK-Zuordnungen", "")).strip()
+        if not raw:
+            return []
+        try:
+            data = json.loads(raw)
+        except Exception:
+            return []
+        if not isinstance(data, list):
+            return []
+        assignments: list[dict[str, object]] = []
+        seen: set[str] = set()
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            sk_number = self._clean_sk_number(str(item.get("sk_number", "")))
+            if not sk_number:
+                continue
+            transfer_state_present = any(
+                key in item
+                for key in (
+                    "transfer_completed",
+                    "transfer_completed_at",
+                    "transfer_completed_by",
+                    "transfer_note",
+                    "portal_informed",
+                )
+            )
+            key = sk_number.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            assignments.append(
+                {
+                    "sk_number": sk_number,
+                    "printed": bool(item.get("printed")),
+                    "printed_at": str(item.get("printed_at") or ""),
+                    "approved": bool(item.get("approved")),
+                    "approved_at": str(item.get("approved_at") or ""),
+                    "template_updated": bool(item.get("template_updated")),
+                    "template_updated_at": str(item.get("template_updated_at") or ""),
+                    "portal_informed": bool(item.get("portal_informed")),
+                    "transfer_completed": bool(item.get("transfer_completed") or item.get("template_updated")),
+                    "transfer_completed_at": str(
+                        item.get("transfer_completed_at") or item.get("template_updated_at") or ""
+                    ),
+                    "transfer_completed_by": str(item.get("transfer_completed_by") or ""),
+                    "transfer_note": str(item.get("transfer_note") or ""),
+                    "_transfer_state_present": transfer_state_present,
+                }
+            )
+        return assignments
+
+    def _dump_sk_assignments(self, assignments: list[dict[str, object]]) -> str:
+        cleaned: list[dict[str, object]] = []
+        for assignment in assignments:
+            cleaned.append({key: value for key, value in assignment.items() if not str(key).startswith("_")})
+        return json.dumps(cleaned, ensure_ascii=False, separators=(",", ":"))
+
+    def _find_sk_assignment(
+        self,
+        assignments: list[dict[str, object]],
+        sk_number: str,
+    ) -> dict[str, object] | None:
+        for assignment in assignments:
+            if str(assignment.get("sk_number", "")).casefold() == sk_number.casefold():
+                return assignment
+        return None
+
+    def _clean_color_name(self, value: str) -> str:
+        return re.sub(r"\s+", " ", str(value)).strip()
+
+    def _clean_sk_number(self, value: str) -> str:
+        return re.sub(r"\s+", " ", str(value)).strip()
+
+    def _sk_label(self, value: str) -> str:
+        cleaned = self._clean_sk_number(value)
+        if not cleaned:
+            return "SK"
+        if cleaned.casefold().startswith("sk"):
+            return cleaned
+        return f"SK {cleaned}"
+
+    def _short_text(self, value: str, limit: int = 160) -> str:
+        text = re.sub(r"\s+", " ", str(value or "")).strip()
+        if len(text) <= limit:
+            return text
+        return text[: max(0, limit - 5)].rstrip() + " ..."
+
+    def _api_result(self, ok: bool, message: str, status: int = 200) -> dict:
+        return {"ok": ok, "message": message, "status": status}
+
+    def _backup_color_overview_before_timestamp_migration(
+        self,
+        csv_path: Path,
+        existing_fields: list[str],
+    ) -> None:
+        if not csv_path.exists():
+            return
+        required_fields = {"created_at", "last_printed_at", "last_synced_at"}
+        if required_fields.issubset(set(existing_fields)):
+            return
+        backup_path = csv_path.with_name(
+            f"{csv_path.stem}_backup_vor_timestamp_migration_{filename_stamp()}{csv_path.suffix}"
+        )
+        try:
+            shutil.copy2(csv_path, backup_path)
+            self.logger.log(f"Backup vor Zeitstempel-Migration geschrieben: {backup_path}")
+        except Exception as exc:
+            self.logger.log(f"Backup vor Zeitstempel-Migration fehlgeschlagen: {exc}", "WARN")
+
+    def _backup_color_overview_before_sk_migration(
+        self,
+        csv_path: Path,
+        existing_fields: list[str],
+    ) -> None:
+        if not csv_path.exists():
+            return
+        if "sk_assignments" in set(existing_fields):
+            return
+        backup_path = csv_path.with_name(
+            f"{csv_path.stem}_backup_vor_sk_workflow_migration_{filename_stamp()}{csv_path.suffix}"
+        )
+        try:
+            shutil.copy2(csv_path, backup_path)
+            self.logger.log(f"Backup vor SK-Workflow-Migration geschrieben: {backup_path}")
+        except Exception as exc:
+            self.logger.log(f"Backup vor SK-Workflow-Migration fehlgeschlagen: {exc}", "WARN")
+
+    def _backup_color_overview_before_transfer_migration(
+        self,
+        csv_path: Path,
+        existing_fields: list[str],
+    ) -> None:
+        if not csv_path.exists():
+            return
+        required = {"printed", "approved", "transfer"}
+        if required.issubset(set(existing_fields)):
+            return
+        backup_path = csv_path.with_name(
+            f"{csv_path.stem}_backup_vor_transfer_workflow_migration_{filename_stamp()}{csv_path.suffix}"
+        )
+        try:
+            shutil.copy2(csv_path, backup_path)
+            self.logger.log(f"Backup vor Übernahme-Workflow-Migration geschrieben: {backup_path}")
+        except Exception as exc:
+            self.logger.log(f"Backup vor Übernahme-Workflow-Migration fehlgeschlagen: {exc}", "WARN")
+
+    def _backup_color_overview_before_router_migration(
+        self,
+        csv_path: Path,
+        existing_fields: list[str],
+    ) -> None:
+        if not csv_path.exists():
+            return
+        required = {"color_id", "source", "machine_values", "history_events"}
+        if required.issubset(set(existing_fields)):
+            return
+        backup_path = csv_path.with_name(
+            f"{csv_path.stem}_backup_vor_router_export_migration_{filename_stamp()}{csv_path.suffix}"
+        )
+        try:
+            shutil.copy2(csv_path, backup_path)
+            self.logger.log(f"Backup vor Router-Export-Migration geschrieben: {backup_path}")
+        except Exception as exc:
+            self.logger.log(f"Backup vor Router-Export-Migration fehlgeschlagen: {exc}", "WARN")
 
     def refresh_color_overview(self) -> None:
         single_names = self._single_color_names()
@@ -830,20 +2578,20 @@ class ColorTableManager:
 
         info_by_key: dict[str, dict[str, str]] = {}
         for color_file in self._find_color_files(single_dir, master_path):
-            try:
-                tree = ET.parse(color_file)
-            except Exception:
+            candidate, _errors, _warnings = self._single_color_candidate_from_file(color_file)
+            if candidate is None:
                 continue
-            for entry in tree.getroot().iter():
-                if local_name(entry.tag) != "ColorEntry":
-                    continue
-                name = self._color_entry_name(entry)
-                key = name.casefold()
-                if key not in info_by_key:
-                    info_by_key[key] = {
-                        "name": name,
-                        "cmyk": self._color_entry_cmyk(entry),
-                    }
+            key = self._normalized_color_key(candidate.name)
+            existing = info_by_key.get(key)
+            if existing and float(existing.get("mtime", "0") or 0) > candidate.mtime:
+                continue
+            info_by_key[key] = {
+                "name": candidate.name,
+                "cmyk": "" if candidate.passthrough else self._color_entry_cmyk(candidate.entry),
+                "mtime": str(candidate.mtime),
+                "source_file": candidate.source_file.name,
+                "passthrough": candidate.passthrough or self._entry_without_replacement(candidate.entry),
+            }
         return info_by_key
 
     def _color_entry_cmyk(self, entry: ET.Element) -> str:
@@ -919,6 +2667,287 @@ class ColorTableManager:
         rows = [{key: value for key, value in row.items() if key} for row in reader]
         return rows, list(reader.fieldnames or [])
 
+    def export_color_records(self) -> list[dict[str, object]]:
+        rows, _fields = self._read_color_overview_with_legacy(self._overview_csv_path())
+        return self._color_export_records(rows)
+
+    def _color_export_path(self) -> Path:
+        configured = str(self.config.get("color_export_json", "")).strip()
+        if not configured:
+            return APP_DIR / "export" / "mprint_colors.json"
+        path = Path(configured)
+        if path.is_absolute() or re.match(r"^[A-Za-z]:[\\/]", configured):
+            return path
+        return APP_DIR / path
+
+    def _write_color_export(self, rows: list[dict[str, str]]) -> None:
+        export_path = self._color_export_path()
+        try:
+            export_path.parent.mkdir(parents=True, exist_ok=True)
+            temp_path = export_path.with_suffix(export_path.suffix + ".tmp")
+            temp_path.write_text(
+                json.dumps(self._color_export_records(rows), ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            os.replace(temp_path, export_path)
+            self.logger.log(f"Farb-Export geschrieben: {export_path}")
+        except Exception as exc:
+            self.logger.log(f"Farb-Export konnte nicht geschrieben werden: {exc}", "WARN")
+
+    def _color_export_records(self, rows: list[dict[str, str]]) -> list[dict[str, object]]:
+        records: list[dict[str, object]] = []
+        for row in rows:
+            assignments = self._parse_sk_assignments(row)
+            printed, printed_at, approved, approved_at, transfer = self._color_workflow_from_row(row, assignments)
+            cmyk = self._parse_cmyk_values(str(row.get("CMYK", "")))
+            source = self._technical_color_source(row.get("source") or row.get("Quelle", ""))
+            machine_values = self._parse_machine_values(row.get("machine_values", ""))
+            if not machine_values:
+                machine_values = self._machine_values_for_row(
+                    str(row.get("CMYK", "")),
+                    source,
+                    printed=printed,
+                    approved=approved,
+                    transfer=transfer,
+                )
+            history = self._merge_history_events(
+                row.get("history_events", ""),
+                printed=printed,
+                printed_at=printed_at,
+                approved=approved,
+                approved_at=approved_at,
+                transfer=transfer,
+                assignments=assignments,
+            )
+            records.append(
+                {
+                    "color_id": str(row.get("color_id", "")).strip(),
+                    "name": str(row.get("Farbbezeichnung", "")).strip(),
+                    "source": source,
+                    "cmyk": cmyk or {"c": None, "m": None, "y": None, "k": None},
+                    "status": {
+                        "printed": bool(printed),
+                        "approved": bool(approved),
+                        "transfer_completed": bool(transfer.get("completed")),
+                        "not_printable": self._truthy(row.get("not_printable", "")),
+                    },
+                    "not_printable": {
+                        "active": self._truthy(row.get("not_printable", "")),
+                        "reason": str(row.get("not_printable_reason", "")).strip(),
+                        "at": str(row.get("not_printable_at", "")).strip(),
+                        "by": str(row.get("not_printable_by", "")).strip(),
+                    },
+                    "affected_templates": [
+                        str(item.get("sk_number", ""))
+                        for item in assignments
+                        if str(item.get("sk_number", "")).strip()
+                    ],
+                    "machine_values": machine_values,
+                    "history": history,
+                    "approval_notification": self._parse_json_object(row.get("approval_notification_json", "")),
+                    "approval_mail_preview": str(row.get("approval_mail_preview", "")),
+                }
+            )
+        return records
+
+    def _parse_json_object(self, raw: object) -> dict[str, object]:
+        text = str(raw or "").strip()
+        if not text:
+            return {}
+        try:
+            data = json.loads(text)
+        except Exception:
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    def _hidden_colors_path(self) -> Path:
+        configured = str(self.config.get("hidden_colors_json", "")).strip()
+        if not configured:
+            return APP_DIR / "config" / "hidden_colors.json"
+        path = Path(configured)
+        if path.is_absolute() or re.match(r"^[A-Za-z]:[\\/]", configured):
+            return path
+        return APP_DIR / path
+
+    def _prepress_notes_path(self) -> Path:
+        configured = str(self.config.get("prepress_notes_json", "")).strip()
+        if not configured:
+            return APP_DIR / "work" / "prepress_notes.json"
+        path = Path(configured)
+        if path.is_absolute() or re.match(r"^[A-Za-z]:[\\/]", configured):
+            return path
+        return APP_DIR / path
+
+    def _read_prepress_notes(self) -> list[dict[str, str]]:
+        path = self._prepress_notes_path()
+        if not path.exists():
+            return []
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            return []
+        if not isinstance(data, list):
+            return []
+        notes: list[dict[str, str]] = []
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            note = {
+                "id": str(item.get("id") or ""),
+                "title": str(item.get("title") or ""),
+                "text": str(item.get("text") or ""),
+                "customer": str(item.get("customer") or ""),
+                "color": str(item.get("color") or ""),
+                "sk_number": str(item.get("sk_number") or ""),
+                "created_at": str(item.get("created_at") or ""),
+                "created_by": str(item.get("created_by") or ""),
+                "status": str(item.get("status") or "offen"),
+                "completed_at": str(item.get("completed_at") or ""),
+                "completed_by": str(item.get("completed_by") or ""),
+                "history": item.get("history") if isinstance(item.get("history"), list) else [],
+            }
+            if note["id"] and note["title"]:
+                notes.append(note)
+        return notes
+
+    def _write_prepress_notes(self, notes: list[dict[str, str]]) -> None:
+        path = self._prepress_notes_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temp_path = path.with_suffix(path.suffix + ".tmp")
+        temp_path.write_text(json.dumps(notes, ensure_ascii=False, indent=2), encoding="utf-8")
+        os.replace(temp_path, path)
+
+    def _next_prepress_note_id(self, notes: list[dict[str, str]]) -> str:
+        highest = 0
+        for note in notes:
+            match = re.match(r"^NOTE-(\d+)$", str(note.get("id") or ""), re.IGNORECASE)
+            if match:
+                highest = max(highest, int(match.group(1)))
+        return f"NOTE-{highest + 1:06d}"
+
+    def _read_hidden_colors(self) -> list[str]:
+        path = self._hidden_colors_path()
+        if not path.exists():
+            return []
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            self.logger.log(f"Ausblend-Liste konnte nicht gelesen werden: {exc}", "WARN")
+            return []
+        raw_items = payload.get("hidden_colors", []) if isinstance(payload, dict) else []
+        if not isinstance(raw_items, list):
+            return []
+        hidden: list[str] = []
+        seen: set[str] = set()
+        for item in raw_items:
+            value = self._clean_color_name(str(item))
+            key = value.casefold()
+            if not value or key in seen:
+                continue
+            seen.add(key)
+            hidden.append(value)
+        return hidden
+
+    def _write_hidden_colors(self, hidden: list[str]) -> None:
+        path = self._hidden_colors_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        cleaned: list[str] = []
+        seen: set[str] = set()
+        for item in hidden:
+            value = self._clean_color_name(str(item))
+            key = value.casefold()
+            if not value or key in seen:
+                continue
+            seen.add(key)
+            cleaned.append(value)
+        temp_path = path.with_suffix(path.suffix + ".tmp")
+        temp_path.write_text(
+            json.dumps({"hidden_colors": cleaned}, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        os.replace(temp_path, path)
+
+    def _backup_hidden_colors_before_change(self, hidden_path: Path, hidden: list[str]) -> None:
+        hidden_path.parent.mkdir(parents=True, exist_ok=True)
+        backup_path = hidden_path.with_name(
+            f"{hidden_path.stem}_backup_vor_aenderung_{filename_stamp()}{hidden_path.suffix}"
+        )
+        try:
+            if hidden_path.exists():
+                shutil.copy2(hidden_path, backup_path)
+            else:
+                backup_path.write_text(
+                    json.dumps({"hidden_colors": hidden}, ensure_ascii=False, indent=2),
+                    encoding="utf-8",
+                )
+            self.logger.log(f"Backup vor Ausblend-Änderung geschrieben: {backup_path}")
+        except Exception as exc:
+            self.logger.log(f"Backup vor Ausblend-Änderung fehlgeschlagen: {exc}", "WARN")
+
+    def _visible_overview_rows(self, rows: list[dict[str, str]]) -> list[dict[str, str]]:
+        hidden = self._read_hidden_colors()
+        if not hidden:
+            return rows
+        return [
+            row
+            for row in rows
+            if not self._is_hidden_color(str(row.get("Farbbezeichnung", "")), hidden)
+        ]
+
+    def _is_hidden_color(self, color_name: str, hidden: list[str]) -> bool:
+        normalized = self._clean_color_name(color_name).casefold()
+        if not normalized:
+            return False
+        for rule in hidden:
+            pattern = self._clean_color_name(rule).casefold()
+            if not pattern:
+                continue
+            if "*" in pattern and fnmatch.fnmatchcase(normalized, pattern):
+                return True
+            if normalized == pattern:
+                return True
+        return False
+
+    def _prepress_notes_html(self, notes: list[dict[str, str]]) -> str:
+        if not notes:
+            return "<p class=\"muted\">Noch keine Vorstufen-Hinweise.</p>"
+        items: list[str] = []
+        for note in notes:
+            note_id = html.escape(str(note.get("id") or ""), quote=True)
+            title = html.escape(str(note.get("title") or "Ohne Titel"))
+            text = html.escape(str(note.get("text") or ""))
+            customer = html.escape(str(note.get("customer") or ""))
+            color = html.escape(str(note.get("color") or ""))
+            sk_number = html.escape(str(note.get("sk_number") or ""))
+            created_at = html.escape(str(note.get("created_at") or "nicht erfasst"))
+            created_by = html.escape(str(note.get("created_by") or ""))
+            completed_at = html.escape(str(note.get("completed_at") or ""))
+            completed_by = html.escape(str(note.get("completed_by") or ""))
+            done = str(note.get("status") or "").casefold() == "erledigt"
+            meta_parts = []
+            if customer:
+                meta_parts.append(f"Kunde: {customer}")
+            if color:
+                meta_parts.append(f"Farbe: {color}")
+            if sk_number:
+                meta_parts.append(f"SK: {sk_number}")
+            meta = " · ".join(meta_parts)
+            done_text = f"✓ übernommen {completed_at}" if done else "offen"
+            if done and completed_by:
+                done_text += f" · {completed_by}"
+            action = "" if done else f"<button type=\"button\" class=\"completePrepressNote\" data-note-id=\"{note_id}\">Als übernommen markieren</button>"
+            items.append(
+                f"<div class=\"prepressNote {'done' if done else 'open'}\" data-note-id=\"{note_id}\">"
+                f"<strong>{title}</strong>"
+                f"<p>{text}</p>"
+                f"<div class=\"skMeta\">{meta if meta else 'kein direkter Farb-/SK-Bezug'}</div>"
+                f"<div class=\"skMeta\">Erstellt: {created_at}{' · ' + created_by if created_by else ''}</div>"
+                f"<div class=\"prepressNoteStatus\">{html.escape(done_text)}</div>"
+                f"{action}"
+                "</div>"
+            )
+        return "".join(items)
+
     def _find_name_column(self, fields: list[str]) -> str | None:
         preferred = {
             "farbbezeichnung",
@@ -941,17 +2970,92 @@ class ColorTableManager:
         rows: list[dict[str, str]],
     ) -> None:
         submit_url = self._color_request_submit_url()
-        delete_url = submit_url.rsplit("/", 1)[0] + "/farbe-loeschen"
+        hide_url = submit_url.rsplit("/", 1)[0] + "/farbe-ausblenden"
+        rename_url = submit_url.rsplit("/", 1)[0] + "/farbe-umbenennen"
+        status_url = submit_url.rsplit("/", 1)[0] + "/status"
+        sk_add_url = submit_url.rsplit("/", 1)[0] + "/sk-hinzufuegen"
+        sk_printed_url = submit_url.rsplit("/", 1)[0] + "/sk-gedruckt"
+        sk_approved_url = submit_url.rsplit("/", 1)[0] + "/sk-freigeben"
+        sk_template_url = submit_url.rsplit("/", 1)[0] + "/sk-uebernommen"
+        not_printable_url = submit_url.rsplit("/", 1)[0] + "/farbe-nicht-druckbar"
+        prepress_note_url = submit_url.rsplit("/", 1)[0] + "/vorstufen-hinweis"
+        prepress_note_done_url = submit_url.rsplit("/", 1)[0] + "/vorstufen-hinweis-erledigt"
         submit_url_json = json.dumps(submit_url)
-        delete_url_json = json.dumps(delete_url)
+        hide_url_json = json.dumps(hide_url)
+        rename_url_json = json.dumps(rename_url)
+        status_url_json = json.dumps(status_url)
+        sk_add_url_json = json.dumps(sk_add_url)
+        sk_printed_url_json = json.dumps(sk_printed_url)
+        sk_approved_url_json = json.dumps(sk_approved_url)
+        sk_template_url_json = json.dumps(sk_template_url)
+        not_printable_url_json = json.dumps(not_printable_url)
+        prepress_note_url_json = json.dumps(prepress_note_url)
+        prepress_note_done_url_json = json.dumps(prepress_note_done_url)
         body_rows = []
-        for row in rows:
+        open_print_tests = 0
+        open_approvals = 0
+        open_template_updates = 0
+        prepress_notes = self._read_prepress_notes()
+        prepress_note_html = self._prepress_notes_html(prepress_notes)
+        logo_path = Path(getattr(sys, "_MEIPASS", APP_DIR)) / "assets" / "mprint_logo.svg"
+        logo_html = ""
+        try:
+            logo_data = base64.b64encode(logo_path.read_bytes()).decode("ascii")
+            logo_html = f'<img class="brandLogo" src="data:image/svg+xml;base64,{logo_data}" alt="MPRINT">'
+        except OSError as exc:
+            self.logger.log(f"MPRINT-Logo konnte nicht geladen werden: {exc}", "WARNING")
+        preview_mode = bool(self.config.get("ui_preview_mode"))
+        preview_banner = (
+            "<div class=\"previewBanner\">UI PREVIEW - keine Produktionsdaten</div>"
+            if preview_mode
+            else ""
+        )
+        machine_sort: dict[int, int] = {}
+        sort_items: list[tuple[int, str, int]] = []
+        for index, row in enumerate(rows):
+            name = str(row.get("Farbbezeichnung", ""))
+            assignments = self._parse_sk_assignments(row)
+            printed, _printed_at, approved, _approved_at, _transfer = self._color_workflow_from_row(row, assignments)
+            not_printable = self._truthy(row.get("not_printable", ""))
+            transfer_done_count, transfer_total_count = self._transfer_counts(assignments)
+            transfer_done = transfer_total_count > 0 and transfer_done_count == transfer_total_count
+            if not_printable:
+                group = 4
+            elif not printed:
+                group = 1
+            elif transfer_done:
+                group = 3
+            else:
+                group = 2
+            sort_items.append((group, name.casefold(), index))
+        for order_index, (_group, _name, original_index) in enumerate(sorted(sort_items), start=1):
+            machine_sort[original_index] = order_index
+        for row_index, row in enumerate(rows):
             name = str(row.get("Farbbezeichnung", ""))
             status = row.get("Status", "")
             angelegt_am = str(row.get("Angelegt am", ""))
             gedruckt_am = str(row.get("Gedruckt am", ""))
+            abgeglichen_am = str(row.get("Abgeglichen am", "") or row.get("Letzter Abgleich", ""))
             cmyk = str(row.get("CMYK", ""))
-            if "druckbar" in status:
+            assignments = self._parse_sk_assignments(row)
+            printed, printed_at, approved, approved_at, transfer = self._color_workflow_from_row(row, assignments)
+            not_printable = self._truthy(row.get("not_printable", ""))
+            not_printable_reason = str(row.get("not_printable_reason", "") or "").strip()
+            not_printable_at = str(row.get("not_printable_at", "") or "").strip()
+            not_printable_by = str(row.get("not_printable_by", "") or "").strip()
+            transfer_done_count, transfer_total_count = self._transfer_counts(assignments)
+            transfer_done = transfer_total_count > 0 and transfer_done_count == transfer_total_count
+            if not printed and not not_printable:
+                open_print_tests += 1
+            if printed and not approved and not not_printable:
+                open_approvals += 1
+            if approved and not not_printable:
+                open_template_updates += max(0, transfer_total_count - transfer_done_count)
+            if not_printable:
+                css = "blocked"
+            elif status == "Originalfarbe ohne Ersatzfarbe":
+                css = "passthrough"
+            elif "druckbar" in status:
                 css = "ok"
             elif "offen" in status:
                 css = "wait"
@@ -961,22 +3065,194 @@ class ColorTableManager:
                 css = "warn"
             escaped_name = html.escape(name)
             escaped_status = html.escape(str(status))
-            escaped_angelegt_am = html.escape(angelegt_am)
-            escaped_gedruckt_am = html.escape(gedruckt_am)
-            escaped_cmyk = html.escape(cmyk)
+            escaped_angelegt_am = html.escape(angelegt_am or "nicht erfasst")
+            escaped_gedruckt_am = html.escape(gedruckt_am or "nicht erfasst")
+            escaped_abgeglichen_am = html.escape(abgeglichen_am or "nicht erfasst")
+            escaped_cmyk = html.escape(cmyk or "nicht erfasst")
+            escaped_not_printable_reason = html.escape(not_printable_reason or "kein Grund erfasst")
+            escaped_not_printable_reason_short = html.escape(self._short_text(not_printable_reason or "kein Grund erfasst", 170))
+            escaped_not_printable_at = html.escape(not_printable_at or "nicht erfasst")
+            escaped_not_printable_by = html.escape(not_printable_by or "nicht erfasst")
             button_name = html.escape(name, quote=True)
+            button_cmyk = html.escape(cmyk, quote=True)
+            search_parts = [name, cmyk]
+            sk_state = []
+            for assignment in assignments:
+                search_parts.append(str(assignment.get("sk_number") or ""))
+                assignment_transfer = self._assignment_transfer(assignment)
+                sk_state.append(
+                    {
+                        "sk": str(assignment.get("sk_number") or ""),
+                        "completed": bool(assignment_transfer.get("completed")),
+                        "method": self._transfer_method_text(assignment_transfer),
+                        "at": str(assignment_transfer.get("completed_at") or ""),
+                        "by": str(assignment_transfer.get("completed_by") or ""),
+                        "note": str(assignment_transfer.get("note") or ""),
+                    }
+                )
+            sk_state_attr = html.escape(json.dumps(sk_state, ensure_ascii=False), quote=True)
+            search_attr = html.escape(" ".join(search_parts), quote=True)
+            if not_printable:
+                print_summary = (
+                    "<div class=\"printDecision\">"
+                    "<span class=\"printChoice notPrintable active\">✕ Nicht druckbar</span>"
+                    "</div>"
+                )
+            elif printed:
+                print_summary = (
+                    "<div class=\"printDecision\">"
+                    "<span class=\"printChoice printable active\">✓ Druckbar</span>"
+                    f"<button type=\"button\" class=\"printChoice notPrintable workflow detailStatusChange\" data-action=\"notPrintable\" "
+                    f"data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\" "
+                    f"data-sk-state=\"{sk_state_attr}\">Status ändern</button>"
+                    "</div>"
+                )
+            else:
+                print_summary = (
+                    "<div class=\"printDecision\">"
+                    f"<button type=\"button\" class=\"printChoice printable workflow\" data-action=\"printed\" "
+                    f"data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\">Druckbar</button>"
+                    f"<button type=\"button\" class=\"printChoice notPrintable workflow\" data-action=\"notPrintable\" "
+                    f"data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\" "
+                    f"data-sk-state=\"{sk_state_attr}\">Nicht druckbar</button>"
+                    "</div>"
+                )
+            if not_printable:
+                approval_summary = "<span class=\"statusLine idle\">○ zurückgestellt</span>"
+            elif approved:
+                approval_summary = (
+                    "<span class=\"statusLine done\" title=\"Prüfung abgeschlossen\">"
+                    "<span class=\"machineApproval\">✓ Geprüft</span>"
+                    "<span class=\"detailApproval\">✓ geprüft</span>"
+                    "</span>"
+                )
+            elif printed:
+                approval_summary = (
+                    "<span class=\"statusLine idle\" title=\"Prüfung offen\">"
+                    "<span class=\"machineApproval\">○ Prüfung</span>"
+                    f"<button type=\"button\" class=\"workflow warn detailApproval\" data-action=\"approve\" "
+                    f"data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\">Prüfung abschließen</button>"
+                    "</span>"
+                )
+            else:
+                approval_summary = "<span class=\"statusLine idle\" title=\"Prüfung offen\"><span class=\"machineApproval\">○ Prüfung</span><span class=\"detailApproval\">○ offen</span></span>"
+            if not_printable:
+                template_summary = "<div class=\"machineTransferSummary idle\" title=\"Übernahme zurückgestellt\">–</div><div class=\"transferSummary idle\">Workflow zurückgestellt</div>"
+            else:
+                open_transfer_count = max(0, transfer_total_count - transfer_done_count)
+                transfer_class = "idle" if transfer_total_count == 0 else ("done" if transfer_done else "open")
+                transfer_text = (
+                    "Keine SK hinterlegt"
+                    if transfer_total_count == 0
+                    else f"{transfer_done_count} / {transfer_total_count} Vorlagen übernommen"
+                )
+                machine_transfer_text = (
+                    "–"
+                    if transfer_total_count == 0
+                    else f"✓ {transfer_done_count} / {transfer_total_count}"
+                    if transfer_done
+                    else f"{transfer_done_count} / {transfer_total_count}"
+                )
+                machine_transfer_title = (
+                    "Keine SK hinterlegt"
+                    if transfer_total_count == 0
+                    else ("Alle SK übernommen" if transfer_done else f"{open_transfer_count} SK offen")
+                )
+                template_summary = (
+                    f"<div class=\"transferSummary {transfer_class}\">{html.escape(transfer_text)}</div>"
+                    f"<div class=\"machineTransferSummary {transfer_class}\" title=\"{html.escape(machine_transfer_title, quote=True)}\">{html.escape(machine_transfer_text)}</div>"
+                )
+                if approved:
+                    template_summary += (
+                        f"<button type=\"button\" class=\"workflow danger\" data-action=\"template\" "
+                        f"data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\" "
+                        f"data-sk-state=\"{sk_state_attr}\" data-open-count=\"{open_transfer_count}\">"
+                        "Übernahmen verwalten</button>"
+                    )
+            history_entries = self._workflow_history(printed, printed_at, approved, approved_at, assignments)
+            history_entries.extend(self._history_event_lines(row.get("history_events", "")))
+            history_count = len(history_entries)
+            history_body_html = "<br>".join(html.escape(item) for item in history_entries)
+            if not history_body_html:
+                history_body_html = "<span class=\"muted\">keine Workflow-Historie</span>"
+            history_summary = "keine Historie" if history_count == 0 else f"Historie · {history_count}"
+            history_html = (
+                "<details class=\"historyDetails\">"
+                f"<summary>{html.escape(history_summary)}</summary>"
+                f"<div class=\"historyList\">{history_body_html}</div>"
+                f"<div class=\"historyMeta\"><span title=\"Angelegt am\">Angelegt: {escaped_angelegt_am}</span><br>"
+                f"<span title=\"Abgeglichen am\">Abgleich: {escaped_abgeglichen_am}</span></div>"
+                "</details>"
+            )
+            if assignments:
+                detail_items = []
+                for assignment in assignments:
+                    raw_sk_number = str(assignment.get("sk_number", ""))
+                    sk_number = html.escape(raw_sk_number)
+                    sk_label = html.escape(self._sk_label(raw_sk_number))
+                    assignment_transfer = self._assignment_transfer(assignment)
+                    if assignment_transfer.get("completed"):
+                        sk_status = (
+                            f"<span class=\"statusLine done\">✓ übernommen</span>"
+                            f"<div class=\"skMeta\">{html.escape(self._transfer_method_text(assignment_transfer))}"
+                            f" · {html.escape(str(assignment_transfer.get('completed_at') or 'Datum nicht erfasst'))}</div>"
+                        )
+                    else:
+                        sk_status = "<span class=\"statusLine open\">○ Übernahme offen</span>"
+                    detail_items.append(
+                        "<div class=\"skItem\">"
+                        f"<strong>{sk_label}</strong>"
+                        f"{sk_status}"
+                        "</div>"
+                    )
+                sk_html = (
+                    f"<details class=\"skDetails\"><summary><span class=\"machineSkSummary\">SK {len(assignments)}</span><span class=\"detailSkSummary\">{len(assignments)} Eindruckvorlage(n)</span></summary>"
+                    f"{''.join(detail_items)}</details>"
+                )
+            else:
+                sk_html = "<span class=\"muted skEmpty\">Vorlagen 0</span>"
+            sk_button_html = (
+                f"<span class=\"templateButtonCount\">{len(assignments) if assignments else '+'}</span>"
+            )
+            sk_button = (
+                f"<button type=\"button\" class=\"addSk skPanelButton\" data-color=\"{button_name}\" "
+                f"data-cmyk=\"{button_cmyk}\" data-sk-state=\"{sk_state_attr}\" title=\"SK-Nummer hinzufügen oder anzeigen\">{sk_button_html}</button>"
+            )
+            not_printable_banner = ""
+            clear_not_printable_button = ""
+            if not_printable:
+                not_printable_banner = (
+                    "<div class=\"notPrintableBanner\">✕ NICHT DRUCKBAR</div>"
+                    f"<div class=\"notPrintableCardReason\" title=\"{html.escape(not_printable_reason, quote=True)}\">{escaped_not_printable_reason_short}</div>"
+                    "<details class=\"notPrintableReasonDetails\">"
+                    "<summary>Grund</summary>"
+                    f"<div>{escaped_not_printable_reason}</div>"
+                    "</details>"
+                )
+                clear_not_printable_button = (
+                    f"<button type=\"button\" class=\"workflow clearNotPrintable\" data-action=\"clearNotPrintable\" "
+                    f"data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\">Status aufheben</button>"
+                )
             body_rows.append(
-                f"<tr class=\"{css}\">"
+                f"<tr class=\"{css}\" style=\"--machine-order:{machine_sort.get(row_index, row_index + 1)}\" data-color-search=\"{search_attr}\">"
                 f"<td><span class=\"dot\" aria-hidden=\"true\"></span></td>"
-                f"<td class=\"name\">{escaped_name}</td>"
-                f"<td><button type=\"button\" class=\"copy\" data-name=\"{button_name}\">Kopieren</button></td>"
-                f"<td>{escaped_status}</td>"
-                f"<td>{escaped_angelegt_am}</td>"
-                f"<td>{escaped_gedruckt_am}</td>"
-                f"<td>{escaped_cmyk}</td>"
-                f"<td class=\"adminOnly\"><button type=\"button\" class=\"delete\" data-name=\"{button_name}\">Löschen</button></td>"
+                f"<td class=\"name\"><span class=\"customerGlow\" data-cmyk=\"{button_cmyk}\" title=\"{button_name} · {button_cmyk}\" aria-hidden=\"true\"></span><span class=\"colorNameText\" title=\"{button_name}\">{escaped_name}</span><span class=\"machineCmyk\" title=\"{button_cmyk}\">{escaped_cmyk}</span>{not_printable_banner}</td>"
+                f"<td><button type=\"button\" class=\"copy\" data-name=\"{button_name}\" title=\"Farbnamen kopieren\" aria-label=\"Farbnamen kopieren\">⧉</button></td>"
+                f"<td class=\"cmykCell\">{escaped_cmyk}</td>"
+                f"<td class=\"printCell\">{print_summary}</td>"
+                f"<td class=\"skCell\">{sk_html}{sk_button}</td>"
+                f"<td class=\"approvalCell\">{approval_summary}</td>"
+                f"<td class=\"transferCell\">{template_summary}</td>"
+                f"<td class=\"history\">{history_html}{clear_not_printable_button}</td>"
+                f"<td class=\"adminOnly adminActions\"><button type=\"button\" class=\"renameColor\" data-name=\"{button_name}\" title=\"Farbname bearbeiten\" aria-label=\"Farbname bearbeiten\">✎</button><button type=\"button\" class=\"hideColor\" data-name=\"{button_name}\">Ausblenden</button></td>"
                 f"</tr>"
             )
+
+        summary_html = (
+            f"<button type=\"button\" class=\"summaryPill\" data-filter=\"print\"><strong>{open_print_tests}</strong><span>Drucke offen</span></button>"
+            f"<button type=\"button\" class=\"summaryPill\" data-filter=\"approval\"><strong>{open_approvals}</strong><span>Prüfungen offen</span></button>"
+            f"<button type=\"button\" class=\"summaryPill\" data-filter=\"template\"><strong>{open_template_updates}</strong><span>Vorlagen offen</span></button>"
+        )
 
         document = f"""<!doctype html>
 <html lang="de">
@@ -984,86 +3260,917 @@ class ColorTableManager:
   <meta charset="utf-8">
   <title>MPRINT Farbübersicht</title>
   <style>
-    body {{ font-family: Segoe UI, Arial, sans-serif; margin: 24px; color: #20242a; background: #f4f5f6; }}
-    h1 {{ margin: 0 0 6px; font-size: 24px; }}
-    .meta {{ margin: 0 0 18px; color: #626b75; }}
-    .entry {{ display: flex; gap: 8px; margin: 0 0 18px; max-width: 720px; }}
+    body {{ font-family: Segoe UI, Arial, sans-serif; margin: 22px 24px; color: #20242a; background: #dfe4e8; }}
+    h1 {{ margin: 0 0 6px; font-size: 25px; }}
+    .meta {{ margin: 0 0 12px; color: #626b75; font-size: 13px; }}
+    .machineHeader {{ display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; margin: 0 0 14px; }}
+    .titleBlock {{ display: flex; align-items: center; gap: 18px; min-width: 0; }}
+    .brandLogo {{ width: 144px; height: auto; flex: none; }}
+    .headerActions {{ display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }}
+    .previewBanner {{ display: inline-flex; margin: 0 0 10px; padding: 7px 10px; background: #fff4cc; color: #6b4d00; border: 1px solid #e5ca72; font-weight: 800; font-size: 13px; }}
+    .topBar {{ display: grid; grid-template-columns: minmax(280px, 640px) minmax(240px, 420px); gap: 14px; align-items: end; margin: 0 0 14px; }}
+    .searchBar {{ display: flex; flex-direction: column; gap: 6px; }}
+    .searchBar label {{ color: #626b75; font-weight: 700; font-size: 13px; }}
+    .searchBar input {{ font-size: 16px; padding: 11px 13px; }}
+    body:not(.detailMode) .searchBar {{ grid-column: 1 / -1; max-width: 640px; }}
+    .viewControls {{ margin: 0 0 16px; }}
+    .viewToggle {{ min-width: 155px; }}
+    .prepressControls {{ margin: 0 0 14px; }}
+    .summary {{ display: grid; grid-template-columns: repeat(3, minmax(150px, 1fr)); gap: 10px; margin: 0 0 14px; max-width: 760px; }}
+    .summaryPill {{ display: flex; align-items: baseline; gap: 8px; padding: 12px 14px; background: #fff; border-color: #d1d6dc; text-align: left; }}
+    .summaryPill strong {{ font-size: 22px; color: #20242a; }}
+    .summaryPill span {{ color: #626b75; }}
+    .entry {{ display: flex; flex-direction: column; gap: 6px; margin: 0; min-width: 0; }}
+    .entry label {{ color: #1d3348; font-weight: 800; font-size: 14px; }}
+    .entryRow {{ display: flex; gap: 8px; min-width: 0; }}
+    .entryRow input {{ min-width: 0; font-size: 16px; }}
+    .entryRow button {{ flex: none; background: #2f6545; border-color: #2f6545; color: #fff; }}
+    .entryRow button:hover {{ background: #245136; }}
     input {{ flex: 1; padding: 10px 12px; border: 1px solid #c8cdd3; font-size: 15px; }}
     button {{ border: 1px solid #b7c0ca; background: #d8e1ec; color: #1d3348; padding: 9px 12px; cursor: pointer; font-weight: 600; }}
     button:hover {{ background: #c7d5e5; }}
+    .connection {{ display: inline-flex; align-items: center; gap: 8px; margin: 0; color: #626b75; font-size: 13px; white-space: nowrap; }}
+    .connection::before {{ content: ""; width: 10px; height: 10px; border-radius: 50%; background: #8c939b; }}
+    .connection.ok::before {{ background: #2f8f4e; }}
+    .connection.down::before {{ background: #bd3f3f; }}
+    .connection.checking::before {{ background: #c9901a; }}
     #entryStatus {{ margin: -8px 0 16px; color: #626b75; min-height: 20px; }}
     table {{ width: 100%; border-collapse: collapse; background: white; box-shadow: 0 0 0 1px #c8cdd3; }}
+    .tableWrap {{ width: 100%; overflow-x: auto; }}
+    body.detailMode table {{ table-layout: fixed; min-width: 1350px; }}
+    body.detailMode th, body.detailMode td {{ white-space: normal; overflow-wrap: anywhere; }}
+    body.detailMode th.indicator {{ width: 20px; }}
+    body.detailMode th:nth-child(3) {{ width: 55px; }}
+    body.detailMode th:nth-child(4) {{ width: 140px; }}
+    body.detailMode th:nth-child(5) {{ width: 120px; }}
+    body.detailMode th:nth-child(6) {{ width: 140px; }}
+    body.detailMode th:nth-child(7) {{ width: 100px; }}
+    body.detailMode th:nth-child(8) {{ width: 150px; }}
+    body.detailMode th:nth-child(9) {{ width: 155px; }}
+    body.detailMode th:nth-child(10) {{ width: 110px; }}
+    .noResults {{ display: none; margin: 12px 0 0; color: #626b75; font-weight: 700; }}
+    .noResults.visible {{ display: block; }}
     th, td {{ padding: 9px 10px; border-bottom: 1px solid #dfe3e7; text-align: left; font-size: 14px; vertical-align: top; }}
     th {{ background: #e7e9ec; }}
+    tr[hidden] {{ display: none !important; }}
+    [data-prepress-only][hidden] {{ display: none !important; }}
     th.indicator, td:first-child {{ width: 34px; text-align: center; }}
     .name {{ font-weight: 600; }}
-    .copy {{ padding: 6px 9px; font-size: 12px; }}
-    td:nth-child(5), td:nth-child(6), td:nth-child(7) {{ color: #626b75; white-space: nowrap; }}
-    .delete {{ padding: 6px 9px; font-size: 12px; background: #d8b7b7; color: #3e1f1f; }}
+    .copy, .addSk, .workflow {{ padding: 6px 9px; font-size: 12px; }}
+    .copy {{ width: 32px; height: 30px; padding: 0; font-size: 20px; line-height: 1; }}
+    .addSk {{ margin-top: 7px; margin-right: 6px; }}
+    td:nth-child(4), td:nth-child(5), td:nth-child(7), td:nth-child(8), .history {{ color: #626b75; white-space: nowrap; }}
+    details summary {{ cursor: pointer; color: #1d3348; font-weight: 700; }}
+    .skItem {{ padding: 7px 0; border-top: 1px solid #eef1f4; }}
+    .skItem strong {{ display: block; margin-bottom: 4px; }}
+    .skMeta {{ color: #626b75; font-size: 12px; margin-top: 3px; }}
+    .transferSummary {{ font-weight: 800; margin-bottom: 7px; }}
+    .transferSummary.done {{ color: #2f8f4e; }}
+    .transferSummary.open {{ color: #c9901a; }}
+    .printDecision {{ display: inline-flex; flex-wrap: wrap; gap: 7px; }}
+    .printChoice {{ border-radius: 999px; padding: 7px 10px; border: 1px solid #cfd5dc; background: rgba(255,255,255,0.62); color: #4b5560; font-weight: 800; }}
+    .printChoice.printable.active {{ border-color: #a7bfae; background: #ffffff; color: #23382a; }}
+    .printChoice.notPrintable {{ border-color: #d8d0d0; background: rgba(255,255,255,0.52); color: #5f4646; }}
+    .printChoice.notPrintable.active {{ border-color: #c8a6a6; background: #fffafa; color: #6b3030; }}
+    .printChoice.active {{ box-shadow: 0 1px 3px rgba(32,36,42,0.08); }}
+    .notPrintableBanner {{ display: inline-flex; align-items: center; margin-top: 10px; padding: 0; background: transparent; color: #6d5555; border: 0; font-size: 14px; font-weight: 900; }}
+    .notPrintableCardReason {{ margin-top: 7px; color: #776b6b; font-size: 13px; line-height: 1.35; font-weight: 600; }}
+    .notPrintableReasonDetails {{ display: none; margin-top: 7px; color: #6d5555; font-size: 12px; }}
+    .notPrintableReasonDetails summary {{ color: #6d5555; font-weight: 900; }}
+    .notPrintableReasonDetails div {{ margin-top: 5px; line-height: 1.35; white-space: normal; overflow-wrap: anywhere; }}
+    .customerGlow {{ display: none; }}
+    .cornerCmyk {{ display: none; }}
+    .machineCmyk, .machineApproval {{ display: none; }}
+    .badge {{ display: inline-block; padding: 5px 8px; border: 1px solid #c8cdd3; background: #eef1f4; font-size: 12px; font-weight: 700; }}
+    .badge.done {{ border-color: #2f8f4e; background: #e3f0e7; color: #1f5c35; }}
+    .badge.idle {{ color: #626b75; }}
+    .workflow.warn {{ background: #f0dfbc; color: #4a3510; }}
+    .workflow.danger {{ background: #e5c0c0; color: #3e1f1f; }}
+    .muted {{ color: #8c939b; }}
+    .history {{ font-size: 12px; }}
+    .historyDetails {{ max-width: 330px; }}
+    .historyDetails summary {{ display: inline-flex; align-items: center; gap: 6px; padding: 3px 0; color: #4f5964; font-weight: 800; cursor: pointer; }}
+    .historyList {{ margin-top: 6px; line-height: 1.35; white-space: normal; overflow-wrap: anywhere; }}
+    .historyMeta {{ margin-top: 4px; color: #626b75; line-height: 1.25; }}
+    body.detailMode .adminActions {{ white-space: nowrap; }}
+    .adminActions button {{ padding: 6px 7px; font-size: 12px; margin-right: 4px; }}
+    .hideColor {{ background: #f0dfbc; color: #4a3510; }}
+    .renameColor {{ width: 28px; height: 28px; padding: 0 !important; background: #e7edf3; color: #1d3348; font-size: 17px !important; }}
     .adminOnly {{ display: none; }}
     body.admin .adminOnly {{ display: table-cell; }}
+    .prepressNotes {{ display: none; margin: 14px 0; background: #fff; border: 1px solid #cbd3d9; }}
+    body.detailMode .prepressNotes {{ display: block; }}
+    .prepressNotes > summary {{ padding: 11px 14px; font-size: 15px; font-weight: 800; }}
+    .prepressNotes > summary span {{ margin-left: 6px; color: #626b75; font-size: 13px; font-weight: 600; }}
+    .prepressNotesBody {{ padding: 8px 14px 14px; }}
+    .prepressEntry {{ display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)) auto; gap: 8px; margin-bottom: 12px; }}
+    .prepressEntry input {{ min-width: 0; font-size: 13px; }}
+    .prepressEntry textarea {{ grid-column: 1 / -2; min-height: 62px; padding: 10px 12px; border: 1px solid #c8cdd3; font: inherit; }}
+    .prepressNoteList {{ display: grid; gap: 8px; }}
+    .prepressNote {{ border-left: 5px solid #c9901a; background: #f6f7f8; padding: 10px; }}
+    .prepressNote.done {{ border-left-color: #2f8f4e; }}
+    .prepressNote p {{ margin: 6px 0; }}
+    .prepressNoteStatus {{ margin: 6px 0; font-weight: 800; color: #c9901a; }}
+    .prepressNote.done .prepressNoteStatus {{ color: #2f8f4e; }}
+    body:not(.detailMode) thead {{ display: none; }}
+    body:not(.detailMode) table {{ display: block; background: transparent; box-shadow: none; }}
+    body:not(.detailMode) #entryStatus {{ margin-top: 0; }}
+    body:not(.detailMode) .viewToggle {{ min-width: 142px; }}
+    body:not(.detailMode) tbody {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 12px; align-items: start; }}
+    body:not(.detailMode) tr {{ order: var(--machine-order, 0); position: relative; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr) max-content; grid-template-rows: 57px 33px 46px; gap: 8px 12px; height: 180px; padding: 14px; background: #f8fafb; border: 1px solid #cbd3d9; border-left: 3px solid #aeb8c0; box-shadow: 0 2px 8px rgba(32,36,42,0.06); box-sizing: border-box; color: #5c6770; }}
+    body:not(.detailMode) tr.ok {{ background: #ffffff; border-color: #bfd2c5; border-left-color: #3f8050; box-shadow: 0 2px 9px rgba(32,36,42,0.09); color: #151a20; }}
+    body:not(.detailMode) tr.wait,
+    body:not(.detailMode) tr.new,
+    body:not(.detailMode) tr.warn,
+    body:not(.detailMode) tr.passthrough {{ background: #f8fafb; border-color: #cbd3d9; border-left-color: #aeb8c0; color: #5c6770; box-shadow: 0 2px 8px rgba(32,36,42,0.06); }}
+    body:not(.detailMode) tr.blocked {{ background: #fbf7f6; border-color: #dccdca; border-left-color: #a76560; box-shadow: 0 2px 8px rgba(32,36,42,0.04); color: #695c5b; }}
+    body:not(.detailMode) td {{ display: block; border: 0; padding: 0; white-space: normal; }}
+    body:not(.detailMode) td:first-child,
+    body:not(.detailMode) td:nth-child(3),
+    body:not(.detailMode) td:nth-child(9),
+    body:not(.detailMode) td:nth-child(10) {{ display: none; }}
+    body:not(.detailMode) td.name {{ grid-column: 1 / -1; grid-row: 1; min-height: 0; padding-right: 48px; font-size: 18px; line-height: 1.15; color: inherit; font-weight: 800; z-index: 1; }}
+    body:not(.detailMode) .colorNameText {{ display: -webkit-box; max-width: 100%; overflow: hidden; overflow-wrap: anywhere; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }}
+    body:not(.detailMode) .machineCmyk {{ display: block; max-width: calc(100% - 4px); margin-top: 5px; color: #626b75; font-size: 12px; line-height: 1.1; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
+    body:not(.detailMode) .customerGlow {{ display: block; position: absolute; top: 14px; right: 14px; width: 34px; height: 34px; z-index: 0; pointer-events: none; border: 1px solid rgba(32,36,42,0.16); border-radius: 4px; background: rgb(var(--customer-rgb, 210,216,222)); }}
+    body:not(.detailMode) tr.wait .customerGlow,
+    body:not(.detailMode) tr.new .customerGlow,
+    body:not(.detailMode) tr.warn .customerGlow {{ opacity: 0.8; }}
+    body:not(.detailMode) tr.blocked .customerGlow {{ opacity: 0.65; }}
+    body:not(.detailMode) .cornerCmyk {{ display: none; }}
+    body:not(.detailMode) .cmykCell {{ display: none; }}
+    body:not(.detailMode) .printCell {{ grid-column: 1; grid-row: 2; align-self: stretch; min-width: 0; padding-top: 0; z-index: 1; }}
+    body:not(.detailMode) .printCell::before {{ content: none; }}
+    body:not(.detailMode) td:nth-child(6) {{ grid-column: 1; grid-row: 3; padding: 0; z-index: 1; }}
+    body:not(.detailMode) .approvalCell {{ grid-column: 2; grid-row: 2; }}
+    body:not(.detailMode) .transferCell {{ grid-column: 2; grid-row: 3; }}
+    body:not(.detailMode) .skCell {{ display: grid; align-content: start; justify-items: start; gap: 7px; min-width: 0; }}
+    body:not(.detailMode) .approvalCell,
+    body:not(.detailMode) .transferCell {{ display: grid; align-content: start; justify-items: end; gap: 7px; min-width: 0; padding: 0; background: transparent; border: 0; box-sizing: border-box; z-index: 1; }}
+    body:not(.detailMode) .approvalCell {{ display: grid; align-content: center; justify-items: end; min-width: 76px; padding: 0; background: transparent; border: 0; box-sizing: border-box; z-index: 1; }}
+    body:not(.detailMode) .approvalCell::before {{ content: none; }}
+    body:not(.detailMode) .skCell::before,
+    body:not(.detailMode) .transferCell::before {{ color: #777f88; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0; }}
+    body:not(.detailMode) .skCell::before {{ content: "SK"; }}
+    body:not(.detailMode) .transferCell::before {{ content: "Übernahme"; }}
+    body:not(.detailMode) tr.ok .approvalCell,
+    body:not(.detailMode) tr.ok .transferCell {{ background: transparent; border-color: transparent; }}
+    body:not(.detailMode) .printDecision {{ display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; min-width: 0; height: 100%; }}
+    body:not(.detailMode) .printChoice {{ flex: 0 0 auto; padding: 6px 8px; font-size: 12px; white-space: nowrap; }}
+    body:not(.detailMode) .addSk {{ display: inline-grid; min-width: 54px; height: 34px; margin: 0; padding: 0 12px; place-items: center; background: rgba(255,255,255,0.78); border: 1px solid #c3cbd2; color: #20242a; text-align: center; cursor: pointer; }}
+    body:not(.detailMode) .addSk:hover {{ background: #fff; border-color: #9aa7b3; }}
+    body:not(.detailMode) tr.ok .addSk {{ background: #ffffff; border-color: #abc0b0; }}
+    body:not(.detailMode) .templateButtonLabel,
+    body:not(.detailMode) .templateButtonPlus {{ display: none; }}
+    body:not(.detailMode) .templateButtonCount {{ color: #20242a; font-size: 23px; line-height: 1; font-weight: 900; }}
+    body:not(.detailMode) .workflow.danger {{ display: none; }}
+    body:not(.detailMode) .detailStatusChange {{ display: none; }}
+    body:not(.detailMode) .transferSummary {{ display: none; }}
+    body:not(.detailMode) .machineTransferSummary {{ display: block; min-width: 0; font-size: 20px; line-height: 1; font-weight: 900; white-space: nowrap; overflow: visible; }}
+    body:not(.detailMode) .machineTransferSummary.done {{ color: #3f6248; }}
+    body:not(.detailMode) .machineTransferSummary.open {{ color: #6d6f72; }}
+    body:not(.detailMode) .machineTransferSummary.idle {{ color: #8c939b; }}
+    body:not(.detailMode) .statusLine {{ min-width: 0; font-size: 16px; line-height: 1; font-weight: 900; white-space: nowrap; overflow: visible; }}
+    body:not(.detailMode) .statusLine.done {{ color: #3f6248; }}
+    body:not(.detailMode) .statusLine.idle {{ color: #8c939b; }}
+    body:not(.detailMode) .machineApproval {{ display: inline; }}
+    body:not(.detailMode) .detailApproval {{ display: none; }}
+    body:not(.detailMode) .skMeta {{ display: none; }}
+    body:not(.detailMode) tr.blocked .printCell,
+    body:not(.detailMode) tr.blocked .approvalCell,
+    body:not(.detailMode) tr.blocked .transferCell {{ display: none; }}
+    body:not(.detailMode) tr.blocked td.name {{ grid-row: 1 / 3; min-height: 0; }}
+    body:not(.detailMode) tr.blocked .notPrintableBanner {{ display: flex; width: fit-content; margin-top: 6px; padding: 0; font-size: 12px; }}
+    body:not(.detailMode) tr.blocked .notPrintableCardReason {{ display: block; overflow: hidden; padding-right: 4px; font-size: 12px; white-space: nowrap; text-overflow: ellipsis; }}
+    body:not(.detailMode) tr.blocked .skCell {{ grid-column: 1; grid-row: 3; }}
+    body:not(.detailMode) tr.blocked .addSk {{ display: inline-grid; place-items: center; padding: 0 12px; background: rgba(255,255,255,0.45); border-color: #cbc4c1; }}
+    body:not(.detailMode) tr.blocked .templateButtonCount {{ font-size: 20px; }}
+    body:not(.detailMode) details {{ display: none; }}
+    body:not(.detailMode) .skEmpty {{ display: none; }}
+    body:not(.detailMode) details summary {{ display: inline-block; padding: 8px 10px; border: 1px solid #d1d6dc; background: #f6f7f8; }}
+    body:not(.detailMode) details[open] summary {{ margin-bottom: 6px; }}
+    body:not(.detailMode) .detailSkSummary {{ display: none; }}
+    body.detailMode .machineSkSummary {{ display: none; }}
+    body.detailMode .skPanelButton {{ display: none; }}
+    body.detailMode .machineCmyk {{ display: none; }}
+    body.detailMode .notPrintableCardReason {{ display: none; }}
+    body.detailMode .notPrintableReasonDetails {{ display: block; }}
+    body.detailMode tr.blocked .printCell,
+    body.detailMode tr.blocked .approvalCell,
+    body.detailMode tr.blocked .transferCell {{ visibility: hidden; }}
+    body.detailMode tr.blocked .historyMeta {{ display: none; }}
+    body.detailMode tr.blocked .notPrintableBanner {{ display: block; margin-top: 5px; font-size: 12px; }}
+    body.detailMode tr.blocked .notPrintableReasonDetails {{ margin-top: 4px; }}
+    body.detailMode tr.blocked .clearNotPrintable {{ margin-top: 4px; }}
+    body.detailMode .detailApproval {{ display: inline; }}
+    body.detailMode .machineTransferSummary {{ display: none; }}
+    body.detailMode .detailStatusChange {{ display: inline-block; margin-left: 8px; }}
+    body.detailMode .adminOnly {{ display: table-cell; }}
+    @media (max-width: 760px) {{
+      body {{ margin: 16px; }}
+      .machineHeader {{ display: grid; gap: 10px; }}
+      .titleBlock {{ gap: 10px; }}
+      .brandLogo {{ width: 108px; }}
+      .headerActions {{ justify-content: stretch; }}
+      .headerActions .connection {{ flex: 1; }}
+      .topBar, .summary {{ grid-template-columns: 1fr; }}
+      .searchBar {{ grid-column: 1; }}
+      .prepressEntry {{ grid-template-columns: 1fr; }}
+      .prepressEntry textarea {{ grid-column: auto; }}
+      .viewToggle {{ width: 100%; }}
+      body:not(.detailMode) tr {{ grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }}
+    }}
     .dot {{ display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: #8c939b; }}
     tr.ok .dot {{ background: #2f8f4e; }}
     tr.wait .dot {{ background: #c9901a; }}
     tr.new .dot, tr.warn .dot {{ background: #bd3f3f; }}
+    .dialogBackdrop {{ position: fixed; inset: 0; background: rgba(32, 36, 42, 0.28); display: none; align-items: center; justify-content: center; z-index: 10; }}
+    .dialogBackdrop.open {{ display: flex; }}
+    .dialogBox {{ width: min(420px, calc(100vw - 32px)); background: #fff; border: 1px solid #b7c0ca; box-shadow: 0 18px 45px rgba(0, 0, 0, 0.22); padding: 16px; }}
+    .dialogBox h2 {{ margin: 0 0 12px; font-size: 20px; }}
+    .dialogBody {{ color: #20242a; line-height: 1.45; }}
+    .statusLine {{ font-weight: 700; }}
+    .statusLine.done {{ color: #2f8f4e; }}
+    .statusLine.idle {{ color: #8c939b; }}
+    .statusLine.open {{ color: #c9901a; }}
+    .transferList {{ display: grid; gap: 10px; margin: 10px 0; }}
+    .transferItem {{ border: 1px solid #dfe3e7; padding: 10px; background: #f6f7f8; }}
+    .transferItem.done {{ border-left: 5px solid #2f8f4e; }}
+    .transferItem.open {{ border-left: 5px solid #c9901a; }}
+    .skPopupList {{ display: grid; gap: 7px; margin: 10px 0 14px; }}
+    .skPopupItem {{ display: flex; justify-content: space-between; gap: 10px; padding: 8px 10px; background: #f6f7f8; border: 1px solid #e0e4e8; }}
+    .skPopupItem span {{ color: #626b75; font-weight: 700; }}
+    .dialogBody input[type="text"], .dialogBody input:not([type]), .dialogBody textarea {{ width: 100%; box-sizing: border-box; margin-top: 6px; }}
+    .dialogBody input[type="checkbox"] {{ width: auto; margin: 0 6px 0 0; }}
+    .dialogActions {{ display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }}
   </style>
 </head>
 <body>
-  <h1 id="title">MPRINT Farbübersicht</h1>
-  <p class="meta">Automatisch aktualisiert: {html.escape(now_stamp())}</p>
-  <form class="entry" method="post" action="{html.escape(submit_url, quote=True)}" target="submitFrame">
-    <input name="farbe" id="farbe" autocomplete="off" placeholder="Kundenfarbe eintragen">
-    <button type="submit">Eintragen</button>
-  </form>
+  <header class="machineHeader">
+    <div class="titleBlock">
+      {logo_html}
+      <div>
+        <h1 id="title">Farbübersicht</h1>
+        <p class="meta">Automatisch aktualisiert: {html.escape(now_stamp())}</p>
+      </div>
+    </div>
+    <div class="headerActions">
+      <div id="connectionStatus" class="connection checking">Verbindung wird geprüft</div>
+      <button type="button" id="detailToggle" class="viewToggle">Vorstufenansicht</button>
+    </div>
+  </header>
+  {preview_banner}
+  <div class="topBar">
+    <form class="entry" method="post" action="{html.escape(submit_url, quote=True)}" target="submitFrame" data-prepress-only hidden>
+      <label for="farbe">Kundenfarbe eintragen</label>
+      <div class="entryRow">
+        <input name="farbe" id="farbe" autocomplete="off" placeholder="Neue Farbbezeichnung">
+        <button type="submit">Eintragen</button>
+      </div>
+    </form>
+    <div class="searchBar">
+      <label for="colorSearch">Farbname suchen</label>
+      <input type="search" id="colorSearch" autocomplete="off" placeholder="Farbname suchen...">
+    </div>
+  </div>
+  <section id="prepressControls" class="prepressControls" data-prepress-only hidden>
+    <div class="summary">{summary_html}</div>
+  </section>
   <div id="entryStatus"></div>
   <iframe name="submitFrame" style="display:none"></iframe>
-  <table>
-    <thead><tr><th class="indicator"></th><th>Farbbezeichnung</th><th></th><th>Status</th><th>Angelegt am</th><th>Gedruckt am</th><th>CMYK</th><th class="adminOnly"></th></tr></thead>
+  <details class="prepressNotes" aria-label="Vorstufen-Hinweise" data-prepress-only hidden>
+    <summary>Vorstufen-Hinweise <span id="prepressNoteCount">{len(prepress_notes)}</span></summary>
+    <div class="prepressNotesBody">
+    <form id="prepressNoteForm" class="prepressEntry">
+      <input name="title" autocomplete="off" placeholder="Titel">
+      <input name="customer" autocomplete="off" placeholder="Kunde optional">
+      <input name="color" autocomplete="off" placeholder="Farbe optional">
+      <input name="sk" autocomplete="off" placeholder="SK optional">
+      <input name="created_by" autocomplete="off" placeholder="Erstellt von optional">
+      <button type="submit">Hinweis speichern</button>
+      <textarea name="text" placeholder="Information"></textarea>
+    </form>
+    <div id="prepressNoteList" class="prepressNoteList">{prepress_note_html}</div>
+    </div>
+  </details>
+  <div class="tableWrap"><table>
+    <thead><tr><th class="indicator"></th><th>Kundenfarbe</th><th></th><th>CMYK</th><th>Druck</th><th>Betroffene Eindruckvorlagen</th><th>Prüfung</th><th>Übernahme</th><th>Historie</th><th class="adminOnly"></th></tr></thead>
     <tbody>{''.join(body_rows)}</tbody>
-  </table>
+  </table></div>
+  <div id="noSearchResults" class="noResults">Keine passenden Farben gefunden</div>
+  <div id="dialogBackdrop" class="dialogBackdrop" role="dialog" aria-modal="true">
+    <div class="dialogBox">
+      <h2 id="dialogTitle"></h2>
+      <div id="dialogBody" class="dialogBody"></div>
+      <div class="dialogActions">
+        <button type="button" id="dialogCancel">Abbrechen</button>
+        <button type="button" id="dialogOk"></button>
+      </div>
+    </div>
+  </div>
   <script>
+    function fetchWithTimeout(url, options, timeoutMs) {{
+      if (!window.AbortController) {{
+        return fetch(url, options);
+      }}
+      var controller = new AbortController();
+      var timeout = window.setTimeout(function() {{ controller.abort(); }}, timeoutMs || 8000);
+      var merged = Object.assign({{}}, options || {{}}, {{ signal: controller.signal }});
+      return fetch(url, merged).finally(function() {{ window.clearTimeout(timeout); }});
+    }}
+    function responseTextOrError(response) {{
+      return response.text().then(function(text) {{
+        var payload = null;
+        try {{
+          payload = text ? JSON.parse(text) : null;
+        }} catch (_error) {{
+          payload = null;
+        }}
+        var message = payload && payload.message ? payload.message : text;
+        if (!response.ok) {{
+          var error = new Error(message || ('Servermeldung ' + response.status));
+          error.status = response.status;
+          error.payload = payload;
+          throw error;
+        }}
+        return payload || {{ ok: true, message: message }};
+      }});
+    }}
+    function friendlyFetchError(error) {{
+      var message = error && error.message ? error.message : '';
+      if (error && error.name === 'AbortError') {{
+        return 'Die Verbindung zur MJET hat zu lange gedauert.';
+      }}
+      if (error instanceof TypeError || /Failed to fetch|NetworkError|Load failed/i.test(message)) {{
+        return 'Die MJET beziehungsweise der Little MPRINT Helper ist derzeit nicht erreichbar. Die Farbe konnte nicht gespeichert werden.';
+      }}
+      return message || 'Die Farbe konnte nicht gespeichert werden.';
+    }}
+    function setConnectionStatus(kind, text) {{
+      var node = document.getElementById('connectionStatus');
+      node.className = 'connection ' + kind;
+      node.textContent = text;
+    }}
+    function checkConnection() {{
+      if (!window.fetch) {{
+        setConnectionStatus('down', 'MJET-Verbindung kann mit diesem Browser nicht geprüft werden');
+        return;
+      }}
+      setConnectionStatus('checking', 'Verbindung wird geprüft');
+      fetchWithTimeout({status_url_json}, {{ method: 'GET', cache: 'no-store' }}, 5000)
+        .then(responseTextOrError)
+        .then(function() {{ setConnectionStatus('ok', 'MJET erreichbar'); }})
+        .catch(function() {{ setConnectionStatus('down', 'MJET nicht erreichbar'); }});
+    }}
+    checkConnection();
+    window.setInterval(checkConnection, 15000);
     document.querySelectorAll('.copy').forEach(function(button) {{
       button.addEventListener('click', function() {{
         var name = button.getAttribute('data-name') || '';
         if (navigator.clipboard) {{
           navigator.clipboard.writeText(name);
         }}
-        button.textContent = 'Kopiert';
-        window.setTimeout(function() {{ button.textContent = 'Kopieren'; }}, 1200);
+        button.textContent = '✓';
+        button.title = 'Kopiert';
+        window.setTimeout(function() {{ button.textContent = '⧉'; button.title = 'Farbnamen kopieren'; }}, 1200);
       }});
     }});
-    document.querySelectorAll('.delete').forEach(function(button) {{
+    function postHelper(url, data) {{
+      return fetchWithTimeout(url, {{
+        method: 'POST',
+        headers: {{ 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }},
+        body: new URLSearchParams(data).toString()
+      }}, 8000).then(responseTextOrError);
+    }}
+    function payloadMessage(payload, fallback) {{
+      return payload && payload.message ? payload.message : fallback;
+    }}
+    function escapeHtml(value) {{
+      return String(value || '').replace(/[&<>"']/g, function(char) {{
+        return {{ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }}[char];
+      }});
+    }}
+    function cmykToCssColor(raw) {{
+      var parts = String(raw || '').match(/-?\\d+(?:[\\.,]\\d+)?/g);
+      if (!parts || parts.length < 4) {{
+        return 'rgb(238, 241, 244)';
+      }}
+      var values = parts.slice(0, 4).map(function(part) {{
+        var value = Math.round(parseFloat(String(part).replace(',', '.')));
+        return isFinite(value) ? Math.max(0, Math.min(100, value)) : null;
+      }});
+      if (values.some(function(value) {{ return value === null; }})) {{
+        return 'rgb(238, 241, 244)';
+      }}
+      var c = values[0] / 100;
+      var m = values[1] / 100;
+      var y = values[2] / 100;
+      var k = values[3] / 100;
+      var r = Math.round(255 * (1 - c) * (1 - k));
+      var g = Math.round(255 * (1 - m) * (1 - k));
+      var b = Math.round(255 * (1 - y) * (1 - k));
+      if (values[0] === 0 && values[1] === 0 && values[2] === 0 && values[3] === 0) {{
+        return 'rgb(247, 248, 249)';
+      }}
+      return 'rgb(' + r + ', ' + g + ', ' + b + ')';
+    }}
+    function cmykContrast(raw) {{
+      var color = cmykToCssColor(raw);
+      var match = color.match(/\\d+/g);
+      if (!match || match.length < 3) {{
+        return {{ text: '#20242a', shadow: '0 1px 1px rgba(255,255,255,0.55)' }};
+      }}
+      var r = parseInt(match[0], 10);
+      var g = parseInt(match[1], 10);
+      var b = parseInt(match[2], 10);
+      var lightness = (r * 299 + g * 587 + b * 114) / 1000;
+      if (lightness < 118) {{
+        return {{ text: '#ffffff', shadow: '0 1px 2px rgba(0,0,0,0.55)' }};
+      }}
+      return {{ text: '#20242a', shadow: '0 1px 1px rgba(255,255,255,0.55)' }};
+    }}
+    document.querySelectorAll('.customerGlow').forEach(function(swatch) {{
+      var cmyk = swatch.getAttribute('data-cmyk') || '';
+      var color = cmykToCssColor(cmyk);
+      var match = color.match(/\\d+/g);
+      var rgb = match && match.length >= 3 ? match.slice(0, 3).join(', ') : '210, 216, 222';
+      swatch.style.setProperty('--customer-rgb', rgb);
+    }});
+    function normalizeSearchText(value) {{
+      return String(value || '').replace(/\\s+/g, ' ').trim().toLocaleLowerCase('de-DE');
+    }}
+    function refreshRowSearchText(row) {{
+      if (!row) return;
+      var stableSearch = row.getAttribute('data-color-search') || '';
+      row.dataset.searchText = normalizeSearchText(stableSearch + ' ' + (row.textContent || ''));
+    }}
+    function applyColorSearch() {{
+      var input = document.getElementById('colorSearch');
+      var message = document.getElementById('noSearchResults');
+      var query = normalizeSearchText(input ? input.value.trim() : '');
+      var visible = 0;
+      document.querySelectorAll('tbody tr').forEach(function(row) {{
+        if (!row.dataset.searchText) {{
+          refreshRowSearchText(row);
+        }}
+        var matches = !query || row.dataset.searchText.indexOf(query) !== -1;
+        row.hidden = !matches;
+        if (matches) {{
+          visible += 1;
+        }}
+      }});
+      if (message) {{
+        message.classList.toggle('visible', visible === 0);
+      }}
+    }}
+    document.querySelectorAll('tbody tr').forEach(refreshRowSearchText);
+    var colorSearch = document.getElementById('colorSearch');
+    if (colorSearch) {{
+      colorSearch.addEventListener('input', applyColorSearch);
+    }}
+    var detailToggle = document.getElementById('detailToggle');
+    try {{
+      if (window.sessionStorage.getItem('mjetDetailMode') === '1') document.body.classList.add('detailMode');
+    }} catch (_error) {{}}
+    function syncViewMode() {{
+      var detailMode = document.body.classList.contains('detailMode');
+      try {{ window.sessionStorage.setItem('mjetDetailMode', detailMode ? '1' : '0'); }} catch (_error) {{}}
+      document.querySelectorAll('[data-prepress-only]').forEach(function(node) {{
+        node.hidden = !detailMode;
+      }});
+      if (detailToggle) {{
+        detailToggle.textContent = detailMode ? 'Maschinenansicht' : 'Vorstufenansicht';
+      }}
+    }}
+    if (detailToggle) {{
+      syncViewMode();
+      detailToggle.addEventListener('click', function() {{
+        document.body.classList.toggle('detailMode');
+        syncViewMode();
+      }});
+    }}
+    function showDialog(options) {{
+      return new Promise(function(resolve) {{
+        var backdrop = document.getElementById('dialogBackdrop');
+        var title = document.getElementById('dialogTitle');
+        var body = document.getElementById('dialogBody');
+        var cancel = document.getElementById('dialogCancel');
+        var ok = document.getElementById('dialogOk');
+        title.textContent = options.title || '';
+        body.innerHTML = options.body || '';
+        ok.textContent = options.okText || 'OK';
+        cancel.style.display = options.hideCancel ? 'none' : '';
+        backdrop.classList.add('open');
+        var input = options.returnInput ? body.querySelector('input') : null;
+        function cleanup(value) {{
+          backdrop.classList.remove('open');
+          cancel.style.display = '';
+          cancel.onclick = null;
+          ok.onclick = null;
+          document.removeEventListener('keydown', onKey);
+          resolve(value);
+        }}
+        function onKey(event) {{
+          if (event.key === 'Escape') {{
+            event.preventDefault();
+            cleanup(null);
+          }} else if (event.key === 'Enter' && options.returnInput) {{
+            event.preventDefault();
+	            cleanup(input ? input.value : true);
+          }}
+        }}
+        cancel.onclick = function() {{ cleanup(null); }};
+        ok.onclick = function() {{ cleanup(input ? input.value : true); }};
+        document.addEventListener('keydown', onKey);
+        window.setTimeout(function() {{ (input || ok).focus(); }}, 0);
+      }});
+    }}
+    function findColorRow(color) {{
+      var buttons = document.querySelectorAll('.addSk[data-color]');
+      for (var i = 0; i < buttons.length; i += 1) {{
+        if ((buttons[i].getAttribute('data-color') || '') === color) {{
+          return buttons[i].closest('tr');
+        }}
+      }}
+      return null;
+    }}
+    function updateSummaries() {{
+      var printOpen = document.querySelectorAll('.workflow[data-action="printed"]').length;
+      var approvalOpen = document.querySelectorAll('.workflow[data-action="approve"]').length;
+      var templateOpen = 0;
+      document.querySelectorAll('.workflow[data-action="template"]').forEach(function(button) {{
+        templateOpen += parseInt(button.getAttribute('data-open-count') || '0', 10) || 0;
+      }});
+      var pills = document.querySelectorAll('.summaryPill');
+      function setPill(pill, count, label) {{
+        if (pill) pill.innerHTML = '<strong>' + String(count) + '</strong><span>' + escapeHtml(label) + '</span>';
+      }}
+      setPill(pills[0], printOpen, 'Drucke offen');
+      setPill(pills[1], approvalOpen, 'Prüfungen offen');
+      setPill(pills[2], templateOpen, 'Vorlagen offen');
+    }}
+    function updateSkSummary(row) {{
+      if (!row) return;
+      var items = row.querySelectorAll('.skItem').length;
+      var summary = row.querySelector('details summary');
+      if (summary) summary.innerHTML = '<span class="machineSkSummary">SK ' + items + '</span><span class="detailSkSummary">' + items + ' Eindruckvorlage(n)</span>';
+    }}
+    function templateButtonHtml(count) {{
+      return '<span class="templateButtonCount">' + (count ? String(count) : '+') + '</span>';
+    }}
+    function bindWorkflowButton(button) {{
+      button.addEventListener('click', handleWorkflowClick);
+    }}
+    function createWorkflowButton(action, color, sk, cmyk, text, className) {{
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = className || 'workflow';
+      button.dataset.action = action;
+      button.dataset.color = color;
+      if (sk) button.dataset.sk = sk;
+      button.dataset.cmyk = cmyk || '';
+      button.textContent = text;
+      bindWorkflowButton(button);
+      return button;
+    }}
+    function makeBadge(text, className) {{
+      var badge = document.createElement('span');
+      badge.className = className || 'badge done';
+      badge.textContent = text;
+      return badge;
+    }}
+    function parseSkState(button) {{
+      try {{
+        var parsed = JSON.parse(button.getAttribute('data-sk-state') || '[]');
+        return Array.isArray(parsed) ? parsed : [];
+      }} catch (_error) {{
+        return [];
+      }}
+    }}
+    function transferDialogBody(color, cmyk, skState) {{
+      function skLabel(value) {{
+        var cleaned = String(value || '').replace(/\\s+/g, ' ').trim();
+        if (!cleaned) return 'SK';
+        return /^sk/i.test(cleaned) ? cleaned : 'SK ' + cleaned;
+      }}
+      var items = skState.map(function(item, index) {{
+        var sk = item.sk || '';
+        var method = item.method || 'offen';
+        var at = item.at || 'Datum nicht erfasst';
+        var by = item.by || 'nicht erfasst';
+        var note = item.note || '';
+        if (item.completed) {{
+          return '<div class="transferItem done"><strong>' + escapeHtml(skLabel(sk)) + '</strong><div><span class="statusLine done">● erledigt</span></div><div class="skMeta">Methode: ' + escapeHtml(method) + '</div><div class="skMeta">Datum: ' + escapeHtml(at) + '</div><div class="skMeta">Bearbeiter: ' + escapeHtml(by) + '</div>' + (note ? '<div class="skMeta">Notiz: ' + escapeHtml(note) + '</div>' : '') + '</div>';
+        }}
+        return '<label class="transferItem open"><input type="checkbox" class="transferSk" value="' + escapeHtml(sk) + '"><strong>' + escapeHtml(skLabel(sk)) + '</strong><div><span class="statusLine open">● offen</span></div></label>';
+      }}).join('');
+      if (!items) {{
+        items = '<p>Keine Eindruckvorlage hinterlegt.</p>';
+      }}
+      return '<p><strong>Kundenfarbe:</strong><br>' + escapeHtml(color) + '</p><p><strong>CMYK:</strong><br>' + escapeHtml(cmyk) + '</p><div class="transferList">' + items + '</div><p>Ausgewählte offene SKs als übernommen speichern:</p><label><input type="checkbox" id="transferTemplate"> Eindruckvorlage angepasst</label><br><label><input type="checkbox" id="transferPortal"> Portal informiert</label><p><label>Bearbeitet durch:<input id="transferBy" autocomplete="off"></label></p><p><label>Notiz:<textarea id="transferNote" rows="3"></textarea></label></p>';
+    }}
+    function skDialogBody(color, skState) {{
+      function skLabel(value) {{
+        var cleaned = String(value || '').replace(/\\s+/g, ' ').trim();
+        if (!cleaned) return 'SK';
+        return /^sk/i.test(cleaned) ? cleaned : 'SK ' + cleaned;
+      }}
+      var items = skState.map(function(item) {{
+        var sk = item.sk || '';
+        var status = item.completed ? '✓ übernommen' : '○ Übernahme offen';
+        return '<div class="skPopupItem"><strong>' + escapeHtml(skLabel(sk)) + '</strong><span>' + escapeHtml(status) + '</span></div>';
+      }}).join('');
+      if (!items) {{
+        items = '<p class="muted">Noch keine SK hinterlegt.</p>';
+      }}
+      return '<p><strong>Kundenfarbe:</strong><br>' + escapeHtml(color) + '</p><div class="skPopupList">' + items + '</div><label>SK-Nummer hinzufügen<input id="skInput" autocomplete="off"></label>';
+    }}
+    function ensureDetails(row) {{
+      var cell = row.cells[5];
+      var details = cell.querySelector('details');
+      if (details) return details;
+      cell.querySelector('.muted')?.remove();
+      details = document.createElement('details');
+      details.open = true;
+      var summary = document.createElement('summary');
+      summary.textContent = '0 Eindruckvorlage(n)';
+      summary.innerHTML = '<span class="machineSkSummary">SK 0</span><span class="detailSkSummary">0 Eindruckvorlage(n)</span>';
+      details.appendChild(summary);
+      cell.insertBefore(details, cell.firstChild);
+      return details;
+    }}
+    function appendSkRow(color, sk, cmyk) {{
+      var row = findColorRow(color);
+      if (!row) return;
+      var details = ensureDetails(row);
+      var item = document.createElement('div');
+      item.className = 'skItem';
+      item.innerHTML = '<strong>' + escapeHtml(/^sk/i.test(sk) ? sk : 'SK ' + sk) + '</strong><span class="statusLine open">○ Übernahme offen</span>';
+      details.appendChild(item);
+      details.open = true;
+      row.setAttribute('data-color-search', ((row.getAttribute('data-color-search') || '') + ' ' + sk).trim());
+      updateSkSummary(row);
+      var skButtons = row.querySelectorAll('.skPanelButton');
+      skButtons.forEach(function(button) {{
+        var currentState = parseSkState(button);
+        currentState.push({{ sk: sk, completed: false, method: 'offen', at: '', by: '', note: '' }});
+        button.setAttribute('data-sk-state', JSON.stringify(currentState));
+        button.innerHTML = templateButtonHtml(currentState.length);
+      }});
+      var transfer = row.querySelector('.machineTransferSummary');
+      if (transfer && !row.classList.contains('blocked')) {{
+        var state = skButtons.length ? parseSkState(skButtons[0]) : [];
+        var total = state.length;
+        var done = state.filter(function(item) {{ return !!item.completed; }}).length;
+        transfer.className = 'machineTransferSummary ' + (total && done === total ? 'done' : 'open');
+        transfer.title = total && done === total ? 'Alle SK übernommen' : String(Math.max(0, total - done)) + ' SK offen';
+        transfer.textContent = total && done === total ? '✓ ' + done + ' / ' + total : done + ' / ' + total;
+      }}
+      refreshRowSearchText(row);
+      applyColorSearch();
+    }}
+    document.querySelectorAll('.summaryPill').forEach(function(button) {{
+      button.addEventListener('click', function() {{
+        document.querySelectorAll('tbody details').forEach(function(details) {{ details.open = true; }});
+        document.getElementById('entryStatus').textContent = 'SK-Details geöffnet.';
+      }});
+    }});
+    document.querySelectorAll('.hideColor').forEach(function(button) {{
       button.addEventListener('click', function() {{
         var name = button.getAttribute('data-name') || '';
         var status = document.getElementById('entryStatus');
+        var row = button.closest('tr');
         if (!window.fetch) {{
-          status.textContent = 'Löschen braucht einen aktuellen Browser.';
+          status.textContent = 'Ausblenden braucht einen aktuellen Browser.';
           return;
         }}
-        if (!window.confirm('Eintrag wirklich löschen?\\n\\n' + name)) {{
-          return;
-        }}
-        status.textContent = 'Eintrag wird gelöscht...';
-        fetch({delete_url_json}, {{
-          method: 'POST',
-          headers: {{ 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }},
-          body: new URLSearchParams({{ farbe: name }}).toString()
-        }})
-        .then(function(response) {{
-          if (!response.ok) {{
-            throw new Error('Helper nicht erreichbar');
+        showDialog({{
+          title: 'Farbe ausblenden?',
+          body: '<p><strong>Farbname:</strong><br>' + escapeHtml(name) + '</p><p>Die Farbe wird nur aus der MPRINT Farbübersicht ausgeblendet.<br>Die ursprünglichen Farbdaten werden nicht gelöscht.</p>',
+          okText: 'Ausblenden'
+        }}).then(function(confirmed) {{
+          if (!confirmed) {{
+            return;
           }}
-          return response.text();
-        }})
-        .then(function(text) {{
-          status.textContent = text || 'Eintrag gelöscht.';
-          window.setTimeout(function() {{ window.location.reload(); }}, 700);
-        }})
-        .catch(function(error) {{
-          status.textContent = 'Eintrag nicht gelöscht: ' + error.message;
+          status.textContent = 'Farbe wird ausgeblendet...';
+          postHelper({hide_url_json}, {{ farbe: name }})
+          .then(function(payload) {{
+            status.textContent = payloadMessage(payload, 'Farbe ausgeblendet.');
+            if (row) {{
+              row.remove();
+            }}
+            applyColorSearch();
+            updateSummaries();
+          }})
+          .catch(function(error) {{
+            status.textContent = 'Farbe nicht ausgeblendet: ' + friendlyFetchError(error);
+          }});
         }});
       }});
     }});
+    document.querySelectorAll('.renameColor').forEach(function(button) {{
+      button.addEventListener('click', function() {{
+        var oldName = button.getAttribute('data-name') || '';
+        var status = document.getElementById('entryStatus');
+        var row = button.closest('tr');
+        showDialog({{
+          title: 'Farbnamen korrigieren',
+          body: '<label>Neuer Farbname<input id="renamedColor" value="' + escapeHtml(oldName) + '" maxlength="160" autocomplete="off"></label>',
+          okText: 'Speichern',
+          returnInput: true
+        }}).then(function(newName) {{
+          if (newName === null) return;
+          newName = String(newName).trim();
+          if (!newName) {{
+            status.textContent = 'Bitte einen Farbnamen eintragen.';
+            return;
+          }}
+          status.textContent = 'Farbname wird korrigiert...';
+          postHelper({rename_url_json}, {{ farbe: oldName, neuer_name: newName }})
+            .then(function(payload) {{
+              status.textContent = payloadMessage(payload, 'Farbname korrigiert.');
+              if (!row) return;
+              row.querySelector('.colorNameText').textContent = newName;
+              row.querySelectorAll('[data-name]').forEach(function(item) {{ item.setAttribute('data-name', newName); }});
+              row.querySelectorAll('[data-color]').forEach(function(item) {{ item.setAttribute('data-color', newName); }});
+              row.querySelector('.colorNameText').title = newName;
+              var swatch = row.querySelector('.customerGlow');
+              if (swatch) swatch.title = newName + ' · ' + (swatch.getAttribute('data-cmyk') || '');
+              var skNames = Array.from(row.querySelectorAll('.skItem strong')).map(function(item) {{ return item.textContent; }}).join(' ');
+              row.setAttribute('data-color-search', newName + ' ' + (row.querySelector('.cmykCell') || {{ textContent: '' }}).textContent + ' ' + skNames);
+              refreshRowSearchText(row);
+              applyColorSearch();
+            }})
+            .catch(function(error) {{ status.textContent = 'Farbname nicht korrigiert: ' + friendlyFetchError(error); }});
+        }});
+      }});
+    }});
+    document.querySelectorAll('.addSk').forEach(function(button) {{
+      button.addEventListener('click', function() {{
+        var color = button.getAttribute('data-color') || '';
+        var cmyk = button.getAttribute('data-cmyk') || 'nicht erfasst';
+        var skState = parseSkState(button);
+        var status = document.getElementById('entryStatus');
+        showDialog({{
+	          title: 'Betroffene Eindruckvorlagen',
+	          body: skDialogBody(color, skState),
+	          okText: 'Hinzufügen',
+	          returnInput: true
+	        }}).then(function(sk) {{
+          if (sk === null) {{
+            return;
+          }}
+          sk = String(sk).trim();
+          if (!sk) {{
+            status.textContent = 'Bitte eine SK-Nr. eintragen.';
+            return;
+          }}
+          status.textContent = 'SK wird hinzugefügt...';
+          postHelper({sk_add_url_json}, {{ farbe: color, sk: sk }})
+            .then(function(payload) {{
+              status.textContent = payloadMessage(payload, 'SK hinzugefügt.');
+              appendSkRow(color, sk, cmyk);
+            }})
+            .catch(function(error) {{
+              status.textContent = 'SK nicht gespeichert: ' + friendlyFetchError(error);
+              checkConnection();
+            }});
+        }});
+      }});
+    }});
+    function handleWorkflowClick() {{
+        var button = this;
+        var action = button.getAttribute('data-action') || '';
+        var color = button.getAttribute('data-color') || '';
+        var cmyk = button.getAttribute('data-cmyk') || 'nicht erfasst';
+        var status = document.getElementById('entryStatus');
+        var url = '';
+        var dialog = null;
+        if (action === 'printed') {{
+          url = {sk_printed_url_json};
+          dialog = {{
+            title: 'Druck erfolgreich?',
+            body: '<p><strong>Farbe:</strong><br>' + escapeHtml(color) + '</p><p><strong>CMYK:</strong><br>' + escapeHtml(cmyk) + '</p><p>Wurde diese Farbe erfolgreich auf der MJET gedruckt?</p>',
+            okText: 'Ja, gedruckt'
+          }};
+        }} else if (action === 'approve') {{
+          url = {sk_approved_url_json};
+          dialog = {{
+            title: 'Druck freigeben?',
+            body: '<p><strong>Farbe:</strong><br>' + escapeHtml(color) + '</p><p><strong>CMYK:</strong><br>' + escapeHtml(cmyk) + '</p><p>Andreas hat das Druckergebnis geprüft und die Farbrezeptur freigegeben?</p>',
+            okText: 'Ja, freigeben'
+          }};
+        }} else if (action === 'template') {{
+          url = {sk_template_url_json};
+          var skState = parseSkState(button);
+          dialog = {{
+            title: 'Übernahmen verwalten',
+            body: transferDialogBody(color, cmyk, skState),
+            okText: 'Speichern'
+          }};
+        }} else if (action === 'notPrintable') {{
+          url = {not_printable_url_json};
+          var skStateForBlock = parseSkState(button).map(function(item) {{ return item.sk; }}).filter(Boolean).join('<br>');
+          dialog = {{
+            title: 'Auf MJET nicht druckbar',
+            body: '<p><strong>Farbe:</strong><br>' + escapeHtml(color) + '</p><p><strong>CMYK:</strong><br>' + escapeHtml(cmyk) + '</p>' + (skStateForBlock ? '<p><strong>Betroffene SK:</strong><br>' + skStateForBlock + '</p>' : '') + '<label>Grund<textarea id="notPrintableReason" rows="4" required></textarea></label>',
+            okText: 'Als nicht druckbar markieren'
+          }};
+        }} else if (action === 'clearNotPrintable') {{
+          url = {not_printable_url_json};
+          dialog = {{
+            title: 'Nicht-druckbar-Status aufheben',
+            body: '<p><strong>Farbe:</strong><br>' + escapeHtml(color) + '</p><p>Der bisherige Grund bleibt in der Historie erhalten.</p><label>Bearbeitet durch:<input id="clearNotPrintableBy" autocomplete="off"></label>',
+            okText: 'Status aufheben'
+          }};
+        }} else {{
+          return;
+        }}
+        showDialog(dialog).then(function(confirmed) {{
+          if (!confirmed) {{
+            return;
+          }}
+          status.textContent = 'Status wird gespeichert...';
+          var data = {{ farbe: color }};
+          if (action === 'template') {{
+            var selectedSk = Array.from(document.querySelectorAll('.transferSk:checked')).map(function(input) {{ return input.value; }});
+            if (!selectedSk.length) {{
+              status.textContent = 'Keine offene SK ausgewählt.';
+              return;
+            }}
+            var templateChecked = document.getElementById('transferTemplate') && document.getElementById('transferTemplate').checked;
+            var portalChecked = document.getElementById('transferPortal') && document.getElementById('transferPortal').checked;
+            if (!templateChecked && !portalChecked) {{
+              status.textContent = 'Bitte mindestens eine Übernahmeart auswählen.';
+              return;
+            }}
+            data.template_updated = templateChecked ? '1' : '';
+            data.portal_informed = portalChecked ? '1' : '';
+            data.completed_by = document.getElementById('transferBy') ? document.getElementById('transferBy').value : '';
+            data.note = document.getElementById('transferNote') ? document.getElementById('transferNote').value : '';
+            Promise.all(selectedSk.map(function(sk) {{
+              var skData = Object.assign({{}}, data, {{ sk: sk }});
+              return postHelper(url, skData);
+            }}))
+            .then(function(payloads) {{
+              status.textContent = payloads.length + ' Übernahme(n) gespeichert.';
+              window.setTimeout(function() {{ window.location.reload(); }}, 700);
+            }})
+            .catch(function(error) {{
+              status.textContent = 'Status nicht gespeichert: ' + friendlyFetchError(error);
+              checkConnection();
+            }});
+            return;
+          }}
+          if (action === 'notPrintable') {{
+            var reasonInput = document.getElementById('notPrintableReason');
+            var reason = reasonInput ? reasonInput.value.trim() : '';
+            if (!reason) {{
+              status.textContent = 'Bitte einen Grund eintragen.';
+              return;
+            }}
+            data.reason = reason;
+          }} else if (action === 'clearNotPrintable') {{
+            data.clear = '1';
+            data.completed_by = document.getElementById('clearNotPrintableBy') ? document.getElementById('clearNotPrintableBy').value : '';
+          }}
+          postHelper(url, data)
+            .then(function(payload) {{
+              var row = button.closest('tr');
+              status.textContent = payloadMessage(payload, 'Status gespeichert.');
+              if (action === 'printed') {{
+                row.cells[4].innerHTML = '<div class="printDecision"><span class="printChoice printable active">✓ Druckbar</span></div>';
+                var notPrintableButton = createWorkflowButton('notPrintable', color, '', cmyk, 'Status ändern', 'printChoice notPrintable workflow detailStatusChange');
+                var skButtonForBlock = row.querySelector('.skPanelButton');
+                if (skButtonForBlock) {{
+                  notPrintableButton.setAttribute('data-sk-state', skButtonForBlock.getAttribute('data-sk-state') || '[]');
+                }}
+                row.cells[4].querySelector('.printDecision').appendChild(notPrintableButton);
+                row.cells[6].innerHTML = '';
+                row.cells[6].innerHTML = '<span class="statusLine idle" title="Prüfung offen"><span class="machineApproval">○ Prüfung</span></span>';
+                row.cells[6].querySelector('.statusLine').appendChild(createWorkflowButton('approve', color, '', cmyk, 'Prüfung abschließen', 'workflow warn detailApproval'));
+              }} else if (action === 'approve') {{
+                row.cells[6].innerHTML = '<span class="statusLine done" title="Prüfung abgeschlossen"><span class="machineApproval">✓ Geprüft</span><span class="detailApproval">✓ geprüft</span></span>';
+                row.cells[7].innerHTML = '';
+                row.cells[7].innerHTML = '<div class="transferSummary idle">Keine SK hinterlegt</div><div class="machineTransferSummary idle" title="Keine SK hinterlegt">–</div>';
+                var templateButton = createWorkflowButton('template', color, '', cmyk, 'Übernahmen verwalten', 'workflow danger');
+                templateButton.setAttribute('data-open-count', '0');
+                row.cells[7].appendChild(templateButton);
+                window.setTimeout(function() {{ window.location.reload(); }}, 700);
+              }} else if (action === 'notPrintable' || action === 'clearNotPrintable') {{
+                window.setTimeout(function() {{ window.location.reload(); }}, 500);
+              }}
+              refreshRowSearchText(row);
+              applyColorSearch();
+              updateSummaries();
+            }})
+            .catch(function(error) {{
+              status.textContent = 'Status nicht gespeichert: ' + friendlyFetchError(error);
+              checkConnection();
+            }});
+        }});
+    }}
+    document.querySelectorAll('.workflow').forEach(bindWorkflowButton);
     (function() {{
       var clicks = 0;
       var timer = null;
@@ -1074,7 +4181,7 @@ class ColorTableManager:
         if (clicks >= 5) {{
           document.body.classList.toggle('admin');
           document.getElementById('entryStatus').textContent = document.body.classList.contains('admin')
-            ? 'Adminmodus aktiv: Einträge können gelöscht werden.'
+            ? 'Adminmodus aktiv: Einträge können ausgeblendet werden.'
             : '';
           clicks = 0;
         }}
@@ -1093,26 +4200,125 @@ class ColorTableManager:
         return;
       }}
       status.textContent = 'Eintrag wird gesendet...';
-      fetch({submit_url_json}, {{
-        method: 'POST',
-        headers: {{ 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }},
-        body: new URLSearchParams({{ farbe: value }}).toString()
-      }})
-      .then(function(response) {{
-        if (!response.ok) {{
-          throw new Error('Helper nicht erreichbar');
-        }}
-        return response.text();
-      }})
-      .then(function(text) {{
-        status.textContent = text || 'Kundenfarbe eingetragen.';
+      postHelper({submit_url_json}, {{ farbe: value }})
+      .then(function(payload) {{
+        status.textContent = payloadMessage(payload, 'Kundenfarbe eingetragen.');
         input.value = '';
+        checkConnection();
         window.setTimeout(function() {{ window.location.reload(); }}, 900);
       }})
       .catch(function(error) {{
-        status.textContent = 'Eintrag nicht gespeichert: ' + error.message;
+        status.textContent = 'Eintrag nicht gespeichert: ' + friendlyFetchError(error);
+        checkConnection();
       }});
     }});
+    var prepressForm = document.getElementById('prepressNoteForm');
+    var prepressNoteList = document.getElementById('prepressNoteList');
+    function prepressNoteHtml(note) {{
+      note = note || {{}};
+      var id = escapeHtml(note.id || '');
+      var title = escapeHtml(note.title || 'Ohne Titel');
+      var text = escapeHtml(note.text || '');
+      var metaParts = [];
+      if (note.customer) metaParts.push('Kunde: ' + escapeHtml(note.customer));
+      if (note.color) metaParts.push('Farbe: ' + escapeHtml(note.color));
+      if (note.sk_number) metaParts.push('SK: ' + escapeHtml(note.sk_number));
+      var meta = metaParts.length ? metaParts.join(' · ') : 'kein direkter Farb-/SK-Bezug';
+      var created = 'Erstellt: ' + escapeHtml(note.created_at || 'nicht erfasst');
+      if (note.created_by) created += ' · ' + escapeHtml(note.created_by);
+      var done = String(note.status || '').toLowerCase() === 'erledigt';
+      var statusText = done ? '✓ übernommen ' + escapeHtml(note.completed_at || '') : 'offen';
+      if (done && note.completed_by) statusText += ' · ' + escapeHtml(note.completed_by);
+      var action = done ? '' : '<button type="button" class="completePrepressNote" data-note-id="' + id + '">Als übernommen markieren</button>';
+      return '<div class="prepressNote ' + (done ? 'done' : 'open') + '" data-note-id="' + id + '">'
+        + '<strong>' + title + '</strong>'
+        + '<p>' + text + '</p>'
+        + '<div class="skMeta">' + meta + '</div>'
+        + '<div class="skMeta">' + created + '</div>'
+        + '<div class="prepressNoteStatus">' + statusText + '</div>'
+        + action
+        + '</div>';
+    }}
+    function upsertPrepressNote(note) {{
+      if (!prepressNoteList || !note || !note.id) return;
+      var existing = null;
+      prepressNoteList.querySelectorAll('.prepressNote[data-note-id]').forEach(function(item) {{
+        if ((item.getAttribute('data-note-id') || '') === String(note.id)) {{
+          existing = item;
+        }}
+      }});
+      var html = prepressNoteHtml(note);
+      if (existing) {{
+        existing.outerHTML = html;
+        return;
+      }}
+      if (prepressNoteList.querySelector('.muted')) {{
+        prepressNoteList.innerHTML = '';
+      }}
+      prepressNoteList.insertAdjacentHTML('beforeend', html);
+      var count = document.getElementById('prepressNoteCount');
+      if (count) count.textContent = String(prepressNoteList.querySelectorAll('.prepressNote').length);
+    }}
+    if (prepressForm) {{
+      prepressForm.addEventListener('submit', function(event) {{
+        event.preventDefault();
+        var status = document.getElementById('entryStatus');
+        var formData = new FormData(prepressForm);
+        var title = String(formData.get('title') || '').trim();
+        var text = String(formData.get('text') || '').trim();
+        if (!title || !text) {{
+          status.textContent = 'Bitte Titel und Information für den Hinweis eintragen.';
+          return;
+        }}
+        status.textContent = 'Vorstufen-Hinweis wird gespeichert...';
+        postHelper({prepress_note_url_json}, {{
+          title: title,
+          text: text,
+          customer: formData.get('customer') || '',
+          color: formData.get('color') || '',
+          sk: formData.get('sk') || '',
+          created_by: formData.get('created_by') || ''
+        }})
+          .then(function(payload) {{
+            status.textContent = payloadMessage(payload, 'Vorstufen-Hinweis gespeichert.');
+            upsertPrepressNote(payload.note);
+            prepressForm.reset();
+            document.body.classList.add('detailMode');
+            syncViewMode();
+          }})
+          .catch(function(error) {{
+            status.textContent = 'Vorstufen-Hinweis konnte nicht gespeichert werden: ' + friendlyFetchError(error);
+          }});
+      }});
+    }}
+    if (prepressNoteList) {{
+      prepressNoteList.addEventListener('click', function(event) {{
+        var button = event.target.closest('.completePrepressNote');
+        if (!button || !prepressNoteList.contains(button)) return;
+        var status = document.getElementById('entryStatus');
+        showDialog({{
+          title: 'Hinweis übernehmen?',
+          body: '<p>Vorstufen-Hinweis als übernommen markieren.</p><label>Übernommen von:<input id="prepressDoneBy" autocomplete="off"></label>',
+          okText: 'Als übernommen markieren'
+        }}).then(function(confirmed) {{
+          if (!confirmed) return;
+          status.textContent = 'Vorstufen-Hinweis wird aktualisiert...';
+          postHelper({prepress_note_done_url_json}, {{
+            note_id: button.getAttribute('data-note-id') || '',
+            completed_by: document.getElementById('prepressDoneBy') ? document.getElementById('prepressDoneBy').value : ''
+          }})
+            .then(function(payload) {{
+              status.textContent = payloadMessage(payload, 'Vorstufen-Hinweis übernommen.');
+              upsertPrepressNote(payload.note);
+              document.body.classList.add('detailMode');
+              syncViewMode();
+            }})
+            .catch(function(error) {{
+              status.textContent = 'Vorstufen-Hinweis konnte nicht aktualisiert werden: ' + friendlyFetchError(error);
+            }});
+        }});
+      }});
+    }}
   </script>
 </body>
 </html>
@@ -1494,12 +4700,24 @@ class ColorRequestServer:
         class Handler(BaseHTTPRequestHandler):
             def do_OPTIONS(self) -> None:
                 self.send_response(204)
-                self._send_common_headers(0)
+                self._send_common_headers(0, "text/plain; charset=utf-8")
                 self.end_headers()
 
             def do_POST(self) -> None:
                 path = self.path.split("?", 1)[0]
-                if path not in {"/farbe", "/farbe-loeschen"}:
+                if path not in {
+                    "/farbe",
+                    "/farbe-loeschen",
+                    "/farbe-ausblenden",
+                    "/farbe-umbenennen",
+                    "/sk-hinzufuegen",
+                    "/sk-gedruckt",
+                    "/sk-freigeben",
+                    "/sk-uebernommen",
+                    "/farbe-nicht-druckbar",
+                    "/vorstufen-hinweis",
+                    "/vorstufen-hinweis-erledigt",
+                }:
                     self.send_error(404)
                     return
                 try:
@@ -1507,33 +4725,130 @@ class ColorRequestServer:
                     body = self.rfile.read(min(length, 8192)).decode("utf-8", errors="replace")
                     values = parse_qs(body)
                     color_name = values.get("farbe", [""])[0]
-                    if path == "/farbe-loeschen":
-                        message = color_manager.delete_overview_color(color_name)
-                    else:
+                    sk_number = values.get("sk", [""])[0]
+                    template_updated = bool(values.get("template_updated", [""])[0].strip())
+                    portal_informed = bool(values.get("portal_informed", [""])[0].strip())
+                    completed_by = values.get("completed_by", [""])[0]
+                    note = values.get("note", [""])[0]
+                    reason = values.get("reason", [""])[0]
+                    clear_flag = bool(values.get("clear", [""])[0].strip())
+                    if path in {"/farbe-loeschen", "/farbe-ausblenden"}:
+                        if not color_name.strip():
+                            self._send_json({"ok": False, "message": "Keine Farbbezeichnung übergeben."}, status=400)
+                            return
+                        message = color_manager.hide_overview_color(color_name)
+                        self._send_json({"ok": True, "message": message})
+                        return
+                    if path == "/farbe":
+                        if not color_name.strip():
+                            self._send_json({"ok": False, "message": "Bitte eine Farbbezeichnung eintragen."}, status=400)
+                            return
+                        if len(re.sub(r"\s+", " ", color_name).strip()) > 160:
+                            self._send_json({"ok": False, "message": "Die Farbbezeichnung ist zu lang."}, status=400)
+                            return
                         message = color_manager.add_requested_color(color_name)
-                    self._send_text(message)
+                        if message.startswith("Kundenfarbe ist bereits"):
+                            self._send_json({"ok": False, "message": message}, status=409)
+                            return
+                        self._send_json({"ok": True, "message": message})
+                        return
+                    if path == "/farbe-umbenennen":
+                        result = color_manager.rename_overview_color(
+                            color_name,
+                            values.get("neuer_name", [""])[0],
+                        )
+                        self._send_json(result, status=int(result.get("status", 200)))
+                        return
+                    if path == "/farbe-nicht-druckbar":
+                        if clear_flag:
+                            result = color_manager.clear_color_not_printable(color_name, completed_by=completed_by)
+                        else:
+                            result = color_manager.set_color_not_printable(color_name, reason=reason, completed_by=completed_by)
+                        self._send_json(result, status=int(result.get("status", 200)))
+                        return
+                    if path == "/vorstufen-hinweis":
+                        result = color_manager.add_prepress_note(
+                            values.get("title", [""])[0],
+                            values.get("text", [""])[0],
+                            customer=values.get("customer", [""])[0],
+                            color_name=values.get("color", [""])[0],
+                            sk_number=values.get("sk", [""])[0],
+                            created_by=values.get("created_by", [""])[0],
+                        )
+                        self._send_json(result, status=int(result.get("status", 200)))
+                        return
+                    if path == "/vorstufen-hinweis-erledigt":
+                        result = color_manager.complete_prepress_note(
+                            values.get("note_id", [""])[0],
+                            completed_by=completed_by,
+                        )
+                        self._send_json(result, status=int(result.get("status", 200)))
+                        return
+                    if path == "/sk-hinzufuegen":
+                        result = color_manager.add_sk_assignment(color_name, sk_number)
+                    elif path == "/sk-gedruckt":
+                        result = color_manager.mark_sk_printed(color_name, sk_number)
+                    elif path == "/sk-freigeben":
+                        result = color_manager.approve_sk_assignment(color_name, sk_number)
+                    else:
+                        result = color_manager.mark_template_updated(
+                            color_name,
+                            sk_number,
+                            template_updated=template_updated,
+                            portal_informed=portal_informed,
+                            completed_by=completed_by,
+                            note=note,
+                        )
+                    self._send_json(result, status=int(result.get("status", 200)))
                 except Exception as exc:
                     logger.log(f"Kundenfarbe konnte nicht übernommen werden: {exc}", "ERROR")
-                    self._send_text(f"Fehler: {exc}", status=500)
+                    self._send_json({"ok": False, "message": f"Fehler: {exc}"}, status=500)
 
             def do_GET(self) -> None:
-                if self.path.split("?", 1)[0] == "/status":
+                path = self.path.split("?", 1)[0]
+                if color_manager.config.get("ui_preview_mode") and path in {"/", "/preview"}:
+                    preview_path = as_path(color_manager.config.get("color_overview_html", ""))
+                    try:
+                        self._send_text(preview_path.read_text(encoding="utf-8"), content_type="text/html; charset=utf-8")
+                    except Exception as exc:
+                        self._send_text(f"Preview konnte nicht geladen werden: {exc}", status=500)
+                    return
+                if path == "/status":
                     self._send_text(f"{APP_NAME} bereit")
+                    return
+                if path == "/api/colors":
+                    try:
+                        self._send_json(color_manager.export_color_records())
+                    except Exception as exc:
+                        logger.log(f"Farb-API konnte nicht gelesen werden: {exc}", "ERROR")
+                        self._send_json({"ok": False, "message": f"Fehler: {exc}"}, status=500)
                     return
                 self.send_error(404)
 
             def log_message(self, _format: str, *_args: object) -> None:
                 return
 
-            def _send_text(self, text: str, status: int = 200) -> None:
+            def _send_text(
+                self,
+                text: str,
+                status: int = 200,
+                content_type: str = "text/plain; charset=utf-8",
+            ) -> None:
                 data = text.encode("utf-8")
                 self.send_response(status)
-                self._send_common_headers(len(data))
+                self._send_common_headers(len(data), content_type)
                 self.end_headers()
                 self.wfile.write(data)
 
-            def _send_common_headers(self, length: int) -> None:
-                self.send_header("Content-Type", "text/plain; charset=utf-8")
+            def _send_json(self, payload: object, status: int = 200) -> None:
+                data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+                self.send_response(status)
+                self._send_common_headers(len(data), "application/json; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(data)
+
+            def _send_common_headers(self, length: int, content_type: str) -> None:
+                self.send_header("Content-Type", content_type)
                 self.send_header("Access-Control-Allow-Origin", "*")
                 self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS, GET")
                 self.send_header("Access-Control-Allow-Headers", "Content-Type")
@@ -1557,6 +4872,197 @@ class ColorRequestServer:
         except Exception:
             pass
         self.server = None
+
+
+class PreviewColorTableManager(ColorTableManager):
+    def refresh_color_overview(self) -> None:
+        csv_path = self._overview_csv_path()
+        html_path = as_path(self.config.get("color_overview_html", ""))
+        rows, _fields = self._read_color_overview_with_legacy(csv_path)
+        self._write_color_overview_html(html_path, self._visible_overview_rows(rows))
+        self._write_color_export(rows)
+
+
+def _preview_sk(
+    manager: ColorTableManager,
+    sk_number: str,
+    transfer_completed: bool = False,
+    completed_by: str = "",
+) -> dict[str, object]:
+    return {
+        "sk_number": sk_number,
+        "printed": False,
+        "printed_at": "",
+        "approved": False,
+        "approved_at": "",
+        "template_updated": bool(transfer_completed),
+        "template_updated_at": "2026-09-11 10:30:00" if transfer_completed else "",
+        "portal_informed": bool(transfer_completed),
+        "transfer_completed": bool(transfer_completed),
+        "transfer_completed_at": "2026-09-11 10:30:00" if transfer_completed else "",
+        "transfer_completed_by": completed_by,
+        "transfer_note": "",
+    }
+
+
+def _preview_row(
+    manager: ColorTableManager,
+    color_id: str,
+    name: str,
+    cmyk: str,
+    status: str,
+    printed: bool = False,
+    approved: bool = False,
+    sks: list[dict[str, object]] | None = None,
+    not_printable: bool = False,
+    reason: str = "",
+) -> dict[str, str]:
+    assignments = sks or []
+    printed_at = "2026-09-11 09:15:00" if printed else ""
+    approved_at = "2026-09-11 09:45:00" if approved else ""
+    done_count, total_count = manager._transfer_counts(assignments)
+    transfer = manager._aggregate_assignment_transfer(assignments, manager._empty_transfer())
+    events = manager._merge_history_events(
+        "[]",
+        printed=printed,
+        printed_at=printed_at,
+        approved=approved,
+        approved_at=approved_at,
+        transfer=transfer,
+        assignments=assignments,
+        not_printable=not_printable,
+        not_printable_at="2026-09-11 11:10:00" if not_printable else "",
+        not_printable_by="Marvin" if not_printable else "",
+        not_printable_reason=reason,
+    )
+    return {
+        "color_id": color_id,
+        "Farbbezeichnung": name,
+        "Status": status,
+        "Angelegt am": "2026-09-11 08:00:00",
+        "Gedruckt am": printed_at,
+        "Abgeglichen am": now_stamp(),
+        "CMYK": cmyk,
+        "Einzelfarbe vorhanden": "ja",
+        "In Masterdatei": "ja" if printed else "nein",
+        "Letzter Abgleich": now_stamp(),
+        "Quelle": "MPRINT",
+        "created_at": "2026-09-11 08:00:00",
+        "last_printed_at": printed_at,
+        "last_synced_at": now_stamp(),
+        "legacy_created_at": "",
+        "legacy_printed_at": "",
+        "sk_assignments": manager._dump_sk_assignments(assignments),
+        "printed": "ja" if printed else "nein",
+        "printed_at": printed_at,
+        "approved": "ja" if approved else "nein",
+        "approved_at": approved_at,
+        "transfer": manager._dump_transfer(transfer),
+        "not_printable": "ja" if not_printable else "nein",
+        "not_printable_at": "2026-09-11 11:10:00" if not_printable else "",
+        "not_printable_by": "Marvin" if not_printable else "",
+        "not_printable_reason": reason,
+        "approval_notification_json": "",
+        "approval_mail_preview": "",
+        "source": "MPRINT",
+        "machine_values": "[]",
+        "history_events": manager._dump_history_events(events),
+        "_preview_done_count": str(done_count),
+        "_preview_total_count": str(total_count),
+    }
+
+
+def _write_preview_data(config: dict, manager: ColorTableManager) -> None:
+    csv_path = manager._overview_csv_path()
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    rows = [
+        _preview_row(manager, "CLR-900001", "MUSTERMANN ROT", "C 0 / M 90 / Y 80 / K 5", "Einzelfarbe vorhanden - Farbabgleich offen", sks=[_preview_sk(manager, "SK 100001")]),
+        _preview_row(manager, "CLR-900002", "VOGT BLAU", "C 100 / M 60 / Y 10 / K 10", "MPRINT angepasst / druckbar", printed=True, sks=[_preview_sk(manager, "FOG_BAD_003")]),
+        _preview_row(manager, "CLR-900006", "ADAM ROT", "C 5 / M 90 / Y 80 / K 5", "MPRINT angepasst / druckbar", printed=True, approved=True, sks=[_preview_sk(manager, "SK 400001"), _preview_sk(manager, "SK 400002")], not_printable=True, reason="Feine und fette schwarze Schriften im selben Eindruck - keine stabile gemeinsame Maschineneinstellung möglich."),
+        _preview_row(manager, "CLR-900003", "ANDREAS GRUEN", "C 70 / M 0 / Y 90 / K 10", "MPRINT angepasst / druckbar", printed=True, approved=True, sks=[_preview_sk(manager, "SK 200010")]),
+        _preview_row(manager, "CLR-900004", "FOGT BLAU MIT LANGER BEZEICHNUNG FUER MASCHINENTEST", "C 100 / M 60 / Y 10 / K 10", "MPRINT angepasst / druckbar", printed=True, approved=True, sks=[_preview_sk(manager, "FOG_BAD_003", True, "Marvin"), _preview_sk(manager, "FOG_BAD_011"), _preview_sk(manager, "FOG_BAD_020")]),
+        _preview_row(manager, "CLR-900005", "ALLES ABGESCHLOSSEN", "C 30 / M 20 / Y 10 / K 0", "MPRINT angepasst / druckbar", printed=True, approved=True, sks=[_preview_sk(manager, "SK 300001", True, "Marvin"), _preview_sk(manager, "SK 300002", True, "Marvin")]),
+        _preview_row(manager, "CLR-900007", "ADAM SCHWARZ LANGER GRUND", "C 80 / M 70 / Y 60 / K 100", "MPRINT angepasst / druckbar", printed=True, approved=True, sks=[_preview_sk(manager, "SK-SEHR-LANGE-123456789")], not_printable=True, reason="Sehr feine Negativschrift und massive Volltonflächen liegen in einer Anwendung zusammen. Die Maschine kann für diesen Eindruck nicht gleichzeitig scharf genug und flächig stabil genug eingestellt werden, ohne sichtbare Qualitätsverluste zu erzeugen."),
+        _preview_row(manager, "CLR-900008", "SEHR HELLE FARBE", "C 0 / M 0 / Y 0 / K 0", "Noch nicht an MPRINT gedruckt"),
+        _preview_row(manager, "CLR-900009", "TIEFSCHWARZ TEST", "C 80 / M 70 / Y 60 / K 100", "MPRINT angepasst / druckbar", printed=True, approved=True),
+        _preview_row(manager, "CLR-900010", "OHNE CMYK WERT", "", "Noch nicht an MPRINT gedruckt"),
+    ]
+    fieldnames = [field for field in rows[0] if not field.startswith("_preview_")]
+    with csv_path.open("w", encoding="utf-8-sig", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames, delimiter=";")
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({field: row.get(field, "") for field in fieldnames})
+    manager._write_prepress_notes(
+        [
+            {
+                "id": "NOTE-900001",
+                "title": "Weinbiet Feldgrau",
+                "text": "44 % Schwarz",
+                "customer": "Weinbiet",
+                "color": "Feldgrau",
+                "sk_number": "SK 123456",
+                "created_at": "2026-09-11 08:30:00",
+                "created_by": "Marvin",
+                "status": "offen",
+                "completed_at": "",
+                "completed_by": "",
+                "history": [],
+            }
+        ]
+    )
+
+
+def _free_preview_port(start_port: int) -> int:
+    for port in range(start_port, start_port + 40):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            try:
+                probe.bind(("127.0.0.1", port))
+            except OSError:
+                continue
+            return port
+    return start_port
+
+
+def run_color_overview_preview(port: int = 8766) -> None:
+    preview_root = Path(tempfile.mkdtemp(prefix="mjet-helper-preview-"))
+    preview_port = _free_preview_port(port)
+    config = dict(DEFAULT_CONFIG)
+    config.update(
+        {
+            "ui_preview_mode": True,
+            "color_request_server_host": "127.0.0.1",
+            "color_request_server_port": preview_port,
+            "color_request_submit_url": f"http://127.0.0.1:{preview_port}/farbe",
+            "color_overview_csv": str(preview_root / "work" / "preview_colors.csv"),
+            "legacy_color_overview_csv": "",
+            "color_overview_html": str(preview_root / "preview.html"),
+            "color_export_json": str(preview_root / "export" / "preview_colors.json"),
+            "hidden_colors_json": str(preview_root / "config" / "hidden_colors.json"),
+            "prepress_notes_json": str(preview_root / "work" / "prepress_notes.json"),
+            "backup_dir": str(preview_root / "backup"),
+            "single_color_dir": str(preview_root / "unused_single_colors"),
+            "color_root": str(preview_root / "unused_color_root"),
+            "master_cct": str(preview_root / "unused_color_root" / "mprint4c-master.cct"),
+        }
+    )
+    logger = HelperLogger(config)
+    manager = PreviewColorTableManager(config, logger)
+    _write_preview_data(config, manager)
+    manager.refresh_color_overview()
+    server = ColorRequestServer(config, logger, manager)
+    server.start()
+    url = f"http://127.0.0.1:{preview_port}/preview"
+    print("UI PREVIEW - keine Produktionsdaten", flush=True)
+    print(f"Preview-URL: {url}", flush=True)
+    print(f"Temporärer Preview-Ordner: {preview_root}", flush=True)
+    print("Beenden mit Ctrl+C", flush=True)
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        server.stop()
+        shutil.rmtree(preview_root, ignore_errors=True)
 
 
 class PdfReductionError(RuntimeError):
@@ -2611,6 +6117,13 @@ class SetupDialog(tk.Toplevel):
         for key, value in detected.items():
             if value:
                 self.vars[key].set(str(value))
+        if "nas_root" not in detected:
+            messagebox.showinfo(
+                f"{APP_NAME} Setup",
+                "Der Maschinenfarben-Ordner wurde nicht gefunden. "
+                "Bitte prüfen, ob das Netzlaufwerk verbunden ist, und den Ordner auswählen.",
+                parent=self,
+            )
 
     def save(self) -> None:
         for key, var in self.vars.items():
@@ -2655,21 +6168,24 @@ class SetupDialog(tk.Toplevel):
 
 def detect_setup_paths(config: dict) -> dict[str, str]:
     detected: dict[str, str] = {}
+    drive_roots = [Path(f"{letter}:\\") for letter in ("Z", "Y", "X")]
     root_candidates = [
-        Path(r"Z:\_MPRINT_4c"),
-        Path(r"Y:\_MPRINT_4c"),
-        Path(r"X:\_MPRINT_4c"),
+        *([Path(str(config["nas_root"]))] if str(config.get("nas_root", "")).strip() else []),
+        *drive_roots,
+        Path("/Volumes/NAS_Public"),
+        *(root / "_MPRINT_4c" for root in drive_roots),
         Path("/Volumes/NAS_Public/_MPRINT_4c"),
     ]
-    for root in root_candidates:
-        if root.exists():
-            detected["nas_root"] = str(root)
-            detected["color_root"] = str(root / "Maschinenfarben")
-            detected["single_color_dir"] = str(root / "Maschinenfarben" / "Einzelfarben")
-            detected["backup_dir"] = str(root / "Maschinenfarben" / "Backup")
-            detected["master_cct"] = str(root / "Maschinenfarben" / "mprint4c-master.cct")
-            detected["color_overview_html"] = str(root / "MPRINT_Farbuebersicht.html")
-            break
+    root = next((candidate for candidate in root_candidates if (candidate / "Maschinenfarben").is_dir()), None)
+    if root is not None:
+        detected["nas_root"] = str(root)
+        detected["color_root"] = str(root / "Maschinenfarben")
+        detected["single_color_dir"] = str(root / "Maschinenfarben" / "Einzelfarben")
+        detected["backup_dir"] = str(root / "Maschinenfarben" / "Backup")
+        detected["master_cct"] = str(root / "Maschinenfarben" / "mprint4c-master.cct")
+        detected["expected_master_path"] = str(root / "Maschinenfarben" / "mprint4c-master.cct")
+        detected["legacy_color_overview_csv"] = str(root / "MPRINT_Farbuebersicht.csv")
+        detected["color_overview_html"] = str(root / "MPRINT_Farbuebersicht.html")
 
     colorgate_candidates = [
         Path(r"C:\ProgramData\ColorGATE Software\Productionserver25"),
@@ -2711,20 +6227,7 @@ def is_newer_version(candidate: str, current: str) -> bool:
 
 
 def load_update_info(update_source: str) -> dict:
-    source = update_source.strip()
-    if not source:
-        raise ValueError("Keine Prüfung auf neue Version eingerichtet.")
-    if re.match(r"^https?://", source, re.IGNORECASE):
-        with urlopen(source, timeout=6) as response:
-            raw = response.read(512_000).decode("utf-8")
-    else:
-        raw = Path(source).read_text(encoding="utf-8")
-    data = json.loads(raw)
-    if not isinstance(data, dict):
-        raise ValueError("Versionsinformation konnte nicht gelesen werden.")
-    if not str(data.get("version", "")).strip():
-        raise ValueError("Versionsinformation enthält keine Versionsnummer.")
-    return data
+    return load_release_update_info(update_source)
 
 
 class MainApp:
@@ -2742,7 +6245,10 @@ class MainApp:
         self.pdf_reduce_running = False
         self.pdf_reduce_cancel_event = threading.Event()
         self.last_sync_result: SyncResult | None = None
+        self._preflight_issue_files: set[str] = set()
+        self.update_install_running = False
         self.last_auto_clean_at = 0.0
+        self.color_mixer_window: ColorMixerWindow | None = None
 
         self.logger.add_callback(self._on_log_line)
         self._configure_root()
@@ -2801,6 +6307,7 @@ class MainApp:
         )
         status_box.pack(fill="x", pady=(0, 10))
         self.status_match = StatusRow(status_box, "Farbabgleich", emphasis=True)
+        self.status_color_overview = StatusRow(status_box, "Farbstatus", emphasis=True)
         self.status_output = StatusRow(status_box, "OUTPUT", emphasis=True)
         secondary_status = tk.Frame(status_box, bg=THEME["panel"])
         secondary_status.pack(fill="x", pady=(3, 0))
@@ -2819,17 +6326,19 @@ class MainApp:
         )
         self.main_status_label.pack(fill="x", pady=(0, 10))
 
-        self._button(self.normal_frame, "Farbabgleich starten", self.start_color_sync)
-        self._button(self.normal_frame, "Druckdaten-Ordner leeren", self.clean_output_manual)
+        self._button(self.normal_frame, "🎨 Farbabgleich starten", self.start_color_sync)
+        self._button(self.normal_frame, "📋 Farbübersicht", self.open_color_overview)
+        self._button(self.normal_frame, "🎚 Farbmischer", self.open_color_mixer)
+        self._button(self.normal_frame, "🧹 Druckdaten-Ordner leeren", self.clean_output_manual)
         self._build_pdf_controls(self.normal_frame)
         self.cancel_output_button = self._button(
             self.normal_frame,
-            "Aufräumen stoppen",
+            "⏹ Aufräumen stoppen",
             self.cancel_output_cleaning,
             style="secondary",
             pack_now=False,
         )
-        self.rechner_button = self._button(self.normal_frame, "Rechner", self.toggle_calculator)
+        self.rechner_button = self._button(self.normal_frame, "🧮 Rechner", self.toggle_calculator)
 
         self.calc_frame = self._build_calculator(self.normal_frame)
         self.calc_frame.pack_forget()
@@ -2838,7 +6347,7 @@ class MainApp:
         spacer.pack(fill="x")
         self._button(
             self.normal_frame,
-            "Feierabend / Herunterfahren",
+            "⏻ Feierabend / Herunterfahren",
             self.shutdown_flow,
             style="danger",
         )
@@ -3184,6 +6693,7 @@ class MainApp:
             )
         else:
             self.status_match.set("gray", "nicht geprüft")
+        self._update_color_overview_status()
 
         output_color, output_text = self.cleaner.output_status()
         job_color, job_text = self.cleaner.jobdir_status()
@@ -3191,6 +6701,26 @@ class MainApp:
         if hasattr(self, "expert_jobdir_label"):
             self.expert_jobdir_label.configure(text=f"JobDir: {job_text}")
         self._maybe_auto_clean_output()
+
+    def _update_color_overview_status(self) -> None:
+        if not hasattr(self, "status_color_overview"):
+            return
+        if self.last_sync_result and self._result_has_color_overview_error(self.last_sync_result):
+            self.status_color_overview.set("red", "Fehler")
+            return
+        if self.last_sync_result and self.last_sync_result.severity in {"green", "yellow"}:
+            self.status_color_overview.set("green", "aktuell")
+            return
+        overview_csv = as_path(self.config.get("color_overview_csv", ""))
+        overview_html = as_path(self.config.get("color_overview_html", ""))
+        if overview_csv.exists() and overview_html.exists():
+            self.status_color_overview.set("yellow", "prüfen")
+        else:
+            self.status_color_overview.set("red", "Fehler")
+
+    def _result_has_color_overview_error(self, result: SyncResult) -> bool:
+        messages = result.errors + result.warnings
+        return any("Farbübersicht konnte nicht geschrieben werden" in message for message in messages)
 
     def _maybe_auto_clean_output(self) -> None:
         if not self.config.get("auto_clean_output_printdata", True):
@@ -3238,8 +6768,106 @@ class MainApp:
         return f"{value:.4f}".rstrip("0").rstrip(".")
 
     def start_color_sync(self) -> None:
+        try:
+            issues = self.color_manager.inspect_single_color_issues()
+        except Exception as exc:
+            messagebox.showerror(APP_NAME, f"Farbdateien konnten nicht geprüft werden:\n{exc}")
+            return
+        self._preflight_issue_files = {issue.path.name for issue in issues}
+        for issue in issues:
+            choice = self._show_single_color_issue(issue)
+            if choice == "abort":
+                self._preflight_issue_files = set()
+                self.main_status_label.configure(text="Farbabgleich abgebrochen; keine Änderung am Master")
+                return
         self.main_status_label.configure(text="Farbabgleich läuft...")
         self._run_background(self._sync_worker, write_master=True)
+
+    def _show_single_color_issue(self, issue: SingleColorIssue) -> str:
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Farbdatei prüfen")
+        dialog.configure(bg=THEME["window"])
+        dialog.transient(self.root)
+        dialog.resizable(True, False)
+        dialog.geometry("650x410")
+        result = {"choice": "abort"}
+
+        if issue.kind == "foreign":
+            names = ", ".join(line.split("\n", 1)[0] for line in issue.entries)
+            notice = (
+                f"ACHTUNG: Die gespeicherte Farbdatei enthält eine andere Farbe: {names}. "
+                "Vielleicht wurde die falsche Datei abgelegt. Diese Farbe wird nicht übernommen. "
+                "Bitte die Datei im Ordner prüfen und korrigieren."
+            )
+        elif issue.kind == "missing_replacement":
+            notice = (
+                "Ersatzfarbe ist eingeschaltet, aber die CCT enthält keine Ersatz-Farbwerte. "
+                "Sie können die Farbe ausdrücklich ohne Ersatz akzeptieren."
+            )
+        elif issue.kind == "mismatch":
+            notice = (
+                "Dateiname und enthaltener Farbname unterscheiden sich. Prüfen Sie, welcher Name "
+                "wirklich zur Kundenfarbe und zur PDF-Sonderfarbe gehört."
+            )
+        elif issue.kind == "duplicate":
+            notice = "Die CCT enthält mehrere passende Farbeinträge. Bitte die Datei manuell prüfen."
+        elif issue.kind == "empty":
+            notice = "Die CCT enthält überhaupt keinen ColorEntry-Farbeintrag. Sie wird nicht übernommen."
+        else:
+            notice = "Die CCT ist nicht lesbar. Sie wird nicht übernommen."
+
+        tk.Label(dialog, text=notice, bg=THEME["window"], fg=THEME["red"] if issue.kind in {"foreign", "empty", "invalid_xml"} else THEME["text"],
+                 justify="left", anchor="w", wraplength=600, font=("Segoe UI", 10, "bold")).pack(fill="x", padx=16, pady=(16, 10))
+        tk.Label(dialog, text=f"Datei: {issue.path.name}\nErwartete Farbe laut Dateiname: {issue.file_color}",
+                 bg=THEME["window"], fg=THEME["text"], justify="left", anchor="w", wraplength=600).pack(fill="x", padx=16, pady=(0, 8))
+        tk.Label(dialog, text="Tatsächlicher Inhalt der CCT:", bg=THEME["window"], fg=THEME["text"], anchor="w").pack(fill="x", padx=16)
+        contents = tk.Text(dialog, height=5, wrap="word", bg=THEME["entry"], fg=THEME["text"], relief="solid", borderwidth=1)
+        contents.pack(fill="both", expand=True, padx=16, pady=(4, 10))
+        contents.insert("1.0", "\n\n".join(issue.entries) if issue.entries else "Kein Farbeintrag vorhanden")
+        contents.configure(state="disabled")
+
+        buttons = tk.Frame(dialog, bg=THEME["window"])
+        buttons.pack(fill="x", padx=16, pady=(0, 4))
+        navigation = tk.Frame(dialog, bg=THEME["window"])
+        navigation.pack(fill="x", padx=16, pady=(0, 16))
+
+        def finish(choice: str) -> None:
+            result["choice"] = choice
+            dialog.destroy()
+
+        def correct(action: str) -> None:
+            if action == "rename_file":
+                new_name = issue.entries[0].split("\n", 1)[0]
+                question = f"{issue.path.name} wirklich in {new_name}{issue.path.suffix} umbenennen?\n\nVorher wird ein Backup erstellt."
+            elif action == "rename_entry":
+                question = (
+                    f"Enthaltenen Farbnamen wirklich in '{issue.file_color}' ändern?\n\n"
+                    "Das kann die Zuordnung zur PDF-Sonderfarbe verändern. Nur bei einem sicheren Tippfehler bestätigen. "
+                    "Vorher wird ein Backup erstellt."
+                )
+            else:
+                question = "Ersatzfunktion dieser Datei wirklich ausschalten?\n\nEs sind keine Ersatz-Farbwerte vorhanden. Vorher wird ein Backup erstellt."
+            if not messagebox.askyesno("Farbdatei korrigieren", question, parent=dialog):
+                return
+            try:
+                self.color_manager.resolve_single_color_issue(issue, action)
+            except Exception as exc:
+                messagebox.showerror(APP_NAME, f"Korrektur nicht möglich:\n{exc}", parent=dialog)
+                return
+            finish("fixed")
+
+        if issue.can_rename:
+            tk.Button(buttons, text="CCT-Datei umbenennen", command=lambda: correct("rename_file")).pack(side="left", padx=(0, 6))
+            tk.Button(buttons, text="Farbe in CCT umbenennen", command=lambda: correct("rename_entry")).pack(side="left", padx=(0, 6))
+        if issue.can_accept_without_replacement:
+            tk.Button(buttons, text="Ohne Ersatz akzeptieren", command=lambda: correct("without_replacement")).pack(side="left", padx=(0, 6))
+        tk.Button(navigation, text="Ordner öffnen", command=lambda: (self.open_path(issue.path.parent), finish("skip"))).pack(side="left")
+        tk.Button(navigation, text="Überspringen", command=lambda: finish("skip")).pack(side="right", padx=(6, 0))
+        tk.Button(navigation, text="Abbrechen", command=lambda: finish("abort")).pack(side="right")
+        dialog.protocol("WM_DELETE_WINDOW", lambda: finish("abort"))
+        dialog.grab_set()
+        self.root.wait_window(dialog)
+        return result["choice"]
 
     def startup_color_check(self) -> None:
         if self.setup_required():
@@ -3268,16 +6896,27 @@ class MainApp:
         self.last_sync_result = result
         self.main_status_label.configure(text=self._sync_detail_text(result))
         self.status_match.set(result.severity, self._sync_short_text(result))
+        self._update_color_overview_status()
         self._update_expert_details(result)
+        explained = self._preflight_issue_files
+        self._preflight_issue_files = set()
+        remaining_warnings = [warning for warning in result.warnings if not any(warning.startswith(name + ":") or warning.startswith(name + " enthält") for name in explained)]
         if result.severity == "red":
             messagebox.showerror(APP_NAME, result.message + self._detail_suffix(result))
         elif result.severity == "yellow":
-            messagebox.showwarning(APP_NAME, result.message + self._detail_suffix(result))
+            if remaining_warnings or result.errors or not explained:
+                shown = copy.copy(result)
+                shown.warnings = remaining_warnings
+                messagebox.showwarning(APP_NAME, result.message + self._detail_suffix(shown))
         else:
             messagebox.showinfo(APP_NAME, result.message)
 
     def _detail_suffix(self, result: SyncResult) -> str:
         details = result.errors or result.warnings
+        if not details:
+            return ""
+        if details and details[0] == result.message:
+            details = details[1:]
         if not details:
             return ""
         return "\n\n" + "\n".join(details[:8])
@@ -3692,6 +7331,13 @@ class MainApp:
         return result["value"]
 
     def shutdown_flow(self) -> None:
+        if not messagebox.askyesno(
+            APP_NAME,
+            "Wollen Sie den Rechner wirklich herunterfahren?",
+            default=messagebox.NO,
+        ):
+            self.main_status_label.configure(text="Herunterfahren abgebrochen.")
+            return
         self.main_status_label.configure(text="Feierabend läuft. Sie müssen nichts mehr tun.")
         self._run_background(self._shutdown_prepare_worker)
 
@@ -3728,6 +7374,7 @@ class MainApp:
         self.last_sync_result = result
         self.status_match.set(result.severity, self._sync_short_text(result))
         self.main_status_label.configure(text=self._sync_detail_text(result))
+        self._update_color_overview_status()
         self._update_expert_details(result)
 
     def _sync_short_text(self, result: SyncResult) -> str:
@@ -3815,18 +7462,23 @@ class MainApp:
             messagebox.showerror(APP_NAME, f"Shutdown fehlgeschlagen:\n{exc}")
 
     def toggle_expert(self, _event: object | None = None) -> None:
+        current_x = self.root.winfo_x()
+        current_y = self.root.winfo_y()
+        current_width = self.root.winfo_width()
+        right_edge = current_x + current_width
         self.expert_visible = not self.expert_visible
         if self.expert_visible:
             self.expert_frame.pack(fill="both", expand=True)
             self.root.minsize(520, 620)
             current_height = max(self.root.winfo_height(), 720)
-            self.root.geometry(f"520x{current_height}")
+            target_width = 520
         else:
             self.expert_frame.pack_forget()
-            width = int(self.config.get("window_width", 260))
+            target_width = int(self.config.get("window_width", 260))
             self.root.minsize(240, 520)
             current_height = max(self.root.winfo_height(), 620)
-            self.root.geometry(f"{width}x{current_height}")
+        target_x = max(0, right_edge - target_width)
+        self.root.geometry(f"{target_width}x{current_height}+{target_x}+{max(0, current_y)}")
 
     def show_about(self) -> None:
         messagebox.showinfo(
@@ -3881,17 +7533,68 @@ class MainApp:
                 f"Neue Version verfügbar: {latest_version}",
                 f"Aktuelle Version: {APP_VERSION}",
             ]
-            if download_url:
-                message_lines.extend(["", f"Quelle: {download_url}"])
             if notes:
-                message_lines.extend(["", notes])
+                message_lines.extend(["", notes[:500]])
             self.main_status_label.configure(text=f"Update verfügbar: {latest_version}")
-            messagebox.showinfo(APP_NAME, "\n".join(message_lines))
+            if os.name == "nt" and getattr(sys, "frozen", False) and is_installable_release(info):
+                if self.update_install_running:
+                    return
+                message_lines.extend(["", "Update herunterladen? Die Installation startet erst nach einer weiteren Bestätigung."])
+                if messagebox.askyesno(APP_NAME, "\n".join(message_lines), parent=self.root):
+                    self.update_install_running = True
+                    self.main_status_label.configure(text=f"Update {latest_version} wird geladen...")
+                    self._run_background(self._download_update_worker, info=dict(info))
+            else:
+                if download_url:
+                    message_lines.extend(["", f"Download: {download_url}"])
+                message_lines.extend(["", "Die Installation per Klick ist nur in der Windows-EXE aus einem geprüften GitHub-Release verfügbar."])
+                messagebox.showinfo(APP_NAME, "\n".join(message_lines), parent=self.root)
             return
 
         self.main_status_label.configure(text=f"{APP_NAME} ist aktuell")
         if show_if_current:
             messagebox.showinfo(APP_NAME, f"{APP_NAME} ist aktuell.\n\nInstalliert: {APP_VERSION}")
+
+    def _download_update_worker(self, info: dict) -> None:
+        try:
+            installer = download_verified_installer(info)
+            self.root.after(0, lambda: self._offer_verified_update(installer, str(info["version"])))
+        except Exception as exc:
+            self.logger.log(f"Update-Download fehlgeschlagen: {exc}", "WARNING")
+            self.root.after(0, lambda error=str(exc): self._update_download_failed(error))
+
+    def _update_download_failed(self, error: str) -> None:
+        self.update_install_running = False
+        self.main_status_label.configure(text="Update konnte nicht geladen werden")
+        messagebox.showerror(APP_NAME, f"Das Update wurde nicht gestartet:\n{error}", parent=self.root)
+
+    def _offer_verified_update(self, installer: Path, version: str) -> None:
+        self.main_status_label.configure(text=f"Update {version} bereit")
+        confirmed = messagebox.askyesno(
+            APP_NAME,
+            f"Version {version} ist heruntergeladen und geprüft.\n\n"
+            "Jetzt installieren? Der Helper wird dafür beendet. "
+            "Bitte nur fortfahren, wenn gerade kein Druckauftrag läuft.",
+            parent=self.root,
+        )
+        if not confirmed:
+            self.update_install_running = False
+            shutil.rmtree(installer.parent, ignore_errors=True)
+            self.main_status_label.configure(text="Update auf später verschoben")
+            return
+        try:
+            subprocess.Popen(
+                [str(installer), "/SILENT", "/NORESTART", "/SP-"],
+                cwd=str(installer.parent),
+                close_fds=True,
+            )
+        except Exception as exc:
+            self.update_install_running = False
+            shutil.rmtree(installer.parent, ignore_errors=True)
+            messagebox.showerror(APP_NAME, f"Installer konnte nicht gestartet werden:\n{exc}", parent=self.root)
+            return
+        self.logger.log(f"Update-Installer für Version {version} gestartet")
+        self._on_close()
 
     def maybe_open_initial_setup(self) -> None:
         if os.name != "nt" and not default_config_created():
@@ -3939,6 +7642,40 @@ class MainApp:
             self.paths_text.insert("end", self._path_summary())
             self.paths_text.configure(state="disabled")
         self.last_sync_result = None
+
+    def open_color_overview(self) -> None:
+        configured = str(self.config.get("color_overview_html", "")).strip()
+        if not configured:
+            messagebox.showinfo(APP_NAME, "Die Farbübersicht wurde noch nicht erstellt.")
+            return
+        path = Path(configured)
+        try:
+            if not path.exists():
+                parent = path.parent
+                if str(parent) and not parent.exists():
+                    messagebox.showwarning(APP_NAME, "Die Farbübersicht ist derzeit nicht erreichbar.")
+                else:
+                    messagebox.showinfo(APP_NAME, "Die Farbübersicht wurde noch nicht erstellt.")
+                return
+            if path.is_absolute():
+                webbrowser.open(path.resolve().as_uri())
+            else:
+                webbrowser.open(str(path.resolve()))
+            self.main_status_label.configure(text="Farbübersicht geöffnet")
+        except Exception as exc:
+            self.logger.log(f"Farbübersicht konnte nicht geöffnet werden: {exc}", "ERROR")
+            messagebox.showwarning(APP_NAME, "Die Farbübersicht ist derzeit nicht erreichbar.")
+
+    def open_color_mixer(self) -> None:
+        try:
+            if self.color_mixer_window and self.color_mixer_window.exists():
+                self.color_mixer_window.show()
+                return
+            self.color_mixer_window = ColorMixerWindow(self.root, self.config)
+            self.main_status_label.configure(text="Farbmischer geöffnet")
+        except Exception as exc:
+            self.logger.log(f"Farbmischer konnte nicht geöffnet werden: {exc}", "ERROR")
+            messagebox.showerror(APP_NAME, f"Farbmischer konnte nicht geöffnet werden:\n{exc}")
 
     def open_path(self, value: str | os.PathLike[str]) -> None:
         path = Path(value)
@@ -3989,6 +7726,14 @@ class MainApp:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(add_help=True)
+    parser.add_argument("--preview", action="store_true", help="lokalen UI-Preview mit Demo-Daten starten")
+    parser.add_argument("--preview-port", type=int, default=8766, help="Start-Port für den lokalen UI-Preview")
+    args = parser.parse_args()
+    if args.preview:
+        run_color_overview_preview(args.preview_port)
+        return
+
     try:
         config = load_config()
     except Exception as exc:

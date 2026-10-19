@@ -1,0 +1,10971 @@
+{
+  "version": 1,
+  "generated_by": "scripts/build_reference_colors.py",
+  "sources": {
+    "PANTONE": "https://www.werbemittel24.com/info/seite/10133/pantone.html",
+    "HKS": "https://www.druckcenter.de/service/hks_farbtabelle"
+  },
+  "note": "Referenzwerte nur als Ausgangspunkt im Farbmischer. Keine MPRINT-Produktionsfreigabe und keine farbverbindliche Simulation.",
+  "colors": [
+    {
+      "system": "HKS",
+      "name": "HKS 1 K",
+      "number": "1",
+      "variant": "K",
+      "c": 5,
+      "m": 0,
+      "y": 100,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 1 N",
+      "number": "1",
+      "variant": "N",
+      "c": 2,
+      "m": 0,
+      "y": 100,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 10 K",
+      "number": "10",
+      "variant": "K",
+      "c": 0,
+      "m": 85,
+      "y": 100,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 10 N",
+      "number": "10",
+      "variant": "N",
+      "c": 0,
+      "m": 70,
+      "y": 90,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 11 K",
+      "number": "11",
+      "variant": "K",
+      "c": 0,
+      "m": 45,
+      "y": 45,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 11 N",
+      "number": "11",
+      "variant": "N",
+      "c": 0,
+      "m": 30,
+      "y": 35,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 12 K",
+      "number": "12",
+      "variant": "K",
+      "c": 0,
+      "m": 90,
+      "y": 100,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 12 N",
+      "number": "12",
+      "variant": "N",
+      "c": 0,
+      "m": 60,
+      "y": 70,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 13 K",
+      "number": "13",
+      "variant": "K",
+      "c": 0,
+      "m": 100,
+      "y": 95,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 13 N",
+      "number": "13",
+      "variant": "N",
+      "c": 0,
+      "m": 90,
+      "y": 80,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 14 K",
+      "number": "14",
+      "variant": "K",
+      "c": 0,
+      "m": 100,
+      "y": 100,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 14 N",
+      "number": "14",
+      "variant": "N",
+      "c": 0,
+      "m": 75,
+      "y": 70,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 15 K",
+      "number": "15",
+      "variant": "K",
+      "c": 5,
+      "m": 100,
+      "y": 80,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 15 N",
+      "number": "15",
+      "variant": "N",
+      "c": 5,
+      "m": 85,
+      "y": 70,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 16 K",
+      "number": "16",
+      "variant": "K",
+      "c": 30,
+      "m": 100,
+      "y": 90,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 16 N",
+      "number": "16",
+      "variant": "N",
+      "c": 10,
+      "m": 100,
+      "y": 80,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 17 K",
+      "number": "17",
+      "variant": "K",
+      "c": 30,
+      "m": 100,
+      "y": 70,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 17 N",
+      "number": "17",
+      "variant": "N",
+      "c": 10,
+      "m": 100,
+      "y": 60,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 18 K",
+      "number": "18",
+      "variant": "K",
+      "c": 55,
+      "m": 100,
+      "y": 80,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 18 N",
+      "number": "18",
+      "variant": "N",
+      "c": 35,
+      "m": 100,
+      "y": 60,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 2 K",
+      "number": "2",
+      "variant": "K",
+      "c": 5,
+      "m": 0,
+      "y": 100,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 2 N",
+      "number": "2",
+      "variant": "N",
+      "c": 2,
+      "m": 0,
+      "y": 100,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 21 K",
+      "number": "21",
+      "variant": "K",
+      "c": 0,
+      "m": 55,
+      "y": 25,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 21 N",
+      "number": "21",
+      "variant": "N",
+      "c": 0,
+      "m": 60,
+      "y": 15,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 22 K",
+      "number": "22",
+      "variant": "K",
+      "c": 0,
+      "m": 90,
+      "y": 85,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 22 N",
+      "number": "22",
+      "variant": "N",
+      "c": 0,
+      "m": 100,
+      "y": 80,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 23 K",
+      "number": "23",
+      "variant": "K",
+      "c": 0,
+      "m": 100,
+      "y": 70,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 23 N",
+      "number": "23",
+      "variant": "N",
+      "c": 0,
+      "m": 100,
+      "y": 70,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 24 K",
+      "number": "24",
+      "variant": "K",
+      "c": 0,
+      "m": 100,
+      "y": 50,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 24 N",
+      "number": "24",
+      "variant": "N",
+      "c": 0,
+      "m": 100,
+      "y": 30,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 25 K",
+      "number": "25",
+      "variant": "K",
+      "c": 0,
+      "m": 100,
+      "y": 25,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 25 N",
+      "number": "25",
+      "variant": "N",
+      "c": 0,
+      "m": 100,
+      "y": 25,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 26 K",
+      "number": "26",
+      "variant": "K",
+      "c": 20,
+      "m": 100,
+      "y": 20,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 26 N",
+      "number": "26",
+      "variant": "N",
+      "c": 5,
+      "m": 100,
+      "y": 0,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 27 K",
+      "number": "27",
+      "variant": "K",
+      "c": 5,
+      "m": 100,
+      "y": 0,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 27 N",
+      "number": "27",
+      "variant": "N",
+      "c": 3,
+      "m": 100,
+      "y": 0,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 28 K",
+      "number": "28",
+      "variant": "K",
+      "c": 20,
+      "m": 100,
+      "y": 40,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 28 N",
+      "number": "28",
+      "variant": "N",
+      "c": 10,
+      "m": 100,
+      "y": 15,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 29 K",
+      "number": "29",
+      "variant": "K",
+      "c": 45,
+      "m": 100,
+      "y": 0,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 29 N",
+      "number": "29",
+      "variant": "N",
+      "c": 35,
+      "m": 100,
+      "y": 0,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 3 K",
+      "number": "3",
+      "variant": "K",
+      "c": 0,
+      "m": 0,
+      "y": 100,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 3 N",
+      "number": "3",
+      "variant": "N",
+      "c": 0,
+      "m": 0,
+      "y": 100,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 31 K",
+      "number": "31",
+      "variant": "K",
+      "c": 20,
+      "m": 100,
+      "y": 0,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 31 N",
+      "number": "31",
+      "variant": "N",
+      "c": 20,
+      "m": 100,
+      "y": 0,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 32 K",
+      "number": "32",
+      "variant": "K",
+      "c": 10,
+      "m": 100,
+      "y": 0,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 32 N",
+      "number": "32",
+      "variant": "N",
+      "c": 5,
+      "m": 100,
+      "y": 0,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 33 K",
+      "number": "33",
+      "variant": "K",
+      "c": 60,
+      "m": 100,
+      "y": 0,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 33 N",
+      "number": "33",
+      "variant": "N",
+      "c": 40,
+      "m": 100,
+      "y": 0,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 34 K",
+      "number": "34",
+      "variant": "K",
+      "c": 70,
+      "m": 100,
+      "y": 0,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 34 N",
+      "number": "34",
+      "variant": "N",
+      "c": 60,
+      "m": 90,
+      "y": 0,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 35 K",
+      "number": "35",
+      "variant": "K",
+      "c": 90,
+      "m": 90,
+      "y": 0,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 35 N",
+      "number": "35",
+      "variant": "N",
+      "c": 80,
+      "m": 80,
+      "y": 0,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 36 K",
+      "number": "36",
+      "variant": "K",
+      "c": 80,
+      "m": 90,
+      "y": 0,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 36 N",
+      "number": "36",
+      "variant": "N",
+      "c": 60,
+      "m": 80,
+      "y": 0,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 37 K",
+      "number": "37",
+      "variant": "K",
+      "c": 80,
+      "m": 100,
+      "y": 0,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 37 N",
+      "number": "37",
+      "variant": "N",
+      "c": 70,
+      "m": 90,
+      "y": 0,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 38 K",
+      "number": "38",
+      "variant": "K",
+      "c": 100,
+      "m": 60,
+      "y": 10,
+      "k": 60
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 38 N",
+      "number": "38",
+      "variant": "N",
+      "c": 90,
+      "m": 50,
+      "y": 15,
+      "k": 30
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 39 K",
+      "number": "39",
+      "variant": "K",
+      "c": 90,
+      "m": 50,
+      "y": 0,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 39 N",
+      "number": "39",
+      "variant": "N",
+      "c": 100,
+      "m": 40,
+      "y": 0,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 4 K",
+      "number": "4",
+      "variant": "K",
+      "c": 0,
+      "m": 20,
+      "y": 100,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 4 N",
+      "number": "4",
+      "variant": "N",
+      "c": 0,
+      "m": 10,
+      "y": 100,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 40 K",
+      "number": "40",
+      "variant": "K",
+      "c": 100,
+      "m": 30,
+      "y": 15,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 40 N",
+      "number": "40",
+      "variant": "N",
+      "c": 80,
+      "m": 7,
+      "y": 3,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 41 K",
+      "number": "41",
+      "variant": "K",
+      "c": 100,
+      "m": 70,
+      "y": 10,
+      "k": 50
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 41 N",
+      "number": "41",
+      "variant": "N",
+      "c": 90,
+      "m": 60,
+      "y": 10,
+      "k": 30
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 42 K",
+      "number": "42",
+      "variant": "K",
+      "c": 100,
+      "m": 85,
+      "y": 0,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 42 N",
+      "number": "42",
+      "variant": "N",
+      "c": 90,
+      "m": 55,
+      "y": 0,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 43 K",
+      "number": "43",
+      "variant": "K",
+      "c": 100,
+      "m": 70,
+      "y": 0,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 43 N",
+      "number": "43",
+      "variant": "N",
+      "c": 100,
+      "m": 50,
+      "y": 0,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 44 K",
+      "number": "44",
+      "variant": "K",
+      "c": 100,
+      "m": 50,
+      "y": 0,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 44 N",
+      "number": "44",
+      "variant": "N",
+      "c": 100,
+      "m": 30,
+      "y": 0,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 45 K",
+      "number": "45",
+      "variant": "K",
+      "c": 80,
+      "m": 70,
+      "y": 0,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 45 N",
+      "number": "45",
+      "variant": "N",
+      "c": 90,
+      "m": 70,
+      "y": 0,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 46 K",
+      "number": "46",
+      "variant": "K",
+      "c": 85,
+      "m": 30,
+      "y": 5,
+      "k": 5
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 46 N",
+      "number": "46",
+      "variant": "N",
+      "c": 90,
+      "m": 20,
+      "y": 5,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 47 K",
+      "number": "47",
+      "variant": "K",
+      "c": 100,
+      "m": 0,
+      "y": 0,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 47 N",
+      "number": "47",
+      "variant": "N",
+      "c": 100,
+      "m": 3,
+      "y": 0,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 48 K",
+      "number": "48",
+      "variant": "K",
+      "c": 100,
+      "m": 0,
+      "y": 10,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 48 N",
+      "number": "48",
+      "variant": "N",
+      "c": 100,
+      "m": 0,
+      "y": 5,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 49 K",
+      "number": "49",
+      "variant": "K",
+      "c": 100,
+      "m": 20,
+      "y": 10,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 49 N",
+      "number": "49",
+      "variant": "N",
+      "c": 100,
+      "m": 0,
+      "y": 8,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 5 K",
+      "number": "5",
+      "variant": "K",
+      "c": 0,
+      "m": 30,
+      "y": 100,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 5 N",
+      "number": "5",
+      "variant": "N",
+      "c": 0,
+      "m": 15,
+      "y": 100,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 50 K",
+      "number": "50",
+      "variant": "K",
+      "c": 70,
+      "m": 0,
+      "y": 5,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 50 N",
+      "number": "50",
+      "variant": "N",
+      "c": 50,
+      "m": 0,
+      "y": 10,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 51 K",
+      "number": "51",
+      "variant": "K",
+      "c": 100,
+      "m": 0,
+      "y": 40,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 51 N",
+      "number": "51",
+      "variant": "N",
+      "c": 100,
+      "m": 0,
+      "y": 30,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 52 K",
+      "number": "52",
+      "variant": "K",
+      "c": 100,
+      "m": 0,
+      "y": 55,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 52 N",
+      "number": "52",
+      "variant": "N",
+      "c": 100,
+      "m": 0,
+      "y": 45,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 53 K",
+      "number": "53",
+      "variant": "K",
+      "c": 80,
+      "m": 0,
+      "y": 60,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 53 N",
+      "number": "53",
+      "variant": "N",
+      "c": 80,
+      "m": 0,
+      "y": 45,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 54 K",
+      "number": "54",
+      "variant": "K",
+      "c": 100,
+      "m": 0,
+      "y": 80,
+      "k": 10
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 54 N",
+      "number": "54",
+      "variant": "N",
+      "c": 85,
+      "m": 0,
+      "y": 65,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 55 K",
+      "number": "55",
+      "variant": "K",
+      "c": 100,
+      "m": 0,
+      "y": 80,
+      "k": 30
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 55 N",
+      "number": "55",
+      "variant": "N",
+      "c": 85,
+      "m": 0,
+      "y": 65,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 56 K",
+      "number": "56",
+      "variant": "K",
+      "c": 100,
+      "m": 45,
+      "y": 80,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 56 N",
+      "number": "56",
+      "variant": "N",
+      "c": 100,
+      "m": 0,
+      "y": 55,
+      "k": 20
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 57 K",
+      "number": "57",
+      "variant": "K",
+      "c": 100,
+      "m": 0,
+      "y": 90,
+      "k": 20
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 57 N",
+      "number": "57",
+      "variant": "N",
+      "c": 80,
+      "m": 0,
+      "y": 70,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 58 K",
+      "number": "58",
+      "variant": "K",
+      "c": 60,
+      "m": 0,
+      "y": 65,
+      "k": 50
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 58 N",
+      "number": "58",
+      "variant": "N",
+      "c": 85,
+      "m": 0,
+      "y": 85,
+      "k": 20
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 59 K",
+      "number": "59",
+      "variant": "K",
+      "c": 100,
+      "m": 0,
+      "y": 50,
+      "k": 20
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 59 N",
+      "number": "59",
+      "variant": "N",
+      "c": 100,
+      "m": 0,
+      "y": 40,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 6 K",
+      "number": "6",
+      "variant": "K",
+      "c": 0,
+      "m": 45,
+      "y": 100,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 6 N",
+      "number": "6",
+      "variant": "N",
+      "c": 0,
+      "m": 30,
+      "y": 100,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 60 K",
+      "number": "60",
+      "variant": "K",
+      "c": 80,
+      "m": 5,
+      "y": 100,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 60 N",
+      "number": "60",
+      "variant": "N",
+      "c": 60,
+      "m": 0,
+      "y": 90,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 61 K",
+      "number": "61",
+      "variant": "K",
+      "c": 70,
+      "m": 0,
+      "y": 100,
+      "k": 75
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 61 N",
+      "number": "61",
+      "variant": "N",
+      "c": 60,
+      "m": 0,
+      "y": 90,
+      "k": 35
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 62 K",
+      "number": "62",
+      "variant": "K",
+      "c": 10,
+      "m": 0,
+      "y": 70,
+      "k": 60
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 62 N",
+      "number": "62",
+      "variant": "N",
+      "c": 10,
+      "m": 0,
+      "y": 70,
+      "k": 35
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 63 K",
+      "number": "63",
+      "variant": "K",
+      "c": 60,
+      "m": 0,
+      "y": 90,
+      "k": 40
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 63 N",
+      "number": "63",
+      "variant": "N",
+      "c": 55,
+      "m": 0,
+      "y": 90,
+      "k": 10
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 64 K",
+      "number": "64",
+      "variant": "K",
+      "c": 80,
+      "m": 0,
+      "y": 100,
+      "k": 10
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 64 N",
+      "number": "64",
+      "variant": "N",
+      "c": 65,
+      "m": 0,
+      "y": 80,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 65 K",
+      "number": "65",
+      "variant": "K",
+      "c": 65,
+      "m": 0,
+      "y": 100,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 65 N",
+      "number": "65",
+      "variant": "N",
+      "c": 45,
+      "m": 0,
+      "y": 75,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 66 K",
+      "number": "66",
+      "variant": "K",
+      "c": 60,
+      "m": 0,
+      "y": 100,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 66 N",
+      "number": "66",
+      "variant": "N",
+      "c": 40,
+      "m": 0,
+      "y": 90,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 67 K",
+      "number": "67",
+      "variant": "K",
+      "c": 55,
+      "m": 0,
+      "y": 100,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 67 N",
+      "number": "67",
+      "variant": "N",
+      "c": 40,
+      "m": 0,
+      "y": 100,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 68 K",
+      "number": "68",
+      "variant": "K",
+      "c": 15,
+      "m": 20,
+      "y": 100,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 68 N",
+      "number": "68",
+      "variant": "N",
+      "c": 20,
+      "m": 7,
+      "y": 100,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 69 K",
+      "number": "69",
+      "variant": "K",
+      "c": 15,
+      "m": 0,
+      "y": 100,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 69 N",
+      "number": "69",
+      "variant": "N",
+      "c": 10,
+      "m": 0,
+      "y": 100,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 7 K",
+      "number": "7",
+      "variant": "K",
+      "c": 0,
+      "m": 60,
+      "y": 100,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 7 N",
+      "number": "7",
+      "variant": "N",
+      "c": 0,
+      "m": 45,
+      "y": 100,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 71 K",
+      "number": "71",
+      "variant": "K",
+      "c": 10,
+      "m": 40,
+      "y": 100,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 71 N",
+      "number": "71",
+      "variant": "N",
+      "c": 0,
+      "m": 25,
+      "y": 100,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 72 K",
+      "number": "72",
+      "variant": "K",
+      "c": 10,
+      "m": 55,
+      "y": 100,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 72 N",
+      "number": "72",
+      "variant": "N",
+      "c": 0,
+      "m": 30,
+      "y": 100,
+      "k": 2
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 73 K",
+      "number": "73",
+      "variant": "K",
+      "c": 0,
+      "m": 55,
+      "y": 100,
+      "k": 30
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 73 N",
+      "number": "73",
+      "variant": "N",
+      "c": 20,
+      "m": 40,
+      "y": 100,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 74 K",
+      "number": "74",
+      "variant": "K",
+      "c": 0,
+      "m": 50,
+      "y": 100,
+      "k": 50
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 74 N",
+      "number": "74",
+      "variant": "N",
+      "c": 0,
+      "m": 30,
+      "y": 100,
+      "k": 25
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 75 K",
+      "number": "75",
+      "variant": "K",
+      "c": 10,
+      "m": 30,
+      "y": 80,
+      "k": 50
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 75 N",
+      "number": "75",
+      "variant": "N",
+      "c": 10,
+      "m": 30,
+      "y": 80,
+      "k": 30
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 76 K",
+      "number": "76",
+      "variant": "K",
+      "c": 0,
+      "m": 60,
+      "y": 90,
+      "k": 80
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 76 N",
+      "number": "76",
+      "variant": "N",
+      "c": 10,
+      "m": 40,
+      "y": 80,
+      "k": 50
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 77 K",
+      "number": "77",
+      "variant": "K",
+      "c": 0,
+      "m": 60,
+      "y": 60,
+      "k": 70
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 77 N",
+      "number": "77",
+      "variant": "N",
+      "c": 0,
+      "m": 50,
+      "y": 90,
+      "k": 50
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 78 K",
+      "number": "78",
+      "variant": "K",
+      "c": 50,
+      "m": 95,
+      "y": 100,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 78 N",
+      "number": "78",
+      "variant": "N",
+      "c": 0,
+      "m": 55,
+      "y": 80,
+      "k": 30
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 8 K",
+      "number": "8",
+      "variant": "K",
+      "c": 0,
+      "m": 65,
+      "y": 100,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 8 N",
+      "number": "8",
+      "variant": "N",
+      "c": 0,
+      "m": 50,
+      "y": 100,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 81 K",
+      "number": "81",
+      "variant": "K",
+      "c": 10,
+      "m": 80,
+      "y": 100,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 81 N",
+      "number": "81",
+      "variant": "N",
+      "c": 0,
+      "m": 55,
+      "y": 100,
+      "k": 0
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 82 K",
+      "number": "82",
+      "variant": "K",
+      "c": 0,
+      "m": 85,
+      "y": 100,
+      "k": 30
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 82 N",
+      "number": "82",
+      "variant": "N",
+      "c": 0,
+      "m": 65,
+      "y": 100,
+      "k": 5
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 83 K",
+      "number": "83",
+      "variant": "K",
+      "c": 5,
+      "m": 75,
+      "y": 70,
+      "k": 50
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 83 N",
+      "number": "83",
+      "variant": "N",
+      "c": 0,
+      "m": 70,
+      "y": 90,
+      "k": 30
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 84 K",
+      "number": "84",
+      "variant": "K",
+      "c": 10,
+      "m": 80,
+      "y": 70,
+      "k": 60
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 84 N",
+      "number": "84",
+      "variant": "N",
+      "c": 0,
+      "m": 70,
+      "y": 85,
+      "k": 40
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 88 K",
+      "number": "88",
+      "variant": "K",
+      "c": 0,
+      "m": 0,
+      "y": 0,
+      "k": 100
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 88 N",
+      "number": "88",
+      "variant": "N",
+      "c": 0,
+      "m": 0,
+      "y": 0,
+      "k": 100
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 89 K",
+      "number": "89",
+      "variant": "K",
+      "c": 0,
+      "m": 8,
+      "y": 30,
+      "k": 35
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 89 N",
+      "number": "89",
+      "variant": "N",
+      "c": 0,
+      "m": 5,
+      "y": 30,
+      "k": 30
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 90 K",
+      "number": "90",
+      "variant": "K",
+      "c": 0,
+      "m": 25,
+      "y": 30,
+      "k": 90
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 90 N",
+      "number": "90",
+      "variant": "N",
+      "c": 0,
+      "m": 20,
+      "y": 20,
+      "k": 85
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 91 K",
+      "number": "91",
+      "variant": "K",
+      "c": 10,
+      "m": 0,
+      "y": 15,
+      "k": 40
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 91 N",
+      "number": "91",
+      "variant": "N",
+      "c": 15,
+      "m": 0,
+      "y": 15,
+      "k": 30
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 92 K",
+      "number": "92",
+      "variant": "K",
+      "c": 10,
+      "m": 0,
+      "y": 5,
+      "k": 65
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 92 N",
+      "number": "92",
+      "variant": "N",
+      "c": 10,
+      "m": 0,
+      "y": 10,
+      "k": 50
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 93 K",
+      "number": "93",
+      "variant": "K",
+      "c": 25,
+      "m": 0,
+      "y": 10,
+      "k": 80
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 93 N",
+      "number": "93",
+      "variant": "N",
+      "c": 35,
+      "m": 0,
+      "y": 10,
+      "k": 60
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 95 K",
+      "number": "95",
+      "variant": "K",
+      "c": 0,
+      "m": 0,
+      "y": 25,
+      "k": 55
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 95 N",
+      "number": "95",
+      "variant": "N",
+      "c": 0,
+      "m": 0,
+      "y": 20,
+      "k": 40
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 96 K",
+      "number": "96",
+      "variant": "K",
+      "c": 0,
+      "m": 5,
+      "y": 20,
+      "k": 60
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 96 N",
+      "number": "96",
+      "variant": "N",
+      "c": 10,
+      "m": 3,
+      "y": 20,
+      "k": 40
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 97 K",
+      "number": "97",
+      "variant": "K",
+      "c": 15,
+      "m": 0,
+      "y": 30,
+      "k": 90
+    },
+    {
+      "system": "HKS",
+      "name": "HKS 97 N",
+      "number": "97",
+      "variant": "N",
+      "c": 15,
+      "m": 0,
+      "y": 25,
+      "k": 95
+    },
+    {
+      "system": "PANTONE",
+      "name": "Black",
+      "number": "",
+      "variant": "",
+      "c": 0,
+      "m": 16,
+      "y": 30,
+      "k": 76
+    },
+    {
+      "system": "PANTONE",
+      "name": "Blue",
+      "number": "",
+      "variant": "",
+      "c": 100,
+      "m": 28,
+      "y": 0,
+      "k": 21
+    },
+    {
+      "system": "PANTONE",
+      "name": "Green",
+      "number": "",
+      "variant": "",
+      "c": 100,
+      "m": 0,
+      "y": 16,
+      "k": 31
+    },
+    {
+      "system": "PANTONE",
+      "name": "Purple",
+      "number": "",
+      "variant": "",
+      "c": 0,
+      "m": 75,
+      "y": 5,
+      "k": 25
+    },
+    {
+      "system": "PANTONE",
+      "name": "Reflex Blue",
+      "number": "",
+      "variant": "",
+      "c": 91,
+      "m": 80,
+      "y": 0,
+      "k": 45
+    },
+    {
+      "system": "PANTONE",
+      "name": "Rhodamine Red",
+      "number": "",
+      "variant": "",
+      "c": 0,
+      "m": 100,
+      "y": 39,
+      "k": 7
+    },
+    {
+      "system": "PANTONE",
+      "name": "Rubine Red",
+      "number": "",
+      "variant": "",
+      "c": 0,
+      "m": 100,
+      "y": 59,
+      "k": 18
+    },
+    {
+      "system": "PANTONE",
+      "name": "Violet",
+      "number": "",
+      "variant": "",
+      "c": 38,
+      "m": 96,
+      "y": 0,
+      "k": 35
+    },
+    {
+      "system": "PANTONE",
+      "name": "Warm Red",
+      "number": "",
+      "variant": "",
+      "c": 0,
+      "m": 75,
+      "y": 85,
+      "k": 2
+    },
+    {
+      "system": "PANTONE",
+      "name": "Yellow",
+      "number": "",
+      "variant": "",
+      "c": 0,
+      "m": 1,
+      "y": 100,
+      "k": 0
+    },
+    {
+      "system": "PANTONE",
+      "name": "Yellow 012 C",
+      "number": "012",
+      "variant": "C",
+      "c": 0,
+      "m": 4,
+      "y": 100,
+      "k": 0
+    },
+    {
+      "system": "PANTONE",
+      "name": "Orange 021 C",
+      "number": "021",
+      "variant": "C",
+      "c": 0,
+      "m": 55,
+      "y": 100,
+      "k": 6
+    },
+    {
+      "system": "PANTONE",
+      "name": "Red 032 C",
+      "number": "032",
+      "variant": "C",
+      "c": 0,
+      "m": 82,
+      "y": 81,
+      "k": 6
+    },
+    {
+      "system": "PANTONE",
+      "name": "Blue 072 C",
+      "number": "072",
+      "variant": "C",
+      "c": 63,
+      "m": 100,
+      "y": 0,
+      "k": 41
+    },
+    {
+      "system": "PANTONE",
+      "name": "Cool Gray 1 C",
+      "number": "1",
+      "variant": "C",
+      "c": 0,
+      "m": 3,
+      "y": 8,
+      "k": 9
+    },
+    {
+      "system": "PANTONE",
+      "name": "Warm Gray 1 C",
+      "number": "1",
+      "variant": "C",
+      "c": 0,
+      "m": 4,
+      "y": 11,
+      "k": 10
+    },
+    {
+      "system": "PANTONE",
+      "name": "Cool Gray 10 C",
+      "number": "10",
+      "variant": "C",
+      "c": 0,
+      "m": 0,
+      "y": 4,
+      "k": 53
+    },
+    {
+      "system": "PANTONE",
+      "name": "Warm Gray 10 C",
+      "number": "10",
+      "variant": "C",
+      "c": 0,
+      "m": 12,
+      "y": 24,
+      "k": 49
+    },
+    {
+      "system": "PANTONE",
+      "name": "100 C",
+      "number": "100",
+      "variant": "C",
+      "c": 0,
+      "m": 3,
+      "y": 49,
+      "k": 4
+    },
+    {
+      "system": "PANTONE",
+      "name": "101 C",
+      "number": "101",
+      "variant": "C",
+      "c": 0,
+      "m": 3,
+      "y": 71,
+      "k": 4
+    },
+    {
+      "system": "PANTONE",
+      "name": "102 C",
+      "number": "102",
+      "variant": "C",
+      "c": 0,
+      "m": 7,
+      "y": 92,
+      "k": 2
+    },
+    {
+      "system": "PANTONE",
+      "name": "103 C",
+      "number": "103",
+      "variant": "C",
+      "c": 0,
+      "m": 13,
+      "y": 92,
+      "k": 22
+    },
+    {
+      "system": "PANTONE",
+      "name": "104 C",
+      "number": "104",
+      "variant": "C",
+      "c": 0,
+      "m": 10,
+      "y": 93,
+      "k": 32
+    },
+    {
+      "system": "PANTONE",
+      "name": "105 C",
+      "number": "105",
+      "variant": "C",
+      "c": 0,
+      "m": 10,
+      "y": 88,
+      "k": 49
+    },
+    {
+      "system": "PANTONE",
+      "name": "106 C",
+      "number": "106",
+      "variant": "C",
+      "c": 0,
+      "m": 6,
+      "y": 64,
+      "k": 3
+    },
+    {
+      "system": "PANTONE",
+      "name": "107 C",
+      "number": "107",
+      "variant": "C",
+      "c": 0,
+      "m": 8,
+      "y": 85,
+      "k": 2
+    },
+    {
+      "system": "PANTONE",
+      "name": "108 C",
+      "number": "108",
+      "variant": "C",
+      "c": 0,
+      "m": 11,
+      "y": 91,
+      "k": 3
+    },
+    {
+      "system": "PANTONE",
+      "name": "109 C",
+      "number": "109",
+      "variant": "C",
+      "c": 0,
+      "m": 14,
+      "y": 91,
+      "k": 2
+    },
+    {
+      "system": "PANTONE",
+      "name": "Cool Gray 11 C",
+      "number": "11",
+      "variant": "C",
+      "c": 0,
+      "m": 2,
+      "y": 5,
+      "k": 59
+    },
+    {
+      "system": "PANTONE",
+      "name": "Warm Gray 11 C",
+      "number": "11",
+      "variant": "C",
+      "c": 0,
+      "m": 14,
+      "y": 26,
+      "k": 57
+    },
+    {
+      "system": "PANTONE",
+      "name": "110 C",
+      "number": "110",
+      "variant": "C",
+      "c": 0,
+      "m": 16,
+      "y": 92,
+      "k": 15
+    },
+    {
+      "system": "PANTONE",
+      "name": "111 C",
+      "number": "111",
+      "variant": "C",
+      "c": 0,
+      "m": 14,
+      "y": 94,
+      "k": 33
+    },
+    {
+      "system": "PANTONE",
+      "name": "112 C",
+      "number": "112",
+      "variant": "C",
+      "c": 0,
+      "m": 14,
+      "y": 93,
+      "k": 40
+    },
+    {
+      "system": "PANTONE",
+      "name": "113 C",
+      "number": "113",
+      "variant": "C",
+      "c": 0,
+      "m": 8,
+      "y": 63,
+      "k": 2
+    },
+    {
+      "system": "PANTONE",
+      "name": "114 C",
+      "number": "114",
+      "variant": "C",
+      "c": 0,
+      "m": 9,
+      "y": 69,
+      "k": 2
+    },
+    {
+      "system": "PANTONE",
+      "name": "115 C",
+      "number": "115",
+      "variant": "C",
+      "c": 0,
+      "m": 10,
+      "y": 69,
+      "k": 2
+    },
+    {
+      "system": "PANTONE",
+      "name": "116 C",
+      "number": "116",
+      "variant": "C",
+      "c": 0,
+      "m": 17,
+      "y": 91,
+      "k": 1
+    },
+    {
+      "system": "PANTONE",
+      "name": "117 C",
+      "number": "117",
+      "variant": "C",
+      "c": 0,
+      "m": 19,
+      "y": 94,
+      "k": 22
+    },
+    {
+      "system": "PANTONE",
+      "name": "118 C",
+      "number": "118",
+      "variant": "C",
+      "c": 0,
+      "m": 16,
+      "y": 94,
+      "k": 33
+    },
+    {
+      "system": "PANTONE",
+      "name": "119 C",
+      "number": "119",
+      "variant": "C",
+      "c": 0,
+      "m": 13,
+      "y": 82,
+      "k": 46
+    },
+    {
+      "system": "PANTONE",
+      "name": "120 C",
+      "number": "120",
+      "variant": "C",
+      "c": 0,
+      "m": 9,
+      "y": 49,
+      "k": 2
+    },
+    {
+      "system": "PANTONE",
+      "name": "1205 C",
+      "number": "1205",
+      "variant": "C",
+      "c": 0,
+      "m": 6,
+      "y": 31,
+      "k": 3
+    },
+    {
+      "system": "PANTONE",
+      "name": "121 C",
+      "number": "121",
+      "variant": "C",
+      "c": 0,
+      "m": 10,
+      "y": 55,
+      "k": 2
+    },
+    {
+      "system": "PANTONE",
+      "name": "1215 C",
+      "number": "1215",
+      "variant": "C",
+      "c": 0,
+      "m": 10,
+      "y": 44,
+      "k": 2
+    },
+    {
+      "system": "PANTONE",
+      "name": "122 C",
+      "number": "122",
+      "variant": "C",
+      "c": 0,
+      "m": 14,
+      "y": 66,
+      "k": 1
+    },
+    {
+      "system": "PANTONE",
+      "name": "1225 C",
+      "number": "1225",
+      "variant": "C",
+      "c": 0,
+      "m": 20,
+      "y": 71,
+      "k": 0
+    },
+    {
+      "system": "PANTONE",
+      "name": "123 C",
+      "number": "123",
+      "variant": "C",
+      "c": 0,
+      "m": 22,
+      "y": 88,
+      "k": 0
+    },
+    {
+      "system": "PANTONE",
+      "name": "1235 C",
+      "number": "1235",
+      "variant": "C",
+      "c": 0,
+      "m": 28,
+      "y": 92,
+      "k": 1
+    },
+    {
+      "system": "PANTONE",
+      "name": "124 C",
+      "number": "124",
+      "variant": "C",
+      "c": 0,
+      "m": 24,
+      "y": 93,
+      "k": 12
+    },
+    {
+      "system": "PANTONE",
+      "name": "1245 C",
+      "number": "1245",
+      "variant": "C",
+      "c": 0,
+      "m": 24,
+      "y": 94,
+      "k": 25
+    },
+    {
+      "system": "PANTONE",
+      "name": "125 C",
+      "number": "125",
+      "variant": "C",
+      "c": 0,
+      "m": 23,
+      "y": 94,
+      "k": 29
+    },
+    {
+      "system": "PANTONE",
+      "name": "1255 C",
+      "number": "1255",
+      "variant": "C",
+      "c": 0,
+      "m": 22,
+      "y": 88,
+      "k": 36
+    },
+    {
+      "system": "PANTONE",
+      "name": "1265 C",
+      "number": "1265",
+      "variant": "C",
+      "c": 0,
+      "m": 20,
+      "y": 82,
+      "k": 51
+    },
+    {
+      "system": "PANTONE",
+      "name": "127 C",
+      "number": "127",
+      "variant": "C",
+      "c": 0,
+      "m": 7,
+      "y": 45,
+      "k": 4
+    },
+    {
+      "system": "PANTONE",
+      "name": "128 C",
+      "number": "128",
+      "variant": "C",
+      "c": 0,
+      "m": 10,
+      "y": 61,
+      "k": 4
+    },
+    {
+      "system": "PANTONE",
+      "name": "129 C",
+      "number": "129",
+      "variant": "C",
+      "c": 0,
+      "m": 14,
+      "y": 75,
+      "k": 5
+    },
+    {
+      "system": "PANTONE",
+      "name": "130 C",
+      "number": "130",
+      "variant": "C",
+      "c": 0,
+      "m": 25,
+      "y": 94,
+      "k": 8
+    },
+    {
+      "system": "PANTONE",
+      "name": "131 C",
+      "number": "131",
+      "variant": "C",
+      "c": 0,
+      "m": 26,
+      "y": 95,
+      "k": 22
+    },
+    {
+      "system": "PANTONE",
+      "name": "132 C",
+      "number": "132",
+      "variant": "C",
+      "c": 0,
+      "m": 22,
+      "y": 94,
+      "k": 38
+    },
+    {
+      "system": "PANTONE",
+      "name": "133 C",
+      "number": "133",
+      "variant": "C",
+      "c": 0,
+      "m": 19,
+      "y": 91,
+      "k": 56
+    },
+    {
+      "system": "PANTONE",
+      "name": "134 C",
+      "number": "134",
+      "variant": "C",
+      "c": 0,
+      "m": 15,
+      "y": 50,
+      "k": 0
+    },
+    {
+      "system": "PANTONE",
+      "name": "1345 C",
+      "number": "1345",
+      "variant": "C",
+      "c": 0,
+      "m": 16,
+      "y": 43,
+      "k": 0
+    },
+    {
+      "system": "PANTONE",
+      "name": "135 C",
+      "number": "135",
+      "variant": "C",
+      "c": 0,
+      "m": 20,
+      "y": 61,
+      "k": 1
+    },
+    {
+      "system": "PANTONE",
+      "name": "1355 C",
+      "number": "1355",
+      "variant": "C",
+      "c": 0,
+      "m": 18,
+      "y": 46,
+      "k": 1
+    },
+    {
+      "system": "PANTONE",
+      "name": "136 C",
+      "number": "136",
+      "variant": "C",
+      "c": 0,
+      "m": 24,
+      "y": 71,
+      "k": 1
+    },
+    {
+      "system": "PANTONE",
+      "name": "1365 C",
+      "number": "1365",
+      "variant": "C",
+      "c": 0,
+      "m": 26,
+      "y": 63,
+      "k": 1
+    },
+    {
+      "system": "PANTONE",
+      "name": "137 C",
+      "number": "137",
+      "variant": "C",
+      "c": 0,
+      "m": 35,
+      "y": 93,
+      "k": 1
+    },
+    {
+      "system": "PANTONE",
+      "name": "1375 C",
+      "number": "1375",
+      "variant": "C",
+      "c": 0,
+      "m": 38,
+      "y": 95,
+      "k": 2
+    },
+    {
+      "system": "PANTONE",
+      "name": "138 C",
+      "number": "138",
+      "variant": "C",
+      "c": 0,
+      "m": 35,
+      "y": 99,
+      "k": 15
+    },
+    {
+      "system": "PANTONE",
+      "name": "1385 C",
+      "number": "1385",
+      "variant": "C",
+      "c": 0,
+      "m": 40,
+      "y": 99,
+      "k": 20
+    },
+    {
+      "system": "PANTONE",
+      "name": "139 C",
+      "number": "139",
+      "variant": "C",
+      "c": 0,
+      "m": 33,
+      "y": 97,
+      "k": 31
+    },
+    {
+      "system": "PANTONE",
+      "name": "1395 C",
+      "number": "1395",
+      "variant": "C",
+      "c": 0,
+      "m": 37,
+      "y": 95,
+      "k": 40
+    },
+    {
+      "system": "PANTONE",
+      "name": "140 C",
+      "number": "140",
+      "variant": "C",
+      "c": 0,
+      "m": 25,
+      "y": 86,
+      "k": 52
+    },
+    {
+      "system": "PANTONE",
+      "name": "1405 C",
+      "number": "1405",
+      "variant": "C",
+      "c": 0,
+      "m": 34,
+      "y": 81,
+      "k": 58
+    },
+    {
+      "system": "PANTONE",
+      "name": "141 C",
+      "number": "141",
+      "variant": "C",
+      "c": 0,
+      "m": 15,
+      "y": 57,
+      "k": 5
+    },
+    {
+      "system": "PANTONE",
+      "name": "142 C",
+      "number": "142",
+      "variant": "C",
+      "c": 0,
+      "m": 21,
+      "y": 70,
+      "k": 5
+    },
+    {
+      "system": "PANTONE",
+      "name": "143 C",
+      "number": "143",
+      "variant": "C",
+      "c": 0,
+      "m": 26,
+      "y": 81,
+      "k": 6
+    },
+    {
+      "system": "PANTONE",
+      "name": "144 C",
+      "number": "144",
+      "variant": "C",
+      "c": 0,
+      "m": 38,
+      "y": 98,
+      "k": 11
+    },
+    {
+      "system": "PANTONE",
+      "name": "145 C",
+      "number": "145",
+      "variant": "C",
+      "c": 0,
+      "m": 36,
+      "y": 96,
+      "k": 22
+    },
+    {
+      "system": "PANTONE",
+      "name": "146 C",
+      "number": "146",
+      "variant": "C",
+      "c": 0,
+      "m": 32,
+      "y": 97,
+      "k": 38
+    },
+    {
+      "system": "PANTONE",
+      "name": "147 C",
+      "number": "147",
+      "variant": "C",
+      "c": 0,
+      "m": 18,
+      "y": 67,
+      "k": 55
+    },
+    {
+      "system": "PANTONE",
+      "name": "148 C",
+      "number": "148",
+      "variant": "C",
+      "c": 0,
+      "m": 16,
+      "y": 39,
+      "k": 0
+    },
+    {
+      "system": "PANTONE",
+      "name": "1485 C",
+      "number": "1485",
+      "variant": "C",
+      "c": 0,
+      "m": 28,
+      "y": 53,
+      "k": 0
+    },
+    {
+      "system": "PANTONE",
+      "name": "149 C",
+      "number": "149",
+      "variant": "C",
+      "c": 0,
+      "m": 19,
+      "y": 42,
+      "k": 1
+    },
+    {
+      "system": "PANTONE",
+      "name": "1495 C",
+      "number": "1495",
+      "variant": "C",
+      "c": 0,
+      "m": 40,
+      "y": 75,
+      "k": 0
+    },
+    {
+      "system": "PANTONE",
+      "name": "150 C",
+      "number": "150",
+      "variant": "C",
+      "c": 0,
+      "m": 31,
+      "y": 66,
+      "k": 1
+    },
+    {
+      "system": "PANTONE",
+      "name": "1505 C",
+      "number": "1505",
+      "variant": "C",
+      "c": 0,
+      "m": 49,
+      "y": 100,
+      "k": 4
+    },
+    {
+      "system": "PANTONE",
+      "name": "151 C",
+      "number": "151",
+      "variant": "C",
+      "c": 0,
+      "m": 49,
+      "y": 100,
+      "k": 3
+    },
+    {
+      "system": "PANTONE",
+      "name": "152 C",
+      "number": "152",
+      "variant": "C",
+      "c": 0,
+      "m": 47,
+      "y": 100,
+      "k": 13
+    },
+    {
+      "system": "PANTONE",
+      "name": "1525 C",
+      "number": "1525",
+      "variant": "C",
+      "c": 0,
+      "m": 54,
+      "y": 100,
+      "k": 29
+    },
+    {
+      "system": "PANTONE",
+      "name": "153 C",
+      "number": "153",
+      "variant": "C",
+      "c": 0,
+      "m": 42,
+      "y": 95,
+      "k": 26
+    },
+    {
+      "system": "PANTONE",
+      "name": "1535 C",
+      "number": "1535",
+      "variant": "C",
+      "c": 0,
+      "m": 51,
+      "y": 100,
+      "k": 45
+    },
+    {
+      "system": "PANTONE",
+      "name": "154 C",
+      "number": "154",
+      "variant": "C",
+      "c": 0,
+      "m": 42,
+      "y": 97,
+      "k": 40
+    },
+    {
+      "system": "PANTONE",
+      "name": "1545 C",
+      "number": "1545",
+      "variant": "C",
+      "c": 0,
+      "m": 47,
+      "y": 80,
+      "k": 70
+    },
+    {
+      "system": "PANTONE",
+      "name": "155 C",
+      "number": "155",
+      "variant": "C",
+      "c": 0,
+      "m": 10,
+      "y": 30,
+      "k": 4
+    },
+    {
+      "system": "PANTONE",
+      "name": "1555 C",
+      "number": "1555",
+      "variant": "C",
+      "c": 0,
+      "m": 23,
+      "y": 37,
+      "k": 2
+    },
+    {
+      "system": "PANTONE",
+      "name": "156 C",
+      "number": "156",
+      "variant": "C",
+      "c": 0,
+      "m": 18,
+      "y": 42,
+      "k": 5
+    },
+    {
+      "system": "PANTONE",
+      "name": "1565 C",
+      "number": "1565",
+      "variant": "C",
+      "c": 0,
+      "m": 35,
+      "y": 53,
+      "k": 1
+    },
+    {
+      "system": "PANTONE",
+      "name": "157 C",
+      "number": "157",
+      "variant": "C",
+      "c": 0,
+      "m": 32,
+      "y": 67,
+      "k": 7
+    },
+    {
+      "system": "PANTONE",
+      "name": "1575 C",
+      "number": "1575",
+      "variant": "C",
+      "c": 0,
+      "m": 46,
+      "y": 73,
+      "k": 1
+    },
+    {
+      "system": "PANTONE",
+      "name": "158 C",
+      "number": "158",
+      "variant": "C",
+      "c": 0,
+      "m": 50,
+      "y": 93,
+      "k": 9
+    },
+    {
+      "system": "PANTONE",
+      "name": "1585 C",
+      "number": "1585",
+      "variant": "C",
+      "c": 0,
+      "m": 57,
+      "y": 97,
+      "k": 2
+    },
+    {
+      "system": "PANTONE",
+      "name": "159 C",
+      "number": "159",
+      "variant": "C",
+      "c": 0,
+      "m": 52,
+      "y": 97,
+      "k": 22
+    },
+    {
+      "system": "PANTONE",
+      "name": "1595 C",
+      "number": "1595",
+      "variant": "C",
+      "c": 0,
+      "m": 56,
+      "y": 98,
+      "k": 18
+    },
+    {
+      "system": "PANTONE",
+      "name": "160 C",
+      "number": "160",
+      "variant": "C",
+      "c": 0,
+      "m": 47,
+      "y": 94,
+      "k": 38
+    },
+    {
+      "system": "PANTONE",
+      "name": "1605 C",
+      "number": "1605",
+      "variant": "C",
+      "c": 0,
+      "m": 51,
+      "y": 89,
+      "k": 37
+    },
+    {
+      "system": "PANTONE",
+      "name": "161 C",
+      "number": "161",
+      "variant": "C",
+      "c": 0,
+      "m": 41,
+      "y": 83,
+      "k": 61
+    },
+    {
+      "system": "PANTONE",
+      "name": "1615 C",
+      "number": "1615",
+      "variant": "C",
+      "c": 0,
+      "m": 52,
+      "y": 89,
+      "k": 48
+    },
+    {
+      "system": "PANTONE",
+      "name": "162 C",
+      "number": "162",
+      "variant": "C",
+      "c": 0,
+      "m": 20,
+      "y": 32,
+      "k": 2
+    },
+    {
+      "system": "PANTONE",
+      "name": "1625 C",
+      "number": "1625",
+      "variant": "C",
+      "c": 0,
+      "m": 34,
+      "y": 44,
+      "k": 2
+    },
+    {
+      "system": "PANTONE",
+      "name": "163 C",
+      "number": "163",
+      "variant": "C",
+      "c": 0,
+      "m": 37,
+      "y": 56,
+      "k": 1
+    },
+    {
+      "system": "PANTONE",
+      "name": "1635 C",
+      "number": "1635",
+      "variant": "C",
+      "c": 0,
+      "m": 43,
+      "y": 56,
+      "k": 2
+    },
+    {
+      "system": "PANTONE",
+      "name": "164 C",
+      "number": "164",
+      "variant": "C",
+      "c": 0,
+      "m": 50,
+      "y": 75,
+      "k": 1
+    },
+    {
+      "system": "PANTONE",
+      "name": "1645 C",
+      "number": "1645",
+      "variant": "C",
+      "c": 0,
+      "m": 54,
+      "y": 73,
+      "k": 2
+    },
+    {
+      "system": "PANTONE",
+      "name": "165 C",
+      "number": "165",
+      "variant": "C",
+      "c": 0,
+      "m": 60,
+      "y": 99,
+      "k": 2
+    },
+    {
+      "system": "PANTONE",
+      "name": "1655 C",
+      "number": "1655",
+      "variant": "C",
+      "c": 0,
+      "m": 65,
+      "y": 99,
+      "k": 2
+    },
+    {
+      "system": "PANTONE",
+      "name": "166 C",
+      "number": "166",
+      "variant": "C",
+      "c": 0,
+      "m": 60,
+      "y": 100,
+      "k": 13
+    },
+    {
+      "system": "PANTONE",
+      "name": "1665 C",
+      "number": "1665",
+      "variant": "C",
+      "c": 0,
+      "m": 65,
+      "y": 99,
+      "k": 2
+    },
+    {
+      "system": "PANTONE",
+      "name": "167 C",
+      "number": "167",
+      "variant": "C",
+      "c": 0,
+      "m": 58,
+      "y": 96,
+      "k": 26
+    },
+    {
+      "system": "PANTONE",
+      "name": "1675 C",
+      "number": "1675",
+      "variant": "C",
+      "c": 0,
+      "m": 62,
+      "y": 91,
+      "k": 35
+    },
+    {
+      "system": "PANTONE",
+      "name": "168 C",
+      "number": "168",
+      "variant": "C",
+      "c": 0,
+      "m": 56,
+      "y": 84,
+      "k": 57
+    },
+    {
+      "system": "PANTONE",
+      "name": "1685 C",
+      "number": "1685",
+      "variant": "C",
+      "c": 0,
+      "m": 60,
+      "y": 87,
+      "k": 48
+    },
+    {
+      "system": "PANTONE",
+      "name": "169 C",
+      "number": "169",
+      "variant": "C",
+      "c": 0,
+      "m": 25,
+      "y": 32,
+      "k": 2
+    },
+    {
+      "system": "PANTONE",
+      "name": "170 C",
+      "number": "170",
+      "variant": "C",
+      "c": 0,
+      "m": 45,
+      "y": 54,
+      "k": 2
+    },
+    {
+      "system": "PANTONE",
+      "name": "171 C",
+      "number": "171",
+      "variant": "C",
+      "c": 0,
+      "m": 61,
+      "y": 77,
+      "k": 2
+    },
+    {
+      "system": "PANTONE",
+      "name": "172 C",
+      "number": "172",
+      "variant": "C",
+      "c": 0,
+      "m": 70,
+      "y": 99,
+      "k": 3
+    },
+    {
+      "system": "PANTONE",
+      "name": "173 C",
+      "number": "173",
+      "variant": "C",
+      "c": 0,
+      "m": 67,
+      "y": 90,
+      "k": 18
+    },
+    {
+      "system": "PANTONE",
+      "name": "174 C",
+      "number": "174",
+      "variant": "C",
+      "c": 0,
+      "m": 65,
+      "y": 88,
+      "k": 42
+    },
+    {
+      "system": "PANTONE",
+      "name": "175 C",
+      "number": "175",
+      "variant": "C",
+      "c": 0,
+      "m": 53,
+      "y": 70,
+      "k": 57
+    },
+    {
+      "system": "PANTONE",
+      "name": "176 C",
+      "number": "176",
+      "variant": "C",
+      "c": 0,
+      "m": 30,
+      "y": 31,
+      "k": 2
+    },
+    {
+      "system": "PANTONE",
+      "name": "1765 C",
+      "number": "1765",
+      "variant": "C",
+      "c": 0,
+      "m": 37,
+      "y": 35,
+      "k": 2
+    },
+    {
+      "system": "PANTONE",
+      "name": "1767 C",
+      "number": "1767",
+      "variant": "C",
+      "c": 0,
+      "m": 29,
+      "y": 27,
+      "k": 2
+    },
+    {
+      "system": "PANTONE",
+      "name": "177 C",
+      "number": "177",
+      "variant": "C",
+      "c": 0,
+      "m": 48,
+      "y": 49,
+      "k": 2
+    },
+    {
+      "system": "PANTONE",
+      "name": "1775 C",
+      "number": "1775",
+      "variant": "C",
+      "c": 0,
+      "m": 47,
+      "y": 43,
+      "k": 2
+    },
+    {
+      "system": "PANTONE",
+      "name": "1777 C",
+      "number": "1777",
+      "variant": "C",
+      "c": 0,
+      "m": 60,
+      "y": 54,
+      "k": 1
+    },
+    {
+      "system": "PANTONE",
+      "name": "178 C",
+      "number": "178",
+      "variant": "C",
+      "c": 0,
+      "m": 62,
+      "y": 64,
+      "k": 2
+    },
+    {
+      "system": "PANTONE",
+      "name": "1785 C",
+      "number": "1785",
+      "variant": "C",
+      "c": 0,
+      "m": 69,
+      "y": 65,
+      "k": 1
+    },
+    {
+      "system": "PANTONE",
+      "name": "1787 C",
+      "number": "1787",
+      "variant": "C",
+      "c": 0,
+      "m": 74,
+      "y": 68,
+      "k": 4
+    },
+    {
+      "system": "PANTONE",
+      "name": "1788 C",
+      "number": "1788",
+      "variant": "C",
+      "c": 0,
+      "m": 82,
+      "y": 81,
+      "k": 6
+    },
+    {
+      "system": "PANTONE",
+      "name": "179 C",
+      "number": "179",
+      "variant": "C",
+      "c": 0,
+      "m": 73,
+      "y": 82,
+      "k": 11
+    },
+    {
+      "system": "PANTONE",
+      "name": "1795 C",
+      "number": "1795",
+      "variant": "C",
+      "c": 0,
+      "m": 81,
+      "y": 81,
+      "k": 16
+    },
+    {
+      "system": "PANTONE",
+      "name": "1797 C",
+      "number": "1797",
+      "variant": "C",
+      "c": 0,
+      "m": 78,
+      "y": 76,
+      "k": 20
+    },
+    {
+      "system": "PANTONE",
+      "name": "180 C",
+      "number": "180",
+      "variant": "C",
+      "c": 0,
+      "m": 71,
+      "y": 79,
+      "k": 24
+    },
+    {
+      "system": "PANTONE",
+      "name": "1805 C",
+      "number": "1805",
+      "variant": "C",
+      "c": 0,
+      "m": 78,
+      "y": 78,
+      "k": 31
+    },
+    {
+      "system": "PANTONE",
+      "name": "1807 C",
+      "number": "1807",
+      "variant": "C",
+      "c": 0,
+      "m": 70,
+      "y": 68,
+      "k": 37
+    },
+    {
+      "system": "PANTONE",
+      "name": "181 C",
+      "number": "181",
+      "variant": "C",
+      "c": 0,
+      "m": 64,
+      "y": 72,
+      "k": 51
+    },
+    {
+      "system": "PANTONE",
+      "name": "1815 C",
+      "number": "1815",
+      "variant": "C",
+      "c": 0,
+      "m": 73,
+      "y": 76,
+      "k": 51
+    },
+    {
+      "system": "PANTONE",
+      "name": "1817 C",
+      "number": "1817",
+      "variant": "C",
+      "c": 0,
+      "m": 51,
+      "y": 56,
+      "k": 64
+    },
+    {
+      "system": "PANTONE",
+      "name": "182 C",
+      "number": "182",
+      "variant": "C",
+      "c": 0,
+      "m": 23,
+      "y": 22,
+      "k": 2
+    },
+    {
+      "system": "PANTONE",
+      "name": "183 C",
+      "number": "183",
+      "variant": "C",
+      "c": 0,
+      "m": 44,
+      "y": 39,
+      "k": 1
+    },
+    {
+      "system": "PANTONE",
+      "name": "184 C",
+      "number": "184",
+      "variant": "C",
+      "c": 0,
+      "m": 63,
+      "y": 55,
+      "k": 1
+    },
+    {
+      "system": "PANTONE",
+      "name": "185 C",
+      "number": "185",
+      "variant": "C",
+      "c": 0,
+      "m": 93,
+      "y": 81,
+      "k": 9
+    },
+    {
+      "system": "PANTONE",
+      "name": "186 C",
+      "number": "186",
+      "variant": "C",
+      "c": 0,
+      "m": 92,
+      "y": 82,
+      "k": 19
+    },
+    {
+      "system": "PANTONE",
+      "name": "187 C",
+      "number": "187",
+      "variant": "C",
+      "c": 0,
+      "m": 83,
+      "y": 74,
+      "k": 31
+    },
+    {
+      "system": "PANTONE",
+      "name": "188 C",
+      "number": "188",
+      "variant": "C",
+      "c": 0,
+      "m": 73,
+      "y": 68,
+      "k": 51
+    },
+    {
+      "system": "PANTONE",
+      "name": "189 C",
+      "number": "189",
+      "variant": "C",
+      "c": 0,
+      "m": 36,
+      "y": 30,
+      "k": 0
+    },
+    {
+      "system": "PANTONE",
+      "name": "1895 C",
+      "number": "1895",
+      "variant": "C",
+      "c": 0,
+      "m": 24,
+      "y": 20,
+      "k": 1
+    },
+    {
+      "system": "PANTONE",
+      "name": "190 C",
+      "number": "190",
+      "variant": "C",
+      "c": 0,
+      "m": 54,
+      "y": 44,
+      "k": 1
+    },
+    {
+      "system": "PANTONE",
+      "name": "1905 C",
+      "number": "1905",
+      "variant": "C",
+      "c": 0,
+      "m": 38,
+      "y": 29,
+      "k": 1
+    },
+    {
+      "system": "PANTONE",
+      "name": "191 C",
+      "number": "191",
+      "variant": "C",
+      "c": 0,
+      "m": 71,
+      "y": 56,
+      "k": 4
+    },
+    {
+      "system": "PANTONE",
+      "name": "1915 C",
+      "number": "1915",
+      "variant": "C",
+      "c": 0,
+      "m": 66,
+      "y": 49,
+      "k": 4
+    },
+    {
+      "system": "PANTONE",
+      "name": "192 C",
+      "number": "192",
+      "variant": "C",
+      "c": 0,
+      "m": 98,
+      "y": 75,
+      "k": 10
+    },
+    {
+      "system": "PANTONE",
+      "name": "1925 C",
+      "number": "1925",
+      "variant": "C",
+      "c": 0,
+      "m": 97,
+      "y": 68,
+      "k": 12
+    },
+    {
+      "system": "PANTONE",
+      "name": "193 C",
+      "number": "193",
+      "variant": "C",
+      "c": 0,
+      "m": 95,
+      "y": 75,
+      "k": 25
+    },
+    {
+      "system": "PANTONE",
+      "name": "1935 C",
+      "number": "1935",
+      "variant": "C",
+      "c": 0,
+      "m": 97,
+      "y": 71,
+      "k": 24
+    },
+    {
+      "system": "PANTONE",
+      "name": "194 C",
+      "number": "194",
+      "variant": "C",
+      "c": 0,
+      "m": 78,
+      "y": 65,
+      "k": 40
+    },
+    {
+      "system": "PANTONE",
+      "name": "1945 C",
+      "number": "1945",
+      "variant": "C",
+      "c": 0,
+      "m": 93,
+      "y": 68,
+      "k": 34
+    },
+    {
+      "system": "PANTONE",
+      "name": "195 C",
+      "number": "195",
+      "variant": "C",
+      "c": 0,
+      "m": 62,
+      "y": 55,
+      "k": 53
+    },
+    {
+      "system": "PANTONE",
+      "name": "1955 C",
+      "number": "1955",
+      "variant": "C",
+      "c": 0,
+      "m": 85,
+      "y": 62,
+      "k": 42
+    },
+    {
+      "system": "PANTONE",
+      "name": "196 C",
+      "number": "196",
+      "variant": "C",
+      "c": 0,
+      "m": 18,
+      "y": 18,
+      "k": 4
+    },
+    {
+      "system": "PANTONE",
+      "name": "197 C",
+      "number": "197",
+      "variant": "C",
+      "c": 0,
+      "m": 36,
+      "y": 32,
+      "k": 6
+    },
+    {
+      "system": "PANTONE",
+      "name": "198 C",
+      "number": "198",
+      "variant": "C",
+      "c": 0,
+      "m": 62,
+      "y": 52,
+      "k": 10
+    },
+    {
+      "system": "PANTONE",
+      "name": "199 C",
+      "number": "199",
+      "variant": "C",
+      "c": 0,
+      "m": 87,
+      "y": 71,
+      "k": 15
+    },
+    {
+      "system": "PANTONE",
+      "name": "Cool Gray 2 C",
+      "number": "2",
+      "variant": "C",
+      "c": 0,
+      "m": 2,
+      "y": 7,
+      "k": 13
+    },
+    {
+      "system": "PANTONE",
+      "name": "Warm Gray 2 C",
+      "number": "2",
+      "variant": "C",
+      "c": 0,
+      "m": 5,
+      "y": 13,
+      "k": 13
+    },
+    {
+      "system": "PANTONE",
+      "name": "200 C",
+      "number": "200",
+      "variant": "C",
+      "c": 0,
+      "m": 85,
+      "y": 70,
+      "k": 23
+    },
+    {
+      "system": "PANTONE",
+      "name": "201 C",
+      "number": "201",
+      "variant": "C",
+      "c": 0,
+      "m": 77,
+      "y": 66,
+      "k": 36
+    },
+    {
+      "system": "PANTONE",
+      "name": "202 C",
+      "number": "202",
+      "variant": "C",
+      "c": 0,
+      "m": 73,
+      "y": 64,
+      "k": 45
+    },
+    {
+      "system": "PANTONE",
+      "name": "203 C",
+      "number": "203",
+      "variant": "C",
+      "c": 0,
+      "m": 28,
+      "y": 20,
+      "k": 5
+    },
+    {
+      "system": "PANTONE",
+      "name": "204 C",
+      "number": "204",
+      "variant": "C",
+      "c": 0,
+      "m": 49,
+      "y": 33,
+      "k": 7
+    },
+    {
+      "system": "PANTONE",
+      "name": "205 C",
+      "number": "205",
+      "variant": "C",
+      "c": 0,
+      "m": 67,
+      "y": 46,
+      "k": 10
+    },
+    {
+      "system": "PANTONE",
+      "name": "206 C",
+      "number": "206",
+      "variant": "C",
+      "c": 0,
+      "m": 98,
+      "y": 66,
+      "k": 17
+    },
+    {
+      "system": "PANTONE",
+      "name": "207 C",
+      "number": "207",
+      "variant": "C",
+      "c": 0,
+      "m": 100,
+      "y": 65,
+      "k": 31
+    },
+    {
+      "system": "PANTONE",
+      "name": "208 C",
+      "number": "208",
+      "variant": "C",
+      "c": 0,
+      "m": 75,
+      "y": 52,
+      "k": 44
+    },
+    {
+      "system": "PANTONE",
+      "name": "209 C",
+      "number": "209",
+      "variant": "C",
+      "c": 0,
+      "m": 68,
+      "y": 48,
+      "k": 54
+    },
+    {
+      "system": "PANTONE",
+      "name": "210 C",
+      "number": "210",
+      "variant": "C",
+      "c": 0,
+      "m": 37,
+      "y": 25,
+      "k": 0
+    },
+    {
+      "system": "PANTONE",
+      "name": "211 C",
+      "number": "211",
+      "variant": "C",
+      "c": 0,
+      "m": 53,
+      "y": 34,
+      "k": 0
+    },
+    {
+      "system": "PANTONE",
+      "name": "212 C",
+      "number": "212",
+      "variant": "C",
+      "c": 0,
+      "m": 68,
+      "y": 43,
+      "k": 2
+    },
+    {
+      "system": "PANTONE",
+      "name": "213 C",
+      "number": "213",
+      "variant": "C",
+      "c": 0,
+      "m": 94,
+      "y": 54,
+      "k": 8
+    },
+    {
+      "system": "PANTONE",
+      "name": "214 C",
+      "number": "214",
+      "variant": "C",
+      "c": 0,
+      "m": 99,
+      "y": 58,
+      "k": 20
+    },
+    {
+      "system": "PANTONE",
+      "name": "215 C",
+      "number": "215",
+      "variant": "C",
+      "c": 0,
+      "m": 97,
+      "y": 59,
+      "k": 35
+    },
+    {
+      "system": "PANTONE",
+      "name": "216 C",
+      "number": "216",
+      "variant": "C",
+      "c": 0,
+      "m": 76,
+      "y": 49,
+      "k": 51
+    },
+    {
+      "system": "PANTONE",
+      "name": "217 C",
+      "number": "217",
+      "variant": "C",
+      "c": 0,
+      "m": 22,
+      "y": 14,
+      "k": 4
+    },
+    {
+      "system": "PANTONE",
+      "name": "218 C",
+      "number": "218",
+      "variant": "C",
+      "c": 0,
+      "m": 52,
+      "y": 28,
+      "k": 7
+    },
+    {
+      "system": "PANTONE",
+      "name": "219 C",
+      "number": "219",
+      "variant": "C",
+      "c": 0,
+      "m": 82,
+      "y": 42,
+      "k": 11
+    },
+    {
+      "system": "PANTONE",
+      "name": "220 C",
+      "number": "220",
+      "variant": "C",
+      "c": 0,
+      "m": 100,
+      "y": 54,
+      "k": 33
+    },
+    {
+      "system": "PANTONE",
+      "name": "221 C",
+      "number": "221",
+      "variant": "C",
+      "c": 0,
+      "m": 100,
+      "y": 55,
+      "k": 42
+    },
+    {
+      "system": "PANTONE",
+      "name": "222 C",
+      "number": "222",
+      "variant": "C",
+      "c": 0,
+      "m": 78,
+      "y": 46,
+      "k": 56
+    },
+    {
+      "system": "PANTONE",
+      "name": "223 C",
+      "number": "223",
+      "variant": "C",
+      "c": 0,
+      "m": 41,
+      "y": 21,
+      "k": 2
+    },
+    {
+      "system": "PANTONE",
+      "name": "224 C",
+      "number": "224",
+      "variant": "C",
+      "c": 0,
+      "m": 56,
+      "y": 28,
+      "k": 4
+    },
+    {
+      "system": "PANTONE",
+      "name": "225 C",
+      "number": "225",
+      "variant": "C",
+      "c": 0,
+      "m": 83,
+      "y": 38,
+      "k": 7
+    },
+    {
+      "system": "PANTONE",
+      "name": "226 C",
+      "number": "226",
+      "variant": "C",
+      "c": 0,
+      "m": 99,
+      "y": 48,
+      "k": 16
+    },
+    {
+      "system": "PANTONE",
+      "name": "227 C",
+      "number": "227",
+      "variant": "C",
+      "c": 0,
+      "m": 100,
+      "y": 47,
+      "k": 32
+    },
+    {
+      "system": "PANTONE",
+      "name": "228 C",
+      "number": "228",
+      "variant": "C",
+      "c": 0,
+      "m": 100,
+      "y": 46,
+      "k": 45
+    },
+    {
+      "system": "PANTONE",
+      "name": "229 C",
+      "number": "229",
+      "variant": "C",
+      "c": 0,
+      "m": 70,
+      "y": 42,
+      "k": 57
+    },
+    {
+      "system": "PANTONE",
+      "name": "230 C",
+      "number": "230",
+      "variant": "C",
+      "c": 0,
+      "m": 37,
+      "y": 20,
+      "k": 0
+    },
+    {
+      "system": "PANTONE",
+      "name": "231 C",
+      "number": "231",
+      "variant": "C",
+      "c": 0,
+      "m": 56,
+      "y": 26,
+      "k": 1
+    },
+    {
+      "system": "PANTONE",
+      "name": "232 C",
+      "number": "232",
+      "variant": "C",
+      "c": 0,
+      "m": 74,
+      "y": 32,
+      "k": 4
+    },
+    {
+      "system": "PANTONE",
+      "name": "233 C",
+      "number": "233",
+      "variant": "C",
+      "c": 0,
+      "m": 100,
+      "y": 40,
+      "k": 19
+    },
+    {
+      "system": "PANTONE",
+      "name": "234 C",
+      "number": "234",
+      "variant": "C",
+      "c": 0,
+      "m": 100,
+      "y": 40,
+      "k": 33
+    },
+    {
+      "system": "PANTONE",
+      "name": "235 C",
+      "number": "235",
+      "variant": "C",
+      "c": 0,
+      "m": 96,
+      "y": 41,
+      "k": 44
+    },
+    {
+      "system": "PANTONE",
+      "name": "236 C",
+      "number": "236",
+      "variant": "C",
+      "c": 0,
+      "m": 30,
+      "y": 15,
+      "k": 2
+    },
+    {
+      "system": "PANTONE",
+      "name": "2365 C",
+      "number": "2365",
+      "variant": "C",
+      "c": 0,
+      "m": 21,
+      "y": 13,
+      "k": 3
+    },
+    {
+      "system": "PANTONE",
+      "name": "237 C",
+      "number": "237",
+      "variant": "C",
+      "c": 0,
+      "m": 46,
+      "y": 20,
+      "k": 4
+    },
+    {
+      "system": "PANTONE",
+      "name": "2375 C",
+      "number": "2375",
+      "variant": "C",
+      "c": 0,
+      "m": 54,
+      "y": 18,
+      "k": 8
+    },
+    {
+      "system": "PANTONE",
+      "name": "238 C",
+      "number": "238",
+      "variant": "C",
+      "c": 0,
+      "m": 67,
+      "y": 26,
+      "k": 7
+    },
+    {
+      "system": "PANTONE",
+      "name": "2385 C",
+      "number": "2385",
+      "variant": "C",
+      "c": 0,
+      "m": 82,
+      "y": 25,
+      "k": 14
+    },
+    {
+      "system": "PANTONE",
+      "name": "239 C",
+      "number": "239",
+      "variant": "C",
+      "c": 0,
+      "m": 85,
+      "y": 29,
+      "k": 12
+    },
+    {
+      "system": "PANTONE",
+      "name": "2395 C",
+      "number": "2395",
+      "variant": "C",
+      "c": 0,
+      "m": 100,
+      "y": 29,
+      "k": 23
+    },
+    {
+      "system": "PANTONE",
+      "name": "240 C",
+      "number": "240",
+      "variant": "C",
+      "c": 0,
+      "m": 92,
+      "y": 30,
+      "k": 23
+    },
+    {
+      "system": "PANTONE",
+      "name": "2405 C",
+      "number": "2405",
+      "variant": "C",
+      "c": 0,
+      "m": 100,
+      "y": 27,
+      "k": 34
+    },
+    {
+      "system": "PANTONE",
+      "name": "241 C",
+      "number": "241",
+      "variant": "C",
+      "c": 0,
+      "m": 100,
+      "y": 32,
+      "k": 32
+    },
+    {
+      "system": "PANTONE",
+      "name": "2415 C",
+      "number": "2415",
+      "variant": "C",
+      "c": 0,
+      "m": 100,
+      "y": 28,
+      "k": 39
+    },
+    {
+      "system": "PANTONE",
+      "name": "242 C",
+      "number": "242",
+      "variant": "C",
+      "c": 0,
+      "m": 77,
+      "y": 35,
+      "k": 51
+    },
+    {
+      "system": "PANTONE",
+      "name": "2425 C",
+      "number": "2425",
+      "variant": "C",
+      "c": 0,
+      "m": 100,
+      "y": 33,
+      "k": 47
+    },
+    {
+      "system": "PANTONE",
+      "name": "243 C",
+      "number": "243",
+      "variant": "C",
+      "c": 0,
+      "m": 23,
+      "y": 11,
+      "k": 5
+    },
+    {
+      "system": "PANTONE",
+      "name": "244 C",
+      "number": "244",
+      "variant": "C",
+      "c": 0,
+      "m": 32,
+      "y": 11,
+      "k": 7
+    },
+    {
+      "system": "PANTONE",
+      "name": "245 C",
+      "number": "245",
+      "variant": "C",
+      "c": 0,
+      "m": 45,
+      "y": 13,
+      "k": 9
+    },
+    {
+      "system": "PANTONE",
+      "name": "246 C",
+      "number": "246",
+      "variant": "C",
+      "c": 0,
+      "m": 100,
+      "y": 22,
+      "k": 20
+    },
+    {
+      "system": "PANTONE",
+      "name": "247 C",
+      "number": "247",
+      "variant": "C",
+      "c": 0,
+      "m": 100,
+      "y": 22,
+      "k": 28
+    },
+    {
+      "system": "PANTONE",
+      "name": "248 C",
+      "number": "248",
+      "variant": "C",
+      "c": 0,
+      "m": 97,
+      "y": 22,
+      "k": 36
+    },
+    {
+      "system": "PANTONE",
+      "name": "249 C",
+      "number": "249",
+      "variant": "C",
+      "c": 0,
+      "m": 69,
+      "y": 24,
+      "k": 50
+    },
+    {
+      "system": "PANTONE",
+      "name": "250 C",
+      "number": "250",
+      "variant": "C",
+      "c": 0,
+      "m": 17,
+      "y": 7,
+      "k": 7
+    },
+    {
+      "system": "PANTONE",
+      "name": "251 C",
+      "number": "251",
+      "variant": "C",
+      "c": 0,
+      "m": 30,
+      "y": 5,
+      "k": 11
+    },
+    {
+      "system": "PANTONE",
+      "name": "252 C",
+      "number": "252",
+      "variant": "C",
+      "c": 0,
+      "m": 49,
+      "y": 6,
+      "k": 17
+    },
+    {
+      "system": "PANTONE",
+      "name": "253 C",
+      "number": "253",
+      "variant": "C",
+      "c": 0,
+      "m": 80,
+      "y": 6,
+      "k": 31
+    },
+    {
+      "system": "PANTONE",
+      "name": "254 C",
+      "number": "254",
+      "variant": "C",
+      "c": 0,
+      "m": 72,
+      "y": 6,
+      "k": 37
+    },
+    {
+      "system": "PANTONE",
+      "name": "255 C",
+      "number": "255",
+      "variant": "C",
+      "c": 0,
+      "m": 62,
+      "y": 10,
+      "k": 53
+    },
+    {
+      "system": "PANTONE",
+      "name": "256 C",
+      "number": "256",
+      "variant": "C",
+      "c": 0,
+      "m": 14,
+      "y": 7,
+      "k": 10
+    },
+    {
+      "system": "PANTONE",
+      "name": "2562 C",
+      "number": "2562",
+      "variant": "C",
+      "c": 0,
+      "m": 22,
+      "y": 0,
+      "k": 15
+    },
+    {
+      "system": "PANTONE",
+      "name": "2563 C",
+      "number": "2563",
+      "variant": "C",
+      "c": 0,
+      "m": 23,
+      "y": 2,
+      "k": 18
+    },
+    {
+      "system": "PANTONE",
+      "name": "2567 C",
+      "number": "2567",
+      "variant": "C",
+      "c": 6,
+      "m": 28,
+      "y": 0,
+      "k": 20
+    },
+    {
+      "system": "PANTONE",
+      "name": "257 C",
+      "number": "257",
+      "variant": "C",
+      "c": 0,
+      "m": 22,
+      "y": 5,
+      "k": 17
+    },
+    {
+      "system": "PANTONE",
+      "name": "2572 C",
+      "number": "2572",
+      "variant": "C",
+      "c": 5,
+      "m": 35,
+      "y": 0,
+      "k": 18
+    },
+    {
+      "system": "PANTONE",
+      "name": "2573 C",
+      "number": "2573",
+      "variant": "C",
+      "c": 1,
+      "m": 34,
+      "y": 0,
+      "k": 26
+    },
+    {
+      "system": "PANTONE",
+      "name": "2577 C",
+      "number": "2577",
+      "variant": "C",
+      "c": 11,
+      "m": 40,
+      "y": 0,
+      "k": 25
+    },
+    {
+      "system": "PANTONE",
+      "name": "258 C",
+      "number": "258",
+      "variant": "C",
+      "c": 0,
+      "m": 49,
+      "y": 3,
+      "k": 39
+    },
+    {
+      "system": "PANTONE",
+      "name": "2582 C",
+      "number": "2582",
+      "variant": "C",
+      "c": 9,
+      "m": 62,
+      "y": 0,
+      "k": 27
+    },
+    {
+      "system": "PANTONE",
+      "name": "2583 C",
+      "number": "2583",
+      "variant": "C",
+      "c": 4,
+      "m": 52,
+      "y": 0,
+      "k": 35
+    },
+    {
+      "system": "PANTONE",
+      "name": "2587 C",
+      "number": "2587",
+      "variant": "C",
+      "c": 18,
+      "m": 59,
+      "y": 0,
+      "k": 32
+    },
+    {
+      "system": "PANTONE",
+      "name": "259 C",
+      "number": "259",
+      "variant": "C",
+      "c": 0,
+      "m": 81,
+      "y": 6,
+      "k": 55
+    },
+    {
+      "system": "PANTONE",
+      "name": "2592 C",
+      "number": "2592",
+      "variant": "C",
+      "c": 11,
+      "m": 91,
+      "y": 0,
+      "k": 35
+    },
+    {
+      "system": "PANTONE",
+      "name": "2593 C",
+      "number": "2593",
+      "variant": "C",
+      "c": 8,
+      "m": 71,
+      "y": 0,
+      "k": 42
+    },
+    {
+      "system": "PANTONE",
+      "name": "2597 C",
+      "number": "2597",
+      "variant": "C",
+      "c": 27,
+      "m": 100,
+      "y": 0,
+      "k": 45
+    },
+    {
+      "system": "PANTONE",
+      "name": "260 C",
+      "number": "260",
+      "variant": "C",
+      "c": 0,
+      "m": 71,
+      "y": 13,
+      "k": 59
+    },
+    {
+      "system": "PANTONE",
+      "name": "2602 C",
+      "number": "2602",
+      "variant": "C",
+      "c": 8,
+      "m": 92,
+      "y": 0,
+      "k": 44
+    },
+    {
+      "system": "PANTONE",
+      "name": "2603 C",
+      "number": "2603",
+      "variant": "C",
+      "c": 8,
+      "m": 84,
+      "y": 0,
+      "k": 52
+    },
+    {
+      "system": "PANTONE",
+      "name": "2607 C",
+      "number": "2607",
+      "variant": "C",
+      "c": 25,
+      "m": 98,
+      "y": 0,
+      "k": 52
+    },
+    {
+      "system": "PANTONE",
+      "name": "261 C",
+      "number": "261",
+      "variant": "C",
+      "c": 0,
+      "m": 65,
+      "y": 11,
+      "k": 63
+    },
+    {
+      "system": "PANTONE",
+      "name": "2612 C",
+      "number": "2612",
+      "variant": "C",
+      "c": 2,
+      "m": 74,
+      "y": 0,
+      "k": 55
+    },
+    {
+      "system": "PANTONE",
+      "name": "2613 C",
+      "number": "2613",
+      "variant": "C",
+      "c": 6,
+      "m": 84,
+      "y": 0,
+      "k": 57
+    },
+    {
+      "system": "PANTONE",
+      "name": "2617 C",
+      "number": "2617",
+      "variant": "C",
+      "c": 23,
+      "m": 89,
+      "y": 0,
+      "k": 56
+    },
+    {
+      "system": "PANTONE",
+      "name": "262 C",
+      "number": "262",
+      "variant": "C",
+      "c": 0,
+      "m": 58,
+      "y": 19,
+      "k": 67
+    },
+    {
+      "system": "PANTONE",
+      "name": "2622 C",
+      "number": "2622",
+      "variant": "C",
+      "c": 0,
+      "m": 53,
+      "y": 7,
+      "k": 62
+    },
+    {
+      "system": "PANTONE",
+      "name": "2623 C",
+      "number": "2623",
+      "variant": "C",
+      "c": 3,
+      "m": 73,
+      "y": 0,
+      "k": 63
+    },
+    {
+      "system": "PANTONE",
+      "name": "2627 C",
+      "number": "2627",
+      "variant": "C",
+      "c": 19,
+      "m": 79,
+      "y": 0,
+      "k": 63
+    },
+    {
+      "system": "PANTONE",
+      "name": "263 C",
+      "number": "263",
+      "variant": "C",
+      "c": 0,
+      "m": 8,
+      "y": 0,
+      "k": 12
+    },
+    {
+      "system": "PANTONE",
+      "name": "2635 C",
+      "number": "2635",
+      "variant": "C",
+      "c": 7,
+      "m": 20,
+      "y": 0,
+      "k": 15
+    },
+    {
+      "system": "PANTONE",
+      "name": "264 C",
+      "number": "264",
+      "variant": "C",
+      "c": 10,
+      "m": 22,
+      "y": 0,
+      "k": 14
+    },
+    {
+      "system": "PANTONE",
+      "name": "2645 C",
+      "number": "2645",
+      "variant": "C",
+      "c": 13,
+      "m": 31,
+      "y": 0,
+      "k": 18
+    },
+    {
+      "system": "PANTONE",
+      "name": "265 C",
+      "number": "265",
+      "variant": "C",
+      "c": 23,
+      "m": 49,
+      "y": 0,
+      "k": 23
+    },
+    {
+      "system": "PANTONE",
+      "name": "2655 C",
+      "number": "2655",
+      "variant": "C",
+      "c": 22,
+      "m": 45,
+      "y": 0,
+      "k": 22
+    },
+    {
+      "system": "PANTONE",
+      "name": "266 C",
+      "number": "266",
+      "variant": "C",
+      "c": 36,
+      "m": 76,
+      "y": 0,
+      "k": 33
+    },
+    {
+      "system": "PANTONE",
+      "name": "2665 C",
+      "number": "2665",
+      "variant": "C",
+      "c": 28,
+      "m": 59,
+      "y": 0,
+      "k": 25
+    },
+    {
+      "system": "PANTONE",
+      "name": "267 C",
+      "number": "267",
+      "variant": "C",
+      "c": 37,
+      "m": 88,
+      "y": 0,
+      "k": 44
+    },
+    {
+      "system": "PANTONE",
+      "name": "268 C",
+      "number": "268",
+      "variant": "C",
+      "c": 29,
+      "m": 71,
+      "y": 0,
+      "k": 56
+    },
+    {
+      "system": "PANTONE",
+      "name": "2685 C",
+      "number": "2685",
+      "variant": "C",
+      "c": 39,
+      "m": 100,
+      "y": 0,
+      "k": 45
+    },
+    {
+      "system": "PANTONE",
+      "name": "269 C",
+      "number": "269",
+      "variant": "C",
+      "c": 24,
+      "m": 61,
+      "y": 0,
+      "k": 65
+    },
+    {
+      "system": "PANTONE",
+      "name": "2695 C",
+      "number": "2695",
+      "variant": "C",
+      "c": 28,
+      "m": 63,
+      "y": 0,
+      "k": 63
+    },
+    {
+      "system": "PANTONE",
+      "name": "270 C",
+      "number": "270",
+      "variant": "C",
+      "c": 12,
+      "m": 17,
+      "y": 0,
+      "k": 17
+    },
+    {
+      "system": "PANTONE",
+      "name": "2705 C",
+      "number": "2705",
+      "variant": "C",
+      "c": 18,
+      "m": 25,
+      "y": 0,
+      "k": 17
+    },
+    {
+      "system": "PANTONE",
+      "name": "2706 C",
+      "number": "2706",
+      "variant": "C",
+      "c": 5,
+      "m": 7,
+      "y": 0,
+      "k": 13
+    },
+    {
+      "system": "PANTONE",
+      "name": "2707 C",
+      "number": "2707",
+      "variant": "C",
+      "c": 17,
+      "m": 9,
+      "y": 0,
+      "k": 10
+    },
+    {
+      "system": "PANTONE",
+      "name": "2708 C",
+      "number": "2708",
+      "variant": "C",
+      "c": 20,
+      "m": 14,
+      "y": 0,
+      "k": 14
+    },
+    {
+      "system": "PANTONE",
+      "name": "271 C",
+      "number": "271",
+      "variant": "C",
+      "c": 20,
+      "m": 27,
+      "y": 0,
+      "k": 22
+    },
+    {
+      "system": "PANTONE",
+      "name": "2715 C",
+      "number": "2715",
+      "variant": "C",
+      "c": 28,
+      "m": 40,
+      "y": 0,
+      "k": 20
+    },
+    {
+      "system": "PANTONE",
+      "name": "2716 C",
+      "number": "2716",
+      "variant": "C",
+      "c": 23,
+      "m": 25,
+      "y": 0,
+      "k": 16
+    },
+    {
+      "system": "PANTONE",
+      "name": "2717 C",
+      "number": "2717",
+      "variant": "C",
+      "c": 26,
+      "m": 17,
+      "y": 0,
+      "k": 12
+    },
+    {
+      "system": "PANTONE",
+      "name": "2718 C",
+      "number": "2718",
+      "variant": "C",
+      "c": 55,
+      "m": 42,
+      "y": 0,
+      "k": 20
+    },
+    {
+      "system": "PANTONE",
+      "name": "272 C",
+      "number": "272",
+      "variant": "C",
+      "c": 26,
+      "m": 36,
+      "y": 0,
+      "k": 27
+    },
+    {
+      "system": "PANTONE",
+      "name": "2725 C",
+      "number": "2725",
+      "variant": "C",
+      "c": 39,
+      "m": 57,
+      "y": 0,
+      "k": 26
+    },
+    {
+      "system": "PANTONE",
+      "name": "2726 C",
+      "number": "2726",
+      "variant": "C",
+      "c": 46,
+      "m": 54,
+      "y": 0,
+      "k": 26
+    },
+    {
+      "system": "PANTONE",
+      "name": "2727 C",
+      "number": "2727",
+      "variant": "C",
+      "c": 52,
+      "m": 47,
+      "y": 0,
+      "k": 23
+    },
+    {
+      "system": "PANTONE",
+      "name": "2728 C",
+      "number": "2728",
+      "variant": "C",
+      "c": 73,
+      "m": 62,
+      "y": 0,
+      "k": 29
+    },
+    {
+      "system": "PANTONE",
+      "name": "273 C",
+      "number": "273",
+      "variant": "C",
+      "c": 54,
+      "m": 80,
+      "y": 0,
+      "k": 52
+    },
+    {
+      "system": "PANTONE",
+      "name": "2735 C",
+      "number": "2735",
+      "variant": "C",
+      "c": 46,
+      "m": 100,
+      "y": 0,
+      "k": 42
+    },
+    {
+      "system": "PANTONE",
+      "name": "2736 C",
+      "number": "2736",
+      "variant": "C",
+      "c": 58,
+      "m": 72,
+      "y": 0,
+      "k": 32
+    },
+    {
+      "system": "PANTONE",
+      "name": "2738 C",
+      "number": "2738",
+      "variant": "C",
+      "c": 68,
+      "m": 100,
+      "y": 0,
+      "k": 44
+    },
+    {
+      "system": "PANTONE",
+      "name": "274 C",
+      "number": "274",
+      "variant": "C",
+      "c": 58,
+      "m": 83,
+      "y": 0,
+      "k": 60
+    },
+    {
+      "system": "PANTONE",
+      "name": "2745 C",
+      "number": "2745",
+      "variant": "C",
+      "c": 47,
+      "m": 100,
+      "y": 0,
+      "k": 53
+    },
+    {
+      "system": "PANTONE",
+      "name": "2746 C",
+      "number": "2746",
+      "variant": "C",
+      "c": 57,
+      "m": 73,
+      "y": 0,
+      "k": 42
+    },
+    {
+      "system": "PANTONE",
+      "name": "2747 C",
+      "number": "2747",
+      "variant": "C",
+      "c": 74,
+      "m": 81,
+      "y": 0,
+      "k": 58
+    },
+    {
+      "system": "PANTONE",
+      "name": "2748 C",
+      "number": "2748",
+      "variant": "C",
+      "c": 75,
+      "m": 76,
+      "y": 0,
+      "k": 53
+    },
+    {
+      "system": "PANTONE",
+      "name": "275 C",
+      "number": "275",
+      "variant": "C",
+      "c": 55,
+      "m": 82,
+      "y": 0,
+      "k": 67
+    },
+    {
+      "system": "PANTONE",
+      "name": "2755 C",
+      "number": "2755",
+      "variant": "C",
+      "c": 51,
+      "m": 100,
+      "y": 0,
+      "k": 57
+    },
+    {
+      "system": "PANTONE",
+      "name": "2756 C",
+      "number": "2756",
+      "variant": "C",
+      "c": 56,
+      "m": 66,
+      "y": 0,
+      "k": 54
+    },
+    {
+      "system": "PANTONE",
+      "name": "2757 C",
+      "number": "2757",
+      "variant": "C",
+      "c": 76,
+      "m": 74,
+      "y": 0,
+      "k": 67
+    },
+    {
+      "system": "PANTONE",
+      "name": "2758 C",
+      "number": "2758",
+      "variant": "C",
+      "c": 76,
+      "m": 68,
+      "y": 0,
+      "k": 59
+    },
+    {
+      "system": "PANTONE",
+      "name": "276 C",
+      "number": "276",
+      "variant": "C",
+      "c": 39,
+      "m": 54,
+      "y": 0,
+      "k": 72
+    },
+    {
+      "system": "PANTONE",
+      "name": "2765 C",
+      "number": "2765",
+      "variant": "C",
+      "c": 50,
+      "m": 86,
+      "y": 0,
+      "k": 66
+    },
+    {
+      "system": "PANTONE",
+      "name": "2766 C",
+      "number": "2766",
+      "variant": "C",
+      "c": 53,
+      "m": 58,
+      "y": 0,
+      "k": 64
+    },
+    {
+      "system": "PANTONE",
+      "name": "2767 C",
+      "number": "2767",
+      "variant": "C",
+      "c": 67,
+      "m": 46,
+      "y": 0,
+      "k": 76
+    },
+    {
+      "system": "PANTONE",
+      "name": "2768 C",
+      "number": "2768",
+      "variant": "C",
+      "c": 79,
+      "m": 59,
+      "y": 0,
+      "k": 68
+    },
+    {
+      "system": "PANTONE",
+      "name": "277 C",
+      "number": "277",
+      "variant": "C",
+      "c": 22,
+      "m": 10,
+      "y": 0,
+      "k": 9
+    },
+    {
+      "system": "PANTONE",
+      "name": "278 C",
+      "number": "278",
+      "variant": "C",
+      "c": 31,
+      "m": 16,
+      "y": 0,
+      "k": 13
+    },
+    {
+      "system": "PANTONE",
+      "name": "279 C",
+      "number": "279",
+      "variant": "C",
+      "c": 50,
+      "m": 33,
+      "y": 0,
+      "k": 20
+    },
+    {
+      "system": "PANTONE",
+      "name": "280 C",
+      "number": "280",
+      "variant": "C",
+      "c": 100,
+      "m": 66,
+      "y": 0,
+      "k": 50
+    },
+    {
+      "system": "PANTONE",
+      "name": "281 C",
+      "number": "281",
+      "variant": "C",
+      "c": 100,
+      "m": 62,
+      "y": 0,
+      "k": 59
+    },
+    {
+      "system": "PANTONE",
+      "name": "282 C",
+      "number": "282",
+      "variant": "C",
+      "c": 100,
+      "m": 55,
+      "y": 0,
+      "k": 67
+    },
+    {
+      "system": "PANTONE",
+      "name": "283 C",
+      "number": "283",
+      "variant": "C",
+      "c": 31,
+      "m": 13,
+      "y": 0,
+      "k": 11
+    },
+    {
+      "system": "PANTONE",
+      "name": "284 C",
+      "number": "284",
+      "variant": "C",
+      "c": 47,
+      "m": 22,
+      "y": 0,
+      "k": 14
+    },
+    {
+      "system": "PANTONE",
+      "name": "285 C",
+      "number": "285",
+      "variant": "C",
+      "c": 70,
+      "m": 40,
+      "y": 0,
+      "k": 23
+    },
+    {
+      "system": "PANTONE",
+      "name": "286 C",
+      "number": "286",
+      "variant": "C",
+      "c": 100,
+      "m": 67,
+      "y": 0,
+      "k": 34
+    },
+    {
+      "system": "PANTONE",
+      "name": "287 C",
+      "number": "287",
+      "variant": "C",
+      "c": 100,
+      "m": 62,
+      "y": 0,
+      "k": 42
+    },
+    {
+      "system": "PANTONE",
+      "name": "288 C",
+      "number": "288",
+      "variant": "C",
+      "c": 100,
+      "m": 60,
+      "y": 0,
+      "k": 50
+    },
+    {
+      "system": "PANTONE",
+      "name": "289 C",
+      "number": "289",
+      "variant": "C",
+      "c": 100,
+      "m": 48,
+      "y": 0,
+      "k": 71
+    },
+    {
+      "system": "PANTONE",
+      "name": "290 C",
+      "number": "290",
+      "variant": "C",
+      "c": 13,
+      "m": 4,
+      "y": 0,
+      "k": 11
+    },
+    {
+      "system": "PANTONE",
+      "name": "2905 C",
+      "number": "2905",
+      "variant": "C",
+      "c": 34,
+      "m": 12,
+      "y": 0,
+      "k": 12
+    },
+    {
+      "system": "PANTONE",
+      "name": "291 C",
+      "number": "291",
+      "variant": "C",
+      "c": 26,
+      "m": 9,
+      "y": 0,
+      "k": 11
+    },
+    {
+      "system": "PANTONE",
+      "name": "2915 C",
+      "number": "2915",
+      "variant": "C",
+      "c": 57,
+      "m": 21,
+      "y": 0,
+      "k": 13
+    },
+    {
+      "system": "PANTONE",
+      "name": "292 C",
+      "number": "292",
+      "variant": "C",
+      "c": 47,
+      "m": 19,
+      "y": 0,
+      "k": 13
+    },
+    {
+      "system": "PANTONE",
+      "name": "2925 C",
+      "number": "2925",
+      "variant": "C",
+      "c": 100,
+      "m": 34,
+      "y": 0,
+      "k": 16
+    },
+    {
+      "system": "PANTONE",
+      "name": "293 C",
+      "number": "293",
+      "variant": "C",
+      "c": 100,
+      "m": 56,
+      "y": 0,
+      "k": 27
+    },
+    {
+      "system": "PANTONE",
+      "name": "2935 C",
+      "number": "2935",
+      "variant": "C",
+      "c": 100,
+      "m": 52,
+      "y": 0,
+      "k": 25
+    },
+    {
+      "system": "PANTONE",
+      "name": "294 C",
+      "number": "294",
+      "variant": "C",
+      "c": 100,
+      "m": 53,
+      "y": 0,
+      "k": 47
+    },
+    {
+      "system": "PANTONE",
+      "name": "2945 C",
+      "number": "2945",
+      "variant": "C",
+      "c": 100,
+      "m": 48,
+      "y": 0,
+      "k": 37
+    },
+    {
+      "system": "PANTONE",
+      "name": "295 C",
+      "number": "295",
+      "variant": "C",
+      "c": 100,
+      "m": 48,
+      "y": 0,
+      "k": 58
+    },
+    {
+      "system": "PANTONE",
+      "name": "2955 C",
+      "number": "2955",
+      "variant": "C",
+      "c": 100,
+      "m": 43,
+      "y": 0,
+      "k": 58
+    },
+    {
+      "system": "PANTONE",
+      "name": "296 C",
+      "number": "296",
+      "variant": "C",
+      "c": 100,
+      "m": 37,
+      "y": 0,
+      "k": 72
+    },
+    {
+      "system": "PANTONE",
+      "name": "2965 C",
+      "number": "2965",
+      "variant": "C",
+      "c": 100,
+      "m": 33,
+      "y": 0,
+      "k": 70
+    },
+    {
+      "system": "PANTONE",
+      "name": "297 C",
+      "number": "297",
+      "variant": "C",
+      "c": 42,
+      "m": 12,
+      "y": 0,
+      "k": 11
+    },
+    {
+      "system": "PANTONE",
+      "name": "2975 C",
+      "number": "2975",
+      "variant": "C",
+      "c": 18,
+      "m": 1,
+      "y": 0,
+      "k": 11
+    },
+    {
+      "system": "PANTONE",
+      "name": "298 C",
+      "number": "298",
+      "variant": "C",
+      "c": 64,
+      "m": 19,
+      "y": 0,
+      "k": 12
+    },
+    {
+      "system": "PANTONE",
+      "name": "2985 C",
+      "number": "2985",
+      "variant": "C",
+      "c": 64,
+      "m": 15,
+      "y": 0,
+      "k": 11
+    },
+    {
+      "system": "PANTONE",
+      "name": "299 C",
+      "number": "299",
+      "variant": "C",
+      "c": 100,
+      "m": 26,
+      "y": 0,
+      "k": 13
+    },
+    {
+      "system": "PANTONE",
+      "name": "2995 C",
+      "number": "2995",
+      "variant": "C",
+      "c": 100,
+      "m": 25,
+      "y": 0,
+      "k": 14
+    },
+    {
+      "system": "PANTONE",
+      "name": "Cool Gray 3 C",
+      "number": "3",
+      "variant": "C",
+      "c": 0,
+      "m": 2,
+      "y": 7,
+      "k": 17
+    },
+    {
+      "system": "PANTONE",
+      "name": "Warm Gray 3 C",
+      "number": "3",
+      "variant": "C",
+      "c": 0,
+      "m": 5,
+      "y": 13,
+      "k": 20
+    },
+    {
+      "system": "PANTONE",
+      "name": "300 C",
+      "number": "300",
+      "variant": "C",
+      "c": 100,
+      "m": 42,
+      "y": 0,
+      "k": 22
+    },
+    {
+      "system": "PANTONE",
+      "name": "3005 C",
+      "number": "3005",
+      "variant": "C",
+      "c": 100,
+      "m": 34,
+      "y": 0,
+      "k": 21
+    },
+    {
+      "system": "PANTONE",
+      "name": "301 C",
+      "number": "301",
+      "variant": "C",
+      "c": 100,
+      "m": 41,
+      "y": 0,
+      "k": 40
+    },
+    {
+      "system": "PANTONE",
+      "name": "3015 C",
+      "number": "3015",
+      "variant": "C",
+      "c": 100,
+      "m": 29,
+      "y": 0,
+      "k": 38
+    },
+    {
+      "system": "PANTONE",
+      "name": "302 C",
+      "number": "302",
+      "variant": "C",
+      "c": 100,
+      "m": 28,
+      "y": 0,
+      "k": 57
+    },
+    {
+      "system": "PANTONE",
+      "name": "3025 C",
+      "number": "3025",
+      "variant": "C",
+      "c": 100,
+      "m": 21,
+      "y": 0,
+      "k": 58
+    },
+    {
+      "system": "PANTONE",
+      "name": "303 C",
+      "number": "303",
+      "variant": "C",
+      "c": 100,
+      "m": 25,
+      "y": 0,
+      "k": 67
+    },
+    {
+      "system": "PANTONE",
+      "name": "3035 C",
+      "number": "3035",
+      "variant": "C",
+      "c": 100,
+      "m": 19,
+      "y": 0,
+      "k": 67
+    },
+    {
+      "system": "PANTONE",
+      "name": "304 C",
+      "number": "304",
+      "variant": "C",
+      "c": 27,
+      "m": 2,
+      "y": 0,
+      "k": 11
+    },
+    {
+      "system": "PANTONE",
+      "name": "305 C",
+      "number": "305",
+      "variant": "C",
+      "c": 50,
+      "m": 9,
+      "y": 0,
+      "k": 11
+    },
+    {
+      "system": "PANTONE",
+      "name": "306 C",
+      "number": "306",
+      "variant": "C",
+      "c": 100,
+      "m": 17,
+      "y": 0,
+      "k": 11
+    },
+    {
+      "system": "PANTONE",
+      "name": "307 C",
+      "number": "307",
+      "variant": "C",
+      "c": 100,
+      "m": 26,
+      "y": 0,
+      "k": 35
+    },
+    {
+      "system": "PANTONE",
+      "name": "308 C",
+      "number": "308",
+      "variant": "C",
+      "c": 100,
+      "m": 23,
+      "y": 0,
+      "k": 51
+    },
+    {
+      "system": "PANTONE",
+      "name": "309 C",
+      "number": "309",
+      "variant": "C",
+      "c": 100,
+      "m": 14,
+      "y": 0,
+      "k": 71
+    },
+    {
+      "system": "PANTONE",
+      "name": "310 C",
+      "number": "310",
+      "variant": "C",
+      "c": 48,
+      "m": 5,
+      "y": 0,
+      "k": 13
+    },
+    {
+      "system": "PANTONE",
+      "name": "3105 C",
+      "number": "3105",
+      "variant": "C",
+      "c": 42,
+      "m": 2,
+      "y": 0,
+      "k": 14
+    },
+    {
+      "system": "PANTONE",
+      "name": "311 C",
+      "number": "311",
+      "variant": "C",
+      "c": 81,
+      "m": 9,
+      "y": 0,
+      "k": 15
+    },
+    {
+      "system": "PANTONE",
+      "name": "3115 C",
+      "number": "3115",
+      "variant": "C",
+      "c": 79,
+      "m": 7,
+      "y": 0,
+      "k": 16
+    },
+    {
+      "system": "PANTONE",
+      "name": "312 C",
+      "number": "312",
+      "variant": "C",
+      "c": 100,
+      "m": 13,
+      "y": 0,
+      "k": 22
+    },
+    {
+      "system": "PANTONE",
+      "name": "3125 C",
+      "number": "3125",
+      "variant": "C",
+      "c": 100,
+      "m": 8,
+      "y": 0,
+      "k": 22
+    },
+    {
+      "system": "PANTONE",
+      "name": "313 C",
+      "number": "313",
+      "variant": "C",
+      "c": 100,
+      "m": 15,
+      "y": 0,
+      "k": 29
+    },
+    {
+      "system": "PANTONE",
+      "name": "3135 C",
+      "number": "3135",
+      "variant": "C",
+      "c": 100,
+      "m": 9,
+      "y": 0,
+      "k": 33
+    },
+    {
+      "system": "PANTONE",
+      "name": "314 C",
+      "number": "314",
+      "variant": "C",
+      "c": 100,
+      "m": 16,
+      "y": 0,
+      "k": 39
+    },
+    {
+      "system": "PANTONE",
+      "name": "3145 C",
+      "number": "3145",
+      "variant": "C",
+      "c": 100,
+      "m": 7,
+      "y": 0,
+      "k": 44
+    },
+    {
+      "system": "PANTONE",
+      "name": "315 C",
+      "number": "315",
+      "variant": "C",
+      "c": 100,
+      "m": 10,
+      "y": 0,
+      "k": 53
+    },
+    {
+      "system": "PANTONE",
+      "name": "3155 C",
+      "number": "3155",
+      "variant": "C",
+      "c": 100,
+      "m": 7,
+      "y": 0,
+      "k": 54
+    },
+    {
+      "system": "PANTONE",
+      "name": "316 C",
+      "number": "316",
+      "variant": "C",
+      "c": 100,
+      "m": 8,
+      "y": 0,
+      "k": 69
+    },
+    {
+      "system": "PANTONE",
+      "name": "3165 C",
+      "number": "3165",
+      "variant": "C",
+      "c": 100,
+      "m": 5,
+      "y": 0,
+      "k": 64
+    },
+    {
+      "system": "PANTONE",
+      "name": "317 C",
+      "number": "317",
+      "variant": "C",
+      "c": 13,
+      "m": 0,
+      "y": 5,
+      "k": 9
+    },
+    {
+      "system": "PANTONE",
+      "name": "318 C",
+      "number": "318",
+      "variant": "C",
+      "c": 33,
+      "m": 0,
+      "y": 1,
+      "k": 13
+    },
+    {
+      "system": "PANTONE",
+      "name": "319 C",
+      "number": "319",
+      "variant": "C",
+      "c": 64,
+      "m": 1,
+      "y": 0,
+      "k": 18
+    },
+    {
+      "system": "PANTONE",
+      "name": "320 C",
+      "number": "320",
+      "variant": "C",
+      "c": 100,
+      "m": 1,
+      "y": 0,
+      "k": 37
+    },
+    {
+      "system": "PANTONE",
+      "name": "321 C",
+      "number": "321",
+      "variant": "C",
+      "c": 100,
+      "m": 1,
+      "y": 0,
+      "k": 46
+    },
+    {
+      "system": "PANTONE",
+      "name": "322 C",
+      "number": "322",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 0,
+      "k": 55
+    },
+    {
+      "system": "PANTONE",
+      "name": "323 C",
+      "number": "323",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 3,
+      "k": 60
+    },
+    {
+      "system": "PANTONE",
+      "name": "324 C",
+      "number": "324",
+      "variant": "C",
+      "c": 23,
+      "m": 0,
+      "y": 3,
+      "k": 13
+    },
+    {
+      "system": "PANTONE",
+      "name": "3242 C",
+      "number": "3242",
+      "variant": "C",
+      "c": 39,
+      "m": 0,
+      "y": 5,
+      "k": 13
+    },
+    {
+      "system": "PANTONE",
+      "name": "3245 C",
+      "number": "3245",
+      "variant": "C",
+      "c": 38,
+      "m": 0,
+      "y": 7,
+      "k": 12
+    },
+    {
+      "system": "PANTONE",
+      "name": "3248 C",
+      "number": "3248",
+      "variant": "C",
+      "c": 42,
+      "m": 0,
+      "y": 9,
+      "k": 17
+    },
+    {
+      "system": "PANTONE",
+      "name": "325 C",
+      "number": "325",
+      "variant": "C",
+      "c": 57,
+      "m": 0,
+      "y": 4,
+      "k": 21
+    },
+    {
+      "system": "PANTONE",
+      "name": "3252 C",
+      "number": "3252",
+      "variant": "C",
+      "c": 60,
+      "m": 0,
+      "y": 6,
+      "k": 16
+    },
+    {
+      "system": "PANTONE",
+      "name": "3255 C",
+      "number": "3255",
+      "variant": "C",
+      "c": 67,
+      "m": 0,
+      "y": 10,
+      "k": 16
+    },
+    {
+      "system": "PANTONE",
+      "name": "3258 C",
+      "number": "3258",
+      "variant": "C",
+      "c": 73,
+      "m": 0,
+      "y": 11,
+      "k": 23
+    },
+    {
+      "system": "PANTONE",
+      "name": "326 C",
+      "number": "326",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 4,
+      "k": 30
+    },
+    {
+      "system": "PANTONE",
+      "name": "3262 C",
+      "number": "3262",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 6,
+      "k": 24
+    },
+    {
+      "system": "PANTONE",
+      "name": "3265 C",
+      "number": "3265",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 10,
+      "k": 22
+    },
+    {
+      "system": "PANTONE",
+      "name": "3268 C",
+      "number": "3268",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 13,
+      "k": 31
+    },
+    {
+      "system": "PANTONE",
+      "name": "327 C",
+      "number": "327",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 7,
+      "k": 45
+    },
+    {
+      "system": "PANTONE",
+      "name": "3272 C",
+      "number": "3272",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 7,
+      "k": 33
+    },
+    {
+      "system": "PANTONE",
+      "name": "3275 C",
+      "number": "3275",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 10,
+      "k": 30
+    },
+    {
+      "system": "PANTONE",
+      "name": "3278 C",
+      "number": "3278",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 15,
+      "k": 39
+    },
+    {
+      "system": "PANTONE",
+      "name": "328 C",
+      "number": "328",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 6,
+      "k": 53
+    },
+    {
+      "system": "PANTONE",
+      "name": "3282 C",
+      "number": "3282",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 7,
+      "k": 45
+    },
+    {
+      "system": "PANTONE",
+      "name": "3285 C",
+      "number": "3285",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 12,
+      "k": 40
+    },
+    {
+      "system": "PANTONE",
+      "name": "3288 C",
+      "number": "3288",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 14,
+      "k": 49
+    },
+    {
+      "system": "PANTONE",
+      "name": "329 C",
+      "number": "329",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 6,
+      "k": 57
+    },
+    {
+      "system": "PANTONE",
+      "name": "3292 C",
+      "number": "3292",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 10,
+      "k": 62
+    },
+    {
+      "system": "PANTONE",
+      "name": "3295 C",
+      "number": "3295",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 12,
+      "k": 49
+    },
+    {
+      "system": "PANTONE",
+      "name": "3298 C",
+      "number": "3298",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 15,
+      "k": 58
+    },
+    {
+      "system": "PANTONE",
+      "name": "330 C",
+      "number": "330",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 9,
+      "k": 65
+    },
+    {
+      "system": "PANTONE",
+      "name": "3302 C",
+      "number": "3302",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 14,
+      "k": 71
+    },
+    {
+      "system": "PANTONE",
+      "name": "3305 C",
+      "number": "3305",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 16,
+      "k": 69
+    },
+    {
+      "system": "PANTONE",
+      "name": "3308 C",
+      "number": "3308",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 18,
+      "k": 73
+    },
+    {
+      "system": "PANTONE",
+      "name": "331 C",
+      "number": "331",
+      "variant": "C",
+      "c": 21,
+      "m": 0,
+      "y": 9,
+      "k": 8
+    },
+    {
+      "system": "PANTONE",
+      "name": "332 C",
+      "number": "332",
+      "variant": "C",
+      "c": 30,
+      "m": 0,
+      "y": 10,
+      "k": 10
+    },
+    {
+      "system": "PANTONE",
+      "name": "333 C",
+      "number": "333",
+      "variant": "C",
+      "c": 57,
+      "m": 0,
+      "y": 13,
+      "k": 13
+    },
+    {
+      "system": "PANTONE",
+      "name": "334 C",
+      "number": "334",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 19,
+      "k": 40
+    },
+    {
+      "system": "PANTONE",
+      "name": "335 C",
+      "number": "335",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 18,
+      "k": 51
+    },
+    {
+      "system": "PANTONE",
+      "name": "336 C",
+      "number": "336",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 19,
+      "k": 59
+    },
+    {
+      "system": "PANTONE",
+      "name": "337 C",
+      "number": "337",
+      "variant": "C",
+      "c": 29,
+      "m": 0,
+      "y": 12,
+      "k": 14
+    },
+    {
+      "system": "PANTONE",
+      "name": "3375 C",
+      "number": "3375",
+      "variant": "C",
+      "c": 37,
+      "m": 0,
+      "y": 17,
+      "k": 11
+    },
+    {
+      "system": "PANTONE",
+      "name": "338 C",
+      "number": "338",
+      "variant": "C",
+      "c": 42,
+      "m": 0,
+      "y": 13,
+      "k": 18
+    },
+    {
+      "system": "PANTONE",
+      "name": "3385 C",
+      "number": "3385",
+      "variant": "C",
+      "c": 61,
+      "m": 0,
+      "y": 22,
+      "k": 15
+    },
+    {
+      "system": "PANTONE",
+      "name": "339 C",
+      "number": "339",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 21,
+      "k": 30
+    },
+    {
+      "system": "PANTONE",
+      "name": "3395 C",
+      "number": "3395",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 27,
+      "k": 21
+    },
+    {
+      "system": "PANTONE",
+      "name": "340 C",
+      "number": "340",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 22,
+      "k": 40
+    },
+    {
+      "system": "PANTONE",
+      "name": "3405 C",
+      "number": "3405",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 31,
+      "k": 30
+    },
+    {
+      "system": "PANTONE",
+      "name": "341 C",
+      "number": "341",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 23,
+      "k": 52
+    },
+    {
+      "system": "PANTONE",
+      "name": "3415 C",
+      "number": "3415",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 28,
+      "k": 51
+    },
+    {
+      "system": "PANTONE",
+      "name": "342 C",
+      "number": "342",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 21,
+      "k": 58
+    },
+    {
+      "system": "PANTONE",
+      "name": "3425 C",
+      "number": "3425",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 32,
+      "k": 59
+    },
+    {
+      "system": "PANTONE",
+      "name": "343 C",
+      "number": "343",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 27,
+      "k": 66
+    },
+    {
+      "system": "PANTONE",
+      "name": "3435 C",
+      "number": "3435",
+      "variant": "C",
+      "c": 97,
+      "m": 0,
+      "y": 34,
+      "k": 71
+    },
+    {
+      "system": "PANTONE",
+      "name": "344 C",
+      "number": "344",
+      "variant": "C",
+      "c": 20,
+      "m": 0,
+      "y": 15,
+      "k": 11
+    },
+    {
+      "system": "PANTONE",
+      "name": "345 C",
+      "number": "345",
+      "variant": "C",
+      "c": 31,
+      "m": 0,
+      "y": 19,
+      "k": 15
+    },
+    {
+      "system": "PANTONE",
+      "name": "346 C",
+      "number": "346",
+      "variant": "C",
+      "c": 46,
+      "m": 0,
+      "y": 25,
+      "k": 19
+    },
+    {
+      "system": "PANTONE",
+      "name": "347 C",
+      "number": "347",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 39,
+      "k": 38
+    },
+    {
+      "system": "PANTONE",
+      "name": "348 C",
+      "number": "348",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 40,
+      "k": 47
+    },
+    {
+      "system": "PANTONE",
+      "name": "349 C",
+      "number": "349",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 41,
+      "k": 58
+    },
+    {
+      "system": "PANTONE",
+      "name": "350 C",
+      "number": "350",
+      "variant": "C",
+      "c": 56,
+      "m": 0,
+      "y": 35,
+      "k": 69
+    },
+    {
+      "system": "PANTONE",
+      "name": "351 C",
+      "number": "351",
+      "variant": "C",
+      "c": 22,
+      "m": 0,
+      "y": 18,
+      "k": 9
+    },
+    {
+      "system": "PANTONE",
+      "name": "352 C",
+      "number": "352",
+      "variant": "C",
+      "c": 33,
+      "m": 0,
+      "y": 22,
+      "k": 10
+    },
+    {
+      "system": "PANTONE",
+      "name": "353 C",
+      "number": "353",
+      "variant": "C",
+      "c": 42,
+      "m": 0,
+      "y": 26,
+      "k": 11
+    },
+    {
+      "system": "PANTONE",
+      "name": "354 C",
+      "number": "354",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 48,
+      "k": 28
+    },
+    {
+      "system": "PANTONE",
+      "name": "355 C",
+      "number": "355",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 54,
+      "k": 38
+    },
+    {
+      "system": "PANTONE",
+      "name": "356 C",
+      "number": "356",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 50,
+      "k": 52
+    },
+    {
+      "system": "PANTONE",
+      "name": "357 C",
+      "number": "357",
+      "variant": "C",
+      "c": 64,
+      "m": 0,
+      "y": 44,
+      "k": 64
+    },
+    {
+      "system": "PANTONE",
+      "name": "358 C",
+      "number": "358",
+      "variant": "C",
+      "c": 23,
+      "m": 0,
+      "y": 32,
+      "k": 13
+    },
+    {
+      "system": "PANTONE",
+      "name": "359 C",
+      "number": "359",
+      "variant": "C",
+      "c": 27,
+      "m": 0,
+      "y": 35,
+      "k": 14
+    },
+    {
+      "system": "PANTONE",
+      "name": "360 C",
+      "number": "360",
+      "variant": "C",
+      "c": 52,
+      "m": 0,
+      "y": 55,
+      "k": 22
+    },
+    {
+      "system": "PANTONE",
+      "name": "361 C",
+      "number": "361",
+      "variant": "C",
+      "c": 83,
+      "m": 0,
+      "y": 68,
+      "k": 29
+    },
+    {
+      "system": "PANTONE",
+      "name": "362 C",
+      "number": "362",
+      "variant": "C",
+      "c": 68,
+      "m": 0,
+      "y": 66,
+      "k": 38
+    },
+    {
+      "system": "PANTONE",
+      "name": "363 C",
+      "number": "363",
+      "variant": "C",
+      "c": 57,
+      "m": 0,
+      "y": 64,
+      "k": 44
+    },
+    {
+      "system": "PANTONE",
+      "name": "364 C",
+      "number": "364",
+      "variant": "C",
+      "c": 51,
+      "m": 0,
+      "y": 66,
+      "k": 53
+    },
+    {
+      "system": "PANTONE",
+      "name": "365 C",
+      "number": "365",
+      "variant": "C",
+      "c": 9,
+      "m": 0,
+      "y": 30,
+      "k": 9
+    },
+    {
+      "system": "PANTONE",
+      "name": "366 C",
+      "number": "366",
+      "variant": "C",
+      "c": 14,
+      "m": 0,
+      "y": 38,
+      "k": 10
+    },
+    {
+      "system": "PANTONE",
+      "name": "367 C",
+      "number": "367",
+      "variant": "C",
+      "c": 23,
+      "m": 0,
+      "y": 51,
+      "k": 13
+    },
+    {
+      "system": "PANTONE",
+      "name": "368 C",
+      "number": "368",
+      "variant": "C",
+      "c": 52,
+      "m": 0,
+      "y": 83,
+      "k": 25
+    },
+    {
+      "system": "PANTONE",
+      "name": "369 C",
+      "number": "369",
+      "variant": "C",
+      "c": 49,
+      "m": 0,
+      "y": 84,
+      "k": 33
+    },
+    {
+      "system": "PANTONE",
+      "name": "370 C",
+      "number": "370",
+      "variant": "C",
+      "c": 39,
+      "m": 0,
+      "y": 86,
+      "k": 44
+    },
+    {
+      "system": "PANTONE",
+      "name": "371 C",
+      "number": "371",
+      "variant": "C",
+      "c": 20,
+      "m": 0,
+      "y": 69,
+      "k": 58
+    },
+    {
+      "system": "PANTONE",
+      "name": "372 C",
+      "number": "372",
+      "variant": "C",
+      "c": 9,
+      "m": 0,
+      "y": 37,
+      "k": 7
+    },
+    {
+      "system": "PANTONE",
+      "name": "373 C",
+      "number": "373",
+      "variant": "C",
+      "c": 12,
+      "m": 0,
+      "y": 44,
+      "k": 8
+    },
+    {
+      "system": "PANTONE",
+      "name": "374 C",
+      "number": "374",
+      "variant": "C",
+      "c": 20,
+      "m": 0,
+      "y": 59,
+      "k": 9
+    },
+    {
+      "system": "PANTONE",
+      "name": "375 C",
+      "number": "375",
+      "variant": "C",
+      "c": 35,
+      "m": 0,
+      "y": 100,
+      "k": 16
+    },
+    {
+      "system": "PANTONE",
+      "name": "376 C",
+      "number": "376",
+      "variant": "C",
+      "c": 32,
+      "m": 0,
+      "y": 100,
+      "k": 27
+    },
+    {
+      "system": "PANTONE",
+      "name": "377 C",
+      "number": "377",
+      "variant": "C",
+      "c": 24,
+      "m": 0,
+      "y": 99,
+      "k": 42
+    },
+    {
+      "system": "PANTONE",
+      "name": "378 C",
+      "number": "378",
+      "variant": "C",
+      "c": 13,
+      "m": 0,
+      "y": 80,
+      "k": 61
+    },
+    {
+      "system": "PANTONE",
+      "name": "379 C",
+      "number": "379",
+      "variant": "C",
+      "c": 4,
+      "m": 0,
+      "y": 56,
+      "k": 8
+    },
+    {
+      "system": "PANTONE",
+      "name": "380 C",
+      "number": "380",
+      "variant": "C",
+      "c": 7,
+      "m": 0,
+      "y": 71,
+      "k": 10
+    },
+    {
+      "system": "PANTONE",
+      "name": "381 C",
+      "number": "381",
+      "variant": "C",
+      "c": 10,
+      "m": 0,
+      "y": 83,
+      "k": 11
+    },
+    {
+      "system": "PANTONE",
+      "name": "382 C",
+      "number": "382",
+      "variant": "C",
+      "c": 14,
+      "m": 0,
+      "y": 95,
+      "k": 15
+    },
+    {
+      "system": "PANTONE",
+      "name": "383 C",
+      "number": "383",
+      "variant": "C",
+      "c": 7,
+      "m": 0,
+      "y": 96,
+      "k": 31
+    },
+    {
+      "system": "PANTONE",
+      "name": "384 C",
+      "number": "384",
+      "variant": "C",
+      "c": 4,
+      "m": 0,
+      "y": 97,
+      "k": 40
+    },
+    {
+      "system": "PANTONE",
+      "name": "385 C",
+      "number": "385",
+      "variant": "C",
+      "c": 0,
+      "m": 0,
+      "y": 82,
+      "k": 56
+    },
+    {
+      "system": "PANTONE",
+      "name": "386 C",
+      "number": "386",
+      "variant": "C",
+      "c": 2,
+      "m": 0,
+      "y": 59,
+      "k": 7
+    },
+    {
+      "system": "PANTONE",
+      "name": "387 C",
+      "number": "387",
+      "variant": "C",
+      "c": 5,
+      "m": 0,
+      "y": 71,
+      "k": 7
+    },
+    {
+      "system": "PANTONE",
+      "name": "388 C",
+      "number": "388",
+      "variant": "C",
+      "c": 8,
+      "m": 0,
+      "y": 94,
+      "k": 9
+    },
+    {
+      "system": "PANTONE",
+      "name": "389 C",
+      "number": "389",
+      "variant": "C",
+      "c": 8,
+      "m": 0,
+      "y": 97,
+      "k": 12
+    },
+    {
+      "system": "PANTONE",
+      "name": "390 C",
+      "number": "390",
+      "variant": "C",
+      "c": 5,
+      "m": 0,
+      "y": 97,
+      "k": 23
+    },
+    {
+      "system": "PANTONE",
+      "name": "391 C",
+      "number": "391",
+      "variant": "C",
+      "c": 0,
+      "m": 0,
+      "y": 96,
+      "k": 38
+    },
+    {
+      "system": "PANTONE",
+      "name": "392 C",
+      "number": "392",
+      "variant": "C",
+      "c": 0,
+      "m": 2,
+      "y": 96,
+      "k": 48
+    },
+    {
+      "system": "PANTONE",
+      "name": "393 C",
+      "number": "393",
+      "variant": "C",
+      "c": 0,
+      "m": 1,
+      "y": 44,
+      "k": 5
+    },
+    {
+      "system": "PANTONE",
+      "name": "3935 C",
+      "number": "3935",
+      "variant": "C",
+      "c": 0,
+      "m": 2,
+      "y": 55,
+      "k": 5
+    },
+    {
+      "system": "PANTONE",
+      "name": "394 C",
+      "number": "394",
+      "variant": "C",
+      "c": 1,
+      "m": 0,
+      "y": 78,
+      "k": 7
+    },
+    {
+      "system": "PANTONE",
+      "name": "3945 C",
+      "number": "3945",
+      "variant": "C",
+      "c": 0,
+      "m": 2,
+      "y": 97,
+      "k": 6
+    },
+    {
+      "system": "PANTONE",
+      "name": "395 C",
+      "number": "395",
+      "variant": "C",
+      "c": 1,
+      "m": 0,
+      "y": 93,
+      "k": 9
+    },
+    {
+      "system": "PANTONE",
+      "name": "3955 C",
+      "number": "3955",
+      "variant": "C",
+      "c": 0,
+      "m": 5,
+      "y": 93,
+      "k": 7
+    },
+    {
+      "system": "PANTONE",
+      "name": "396 C",
+      "number": "396",
+      "variant": "C",
+      "c": 1,
+      "m": 0,
+      "y": 95,
+      "k": 11
+    },
+    {
+      "system": "PANTONE",
+      "name": "3965 C",
+      "number": "3965",
+      "variant": "C",
+      "c": 0,
+      "m": 5,
+      "y": 93,
+      "k": 9
+    },
+    {
+      "system": "PANTONE",
+      "name": "397 C",
+      "number": "397",
+      "variant": "C",
+      "c": 0,
+      "m": 1,
+      "y": 95,
+      "k": 24
+    },
+    {
+      "system": "PANTONE",
+      "name": "3975 C",
+      "number": "3975",
+      "variant": "C",
+      "c": 0,
+      "m": 7,
+      "y": 93,
+      "k": 29
+    },
+    {
+      "system": "PANTONE",
+      "name": "398 C",
+      "number": "398",
+      "variant": "C",
+      "c": 0,
+      "m": 4,
+      "y": 94,
+      "k": 31
+    },
+    {
+      "system": "PANTONE",
+      "name": "3985 C",
+      "number": "3985",
+      "variant": "C",
+      "c": 0,
+      "m": 8,
+      "y": 93,
+      "k": 40
+    },
+    {
+      "system": "PANTONE",
+      "name": "399 C",
+      "number": "399",
+      "variant": "C",
+      "c": 0,
+      "m": 7,
+      "y": 95,
+      "k": 40
+    },
+    {
+      "system": "PANTONE",
+      "name": "3995 C",
+      "number": "3995",
+      "variant": "C",
+      "c": 0,
+      "m": 12,
+      "y": 98,
+      "k": 57
+    },
+    {
+      "system": "PANTONE",
+      "name": "Cool Gray 4 C",
+      "number": "4",
+      "variant": "C",
+      "c": 0,
+      "m": 2,
+      "y": 5,
+      "k": 23
+    },
+    {
+      "system": "PANTONE",
+      "name": "Warm Gray 4 C",
+      "number": "4",
+      "variant": "C",
+      "c": 0,
+      "m": 6,
+      "y": 15,
+      "k": 24
+    },
+    {
+      "system": "PANTONE",
+      "name": "400 C",
+      "number": "400",
+      "variant": "C",
+      "c": 0,
+      "m": 5,
+      "y": 13,
+      "k": 18
+    },
+    {
+      "system": "PANTONE",
+      "name": "401 C",
+      "number": "401",
+      "variant": "C",
+      "c": 0,
+      "m": 6,
+      "y": 15,
+      "k": 24
+    },
+    {
+      "system": "PANTONE",
+      "name": "402 C",
+      "number": "402",
+      "variant": "C",
+      "c": 0,
+      "m": 6,
+      "y": 16,
+      "k": 31
+    },
+    {
+      "system": "PANTONE",
+      "name": "403 C",
+      "number": "403",
+      "variant": "C",
+      "c": 0,
+      "m": 8,
+      "y": 19,
+      "k": 40
+    },
+    {
+      "system": "PANTONE",
+      "name": "404 C",
+      "number": "404",
+      "variant": "C",
+      "c": 0,
+      "m": 10,
+      "y": 22,
+      "k": 49
+    },
+    {
+      "system": "PANTONE",
+      "name": "405 C",
+      "number": "405",
+      "variant": "C",
+      "c": 0,
+      "m": 12,
+      "y": 26,
+      "k": 58
+    },
+    {
+      "system": "PANTONE",
+      "name": "406 C",
+      "number": "406",
+      "variant": "C",
+      "c": 0,
+      "m": 6,
+      "y": 12,
+      "k": 19
+    },
+    {
+      "system": "PANTONE",
+      "name": "407 C",
+      "number": "407",
+      "variant": "C",
+      "c": 0,
+      "m": 9,
+      "y": 15,
+      "k": 27
+    },
+    {
+      "system": "PANTONE",
+      "name": "408 C",
+      "number": "408",
+      "variant": "C",
+      "c": 0,
+      "m": 9,
+      "y": 17,
+      "k": 34
+    },
+    {
+      "system": "PANTONE",
+      "name": "409 C",
+      "number": "409",
+      "variant": "C",
+      "c": 0,
+      "m": 10,
+      "y": 19,
+      "k": 40
+    },
+    {
+      "system": "PANTONE",
+      "name": "410 C",
+      "number": "410",
+      "variant": "C",
+      "c": 0,
+      "m": 12,
+      "y": 20,
+      "k": 51
+    },
+    {
+      "system": "PANTONE",
+      "name": "411 C",
+      "number": "411",
+      "variant": "C",
+      "c": 0,
+      "m": 13,
+      "y": 25,
+      "k": 60
+    },
+    {
+      "system": "PANTONE",
+      "name": "412 C",
+      "number": "412",
+      "variant": "C",
+      "c": 0,
+      "m": 21,
+      "y": 34,
+      "k": 76
+    },
+    {
+      "system": "PANTONE",
+      "name": "413 C",
+      "number": "413",
+      "variant": "C",
+      "c": 0,
+      "m": 3,
+      "y": 10,
+      "k": 22
+    },
+    {
+      "system": "PANTONE",
+      "name": "414 C",
+      "number": "414",
+      "variant": "C",
+      "c": 0,
+      "m": 3,
+      "y": 12,
+      "k": 29
+    },
+    {
+      "system": "PANTONE",
+      "name": "415 C",
+      "number": "415",
+      "variant": "C",
+      "c": 0,
+      "m": 3,
+      "y": 14,
+      "k": 36
+    },
+    {
+      "system": "PANTONE",
+      "name": "416 C",
+      "number": "416",
+      "variant": "C",
+      "c": 0,
+      "m": 1,
+      "y": 14,
+      "k": 44
+    },
+    {
+      "system": "PANTONE",
+      "name": "417 C",
+      "number": "417",
+      "variant": "C",
+      "c": 0,
+      "m": 4,
+      "y": 17,
+      "k": 53
+    },
+    {
+      "system": "PANTONE",
+      "name": "418 C",
+      "number": "418",
+      "variant": "C",
+      "c": 0,
+      "m": 2,
+      "y": 18,
+      "k": 62
+    },
+    {
+      "system": "PANTONE",
+      "name": "419 C",
+      "number": "419",
+      "variant": "C",
+      "c": 0,
+      "m": 0,
+      "y": 18,
+      "k": 84
+    },
+    {
+      "system": "PANTONE",
+      "name": "420 C",
+      "number": "420",
+      "variant": "C",
+      "c": 0,
+      "m": 2,
+      "y": 9,
+      "k": 18
+    },
+    {
+      "system": "PANTONE",
+      "name": "421 C",
+      "number": "421",
+      "variant": "C",
+      "c": 0,
+      "m": 3,
+      "y": 8,
+      "k": 25
+    },
+    {
+      "system": "PANTONE",
+      "name": "422 C",
+      "number": "422",
+      "variant": "C",
+      "c": 0,
+      "m": 3,
+      "y": 7,
+      "k": 31
+    },
+    {
+      "system": "PANTONE",
+      "name": "423 C",
+      "number": "423",
+      "variant": "C",
+      "c": 0,
+      "m": 2,
+      "y": 5,
+      "k": 41
+    },
+    {
+      "system": "PANTONE",
+      "name": "424 C",
+      "number": "424",
+      "variant": "C",
+      "c": 0,
+      "m": 2,
+      "y": 8,
+      "k": 49
+    },
+    {
+      "system": "PANTONE",
+      "name": "425 C",
+      "number": "425",
+      "variant": "C",
+      "c": 0,
+      "m": 0,
+      "y": 5,
+      "k": 62
+    },
+    {
+      "system": "PANTONE",
+      "name": "426 C",
+      "number": "426",
+      "variant": "C",
+      "c": 0,
+      "m": 0,
+      "y": 7,
+      "k": 83
+    },
+    {
+      "system": "PANTONE",
+      "name": "427 C",
+      "number": "427",
+      "variant": "C",
+      "c": 0,
+      "m": 1,
+      "y": 5,
+      "k": 13
+    },
+    {
+      "system": "PANTONE",
+      "name": "428 C",
+      "number": "428",
+      "variant": "C",
+      "c": 0,
+      "m": 1,
+      "y": 5,
+      "k": 18
+    },
+    {
+      "system": "PANTONE",
+      "name": "429 C",
+      "number": "429",
+      "variant": "C",
+      "c": 1,
+      "m": 0,
+      "y": 3,
+      "k": 31
+    },
+    {
+      "system": "PANTONE",
+      "name": "430 C",
+      "number": "430",
+      "variant": "C",
+      "c": 3,
+      "m": 0,
+      "y": 2,
+      "k": 41
+    },
+    {
+      "system": "PANTONE",
+      "name": "431 C",
+      "number": "431",
+      "variant": "C",
+      "c": 9,
+      "m": 3,
+      "y": 0,
+      "k": 56
+    },
+    {
+      "system": "PANTONE",
+      "name": "432 C",
+      "number": "432",
+      "variant": "C",
+      "c": 16,
+      "m": 2,
+      "y": 0,
+      "k": 68
+    },
+    {
+      "system": "PANTONE",
+      "name": "433 C",
+      "number": "433",
+      "variant": "C",
+      "c": 17,
+      "m": 3,
+      "y": 0,
+      "k": 77
+    },
+    {
+      "system": "PANTONE",
+      "name": "434 C",
+      "number": "434",
+      "variant": "C",
+      "c": 0,
+      "m": 7,
+      "y": 12,
+      "k": 12
+    },
+    {
+      "system": "PANTONE",
+      "name": "435 C",
+      "number": "435",
+      "variant": "C",
+      "c": 0,
+      "m": 9,
+      "y": 13,
+      "k": 17
+    },
+    {
+      "system": "PANTONE",
+      "name": "436 C",
+      "number": "436",
+      "variant": "C",
+      "c": 0,
+      "m": 12,
+      "y": 16,
+      "k": 26
+    },
+    {
+      "system": "PANTONE",
+      "name": "437 C",
+      "number": "437",
+      "variant": "C",
+      "c": 0,
+      "m": 20,
+      "y": 24,
+      "k": 45
+    },
+    {
+      "system": "PANTONE",
+      "name": "438 C",
+      "number": "438",
+      "variant": "C",
+      "c": 0,
+      "m": 29,
+      "y": 31,
+      "k": 65
+    },
+    {
+      "system": "PANTONE",
+      "name": "439 C",
+      "number": "439",
+      "variant": "C",
+      "c": 0,
+      "m": 27,
+      "y": 30,
+      "k": 71
+    },
+    {
+      "system": "PANTONE",
+      "name": "440 C",
+      "number": "440",
+      "variant": "C",
+      "c": 0,
+      "m": 24,
+      "y": 32,
+      "k": 75
+    },
+    {
+      "system": "PANTONE",
+      "name": "441 C",
+      "number": "441",
+      "variant": "C",
+      "c": 0,
+      "m": 0,
+      "y": 5,
+      "k": 18
+    },
+    {
+      "system": "PANTONE",
+      "name": "442 C",
+      "number": "442",
+      "variant": "C",
+      "c": 3,
+      "m": 0,
+      "y": 4,
+      "k": 25
+    },
+    {
+      "system": "PANTONE",
+      "name": "443 C",
+      "number": "443",
+      "variant": "C",
+      "c": 3,
+      "m": 0,
+      "y": 3,
+      "k": 34
+    },
+    {
+      "system": "PANTONE",
+      "name": "444 C",
+      "number": "444",
+      "variant": "C",
+      "c": 4,
+      "m": 0,
+      "y": 1,
+      "k": 44
+    },
+    {
+      "system": "PANTONE",
+      "name": "445 C",
+      "number": "445",
+      "variant": "C",
+      "c": 3,
+      "m": 0,
+      "y": 0,
+      "k": 65
+    },
+    {
+      "system": "PANTONE",
+      "name": "446 C",
+      "number": "446",
+      "variant": "C",
+      "c": 4,
+      "m": 0,
+      "y": 4,
+      "k": 70
+    },
+    {
+      "system": "PANTONE",
+      "name": "447 C",
+      "number": "447",
+      "variant": "C",
+      "c": 0,
+      "m": 0,
+      "y": 11,
+      "k": 75
+    },
+    {
+      "system": "PANTONE",
+      "name": "448 C",
+      "number": "448",
+      "variant": "C",
+      "c": 0,
+      "m": 15,
+      "y": 46,
+      "k": 67
+    },
+    {
+      "system": "PANTONE",
+      "name": "4485 C",
+      "number": "4485",
+      "variant": "C",
+      "c": 0,
+      "m": 21,
+      "y": 82,
+      "k": 62
+    },
+    {
+      "system": "PANTONE",
+      "name": "449 C",
+      "number": "449",
+      "variant": "C",
+      "c": 0,
+      "m": 15,
+      "y": 55,
+      "k": 67
+    },
+    {
+      "system": "PANTONE",
+      "name": "4495 C",
+      "number": "4495",
+      "variant": "C",
+      "c": 0,
+      "m": 13,
+      "y": 64,
+      "k": 47
+    },
+    {
+      "system": "PANTONE",
+      "name": "450 C",
+      "number": "450",
+      "variant": "C",
+      "c": 0,
+      "m": 13,
+      "y": 55,
+      "k": 62
+    },
+    {
+      "system": "PANTONE",
+      "name": "4505 C",
+      "number": "4505",
+      "variant": "C",
+      "c": 0,
+      "m": 9,
+      "y": 49,
+      "k": 37
+    },
+    {
+      "system": "PANTONE",
+      "name": "451 C",
+      "number": "451",
+      "variant": "C",
+      "c": 0,
+      "m": 8,
+      "y": 29,
+      "k": 32
+    },
+    {
+      "system": "PANTONE",
+      "name": "4515 C",
+      "number": "4515",
+      "variant": "C",
+      "c": 0,
+      "m": 8,
+      "y": 38,
+      "k": 26
+    },
+    {
+      "system": "PANTONE",
+      "name": "452 C",
+      "number": "452",
+      "variant": "C",
+      "c": 0,
+      "m": 7,
+      "y": 23,
+      "k": 23
+    },
+    {
+      "system": "PANTONE",
+      "name": "4525 C",
+      "number": "4525",
+      "variant": "C",
+      "c": 0,
+      "m": 6,
+      "y": 30,
+      "k": 20
+    },
+    {
+      "system": "PANTONE",
+      "name": "453 C",
+      "number": "453",
+      "variant": "C",
+      "c": 0,
+      "m": 5,
+      "y": 18,
+      "k": 16
+    },
+    {
+      "system": "PANTONE",
+      "name": "4535 C",
+      "number": "4535",
+      "variant": "C",
+      "c": 0,
+      "m": 6,
+      "y": 25,
+      "k": 14
+    },
+    {
+      "system": "PANTONE",
+      "name": "454 C",
+      "number": "454",
+      "variant": "C",
+      "c": 0,
+      "m": 4,
+      "y": 15,
+      "k": 11
+    },
+    {
+      "system": "PANTONE",
+      "name": "4545 C",
+      "number": "4545",
+      "variant": "C",
+      "c": 0,
+      "m": 4,
+      "y": 19,
+      "k": 10
+    },
+    {
+      "system": "PANTONE",
+      "name": "455 C",
+      "number": "455",
+      "variant": "C",
+      "c": 0,
+      "m": 16,
+      "y": 80,
+      "k": 60
+    },
+    {
+      "system": "PANTONE",
+      "name": "456 C",
+      "number": "456",
+      "variant": "C",
+      "c": 0,
+      "m": 12,
+      "y": 87,
+      "k": 40
+    },
+    {
+      "system": "PANTONE",
+      "name": "457 C",
+      "number": "457",
+      "variant": "C",
+      "c": 0,
+      "m": 14,
+      "y": 93,
+      "k": 29
+    },
+    {
+      "system": "PANTONE",
+      "name": "458 C",
+      "number": "458",
+      "variant": "C",
+      "c": 0,
+      "m": 8,
+      "y": 52,
+      "k": 13
+    },
+    {
+      "system": "PANTONE",
+      "name": "459 C",
+      "number": "459",
+      "variant": "C",
+      "c": 0,
+      "m": 5,
+      "y": 45,
+      "k": 11
+    },
+    {
+      "system": "PANTONE",
+      "name": "460 C",
+      "number": "460",
+      "variant": "C",
+      "c": 0,
+      "m": 6,
+      "y": 36,
+      "k": 8
+    },
+    {
+      "system": "PANTONE",
+      "name": "461 C",
+      "number": "461",
+      "variant": "C",
+      "c": 0,
+      "m": 3,
+      "y": 27,
+      "k": 7
+    },
+    {
+      "system": "PANTONE",
+      "name": "462 C",
+      "number": "462",
+      "variant": "C",
+      "c": 0,
+      "m": 22,
+      "y": 62,
+      "k": 64
+    },
+    {
+      "system": "PANTONE",
+      "name": "4625 C",
+      "number": "4625",
+      "variant": "C",
+      "c": 0,
+      "m": 51,
+      "y": 76,
+      "k": 72
+    },
+    {
+      "system": "PANTONE",
+      "name": "463 C",
+      "number": "463",
+      "variant": "C",
+      "c": 0,
+      "m": 28,
+      "y": 68,
+      "k": 54
+    },
+    {
+      "system": "PANTONE",
+      "name": "4635 C",
+      "number": "4635",
+      "variant": "C",
+      "c": 0,
+      "m": 36,
+      "y": 64,
+      "k": 45
+    },
+    {
+      "system": "PANTONE",
+      "name": "464 C",
+      "number": "464",
+      "variant": "C",
+      "c": 0,
+      "m": 29,
+      "y": 70,
+      "k": 47
+    },
+    {
+      "system": "PANTONE",
+      "name": "4645 C",
+      "number": "4645",
+      "variant": "C",
+      "c": 0,
+      "m": 27,
+      "y": 46,
+      "k": 30
+    },
+    {
+      "system": "PANTONE",
+      "name": "465 C",
+      "number": "465",
+      "variant": "C",
+      "c": 0,
+      "m": 13,
+      "y": 39,
+      "k": 24
+    },
+    {
+      "system": "PANTONE",
+      "name": "4655 C",
+      "number": "4655",
+      "variant": "C",
+      "c": 0,
+      "m": 22,
+      "y": 39,
+      "k": 23
+    },
+    {
+      "system": "PANTONE",
+      "name": "466 C",
+      "number": "466",
+      "variant": "C",
+      "c": 0,
+      "m": 9,
+      "y": 31,
+      "k": 18
+    },
+    {
+      "system": "PANTONE",
+      "name": "4665 C",
+      "number": "4665",
+      "variant": "C",
+      "c": 0,
+      "m": 16,
+      "y": 31,
+      "k": 15
+    },
+    {
+      "system": "PANTONE",
+      "name": "467 C",
+      "number": "467",
+      "variant": "C",
+      "c": 0,
+      "m": 8,
+      "y": 25,
+      "k": 13
+    },
+    {
+      "system": "PANTONE",
+      "name": "4675 C",
+      "number": "4675",
+      "variant": "C",
+      "c": 0,
+      "m": 14,
+      "y": 26,
+      "k": 10
+    },
+    {
+      "system": "PANTONE",
+      "name": "468 C",
+      "number": "468",
+      "variant": "C",
+      "c": 0,
+      "m": 5,
+      "y": 20,
+      "k": 11
+    },
+    {
+      "system": "PANTONE",
+      "name": "4685 C",
+      "number": "4685",
+      "variant": "C",
+      "c": 0,
+      "m": 11,
+      "y": 21,
+      "k": 7
+    },
+    {
+      "system": "PANTONE",
+      "name": "469 C",
+      "number": "469",
+      "variant": "C",
+      "c": 0,
+      "m": 47,
+      "y": 82,
+      "k": 62
+    },
+    {
+      "system": "PANTONE",
+      "name": "4695 C",
+      "number": "4695",
+      "variant": "C",
+      "c": 0,
+      "m": 53,
+      "y": 65,
+      "k": 68
+    },
+    {
+      "system": "PANTONE",
+      "name": "4705 C",
+      "number": "4705",
+      "variant": "C",
+      "c": 0,
+      "m": 35,
+      "y": 51,
+      "k": 51
+    },
+    {
+      "system": "PANTONE",
+      "name": "4715 C",
+      "number": "4715",
+      "variant": "C",
+      "c": 0,
+      "m": 27,
+      "y": 41,
+      "k": 40
+    },
+    {
+      "system": "PANTONE",
+      "name": "4725 C",
+      "number": "4725",
+      "variant": "C",
+      "c": 0,
+      "m": 20,
+      "y": 31,
+      "k": 29
+    },
+    {
+      "system": "PANTONE",
+      "name": "4735 C",
+      "number": "4735",
+      "variant": "C",
+      "c": 0,
+      "m": 14,
+      "y": 24,
+      "k": 20
+    },
+    {
+      "system": "PANTONE",
+      "name": "4745 C",
+      "number": "4745",
+      "variant": "C",
+      "c": 0,
+      "m": 12,
+      "y": 21,
+      "k": 15
+    },
+    {
+      "system": "PANTONE",
+      "name": "4755 C",
+      "number": "4755",
+      "variant": "C",
+      "c": 0,
+      "m": 10,
+      "y": 18,
+      "k": 11
+    },
+    {
+      "system": "PANTONE",
+      "name": "476 C",
+      "number": "476",
+      "variant": "C",
+      "c": 0,
+      "m": 31,
+      "y": 52,
+      "k": 65
+    },
+    {
+      "system": "PANTONE",
+      "name": "477 C",
+      "number": "477",
+      "variant": "C",
+      "c": 0,
+      "m": 43,
+      "y": 62,
+      "k": 61
+    },
+    {
+      "system": "PANTONE",
+      "name": "478 C",
+      "number": "478",
+      "variant": "C",
+      "c": 0,
+      "m": 48,
+      "y": 67,
+      "k": 52
+    },
+    {
+      "system": "PANTONE",
+      "name": "479 C",
+      "number": "479",
+      "variant": "C",
+      "c": 0,
+      "m": 22,
+      "y": 36,
+      "k": 31
+    },
+    {
+      "system": "PANTONE",
+      "name": "480 C",
+      "number": "480",
+      "variant": "C",
+      "c": 0,
+      "m": 13,
+      "y": 23,
+      "k": 17
+    },
+    {
+      "system": "PANTONE",
+      "name": "481 C",
+      "number": "481",
+      "variant": "C",
+      "c": 0,
+      "m": 9,
+      "y": 17,
+      "k": 12
+    },
+    {
+      "system": "PANTONE",
+      "name": "482 C",
+      "number": "482",
+      "variant": "C",
+      "c": 0,
+      "m": 8,
+      "y": 16,
+      "k": 10
+    },
+    {
+      "system": "PANTONE",
+      "name": "483 C",
+      "number": "483",
+      "variant": "C",
+      "c": 0,
+      "m": 55,
+      "y": 69,
+      "k": 58
+    },
+    {
+      "system": "PANTONE",
+      "name": "484 C",
+      "number": "484",
+      "variant": "C",
+      "c": 0,
+      "m": 69,
+      "y": 82,
+      "k": 39
+    },
+    {
+      "system": "PANTONE",
+      "name": "485 C",
+      "number": "485",
+      "variant": "C",
+      "c": 0,
+      "m": 86,
+      "y": 98,
+      "k": 15
+    },
+    {
+      "system": "PANTONE",
+      "name": "486 C",
+      "number": "486",
+      "variant": "C",
+      "c": 0,
+      "m": 33,
+      "y": 44,
+      "k": 7
+    },
+    {
+      "system": "PANTONE",
+      "name": "487 C",
+      "number": "487",
+      "variant": "C",
+      "c": 0,
+      "m": 24,
+      "y": 33,
+      "k": 6
+    },
+    {
+      "system": "PANTONE",
+      "name": "488 C",
+      "number": "488",
+      "variant": "C",
+      "c": 0,
+      "m": 19,
+      "y": 28,
+      "k": 5
+    },
+    {
+      "system": "PANTONE",
+      "name": "489 C",
+      "number": "489",
+      "variant": "C",
+      "c": 0,
+      "m": 14,
+      "y": 21,
+      "k": 5
+    },
+    {
+      "system": "PANTONE",
+      "name": "490 C",
+      "number": "490",
+      "variant": "C",
+      "c": 0,
+      "m": 58,
+      "y": 58,
+      "k": 64
+    },
+    {
+      "system": "PANTONE",
+      "name": "491 C",
+      "number": "491",
+      "variant": "C",
+      "c": 0,
+      "m": 66,
+      "y": 66,
+      "k": 54
+    },
+    {
+      "system": "PANTONE",
+      "name": "492 C",
+      "number": "492",
+      "variant": "C",
+      "c": 0,
+      "m": 65,
+      "y": 61,
+      "k": 43
+    },
+    {
+      "system": "PANTONE",
+      "name": "493 C",
+      "number": "493",
+      "variant": "C",
+      "c": 0,
+      "m": 41,
+      "y": 36,
+      "k": 14
+    },
+    {
+      "system": "PANTONE",
+      "name": "494 C",
+      "number": "494",
+      "variant": "C",
+      "c": 0,
+      "m": 29,
+      "y": 26,
+      "k": 5
+    },
+    {
+      "system": "PANTONE",
+      "name": "495 C",
+      "number": "495",
+      "variant": "C",
+      "c": 0,
+      "m": 23,
+      "y": 22,
+      "k": 4
+    },
+    {
+      "system": "PANTONE",
+      "name": "496 C",
+      "number": "496",
+      "variant": "C",
+      "c": 0,
+      "m": 19,
+      "y": 20,
+      "k": 3
+    },
+    {
+      "system": "PANTONE",
+      "name": "497 C",
+      "number": "497",
+      "variant": "C",
+      "c": 0,
+      "m": 51,
+      "y": 53,
+      "k": 68
+    },
+    {
+      "system": "PANTONE",
+      "name": "4975 C",
+      "number": "4975",
+      "variant": "C",
+      "c": 0,
+      "m": 56,
+      "y": 59,
+      "k": 73
+    },
+    {
+      "system": "PANTONE",
+      "name": "498 C",
+      "number": "498",
+      "variant": "C",
+      "c": 0,
+      "m": 53,
+      "y": 61,
+      "k": 57
+    },
+    {
+      "system": "PANTONE",
+      "name": "4985 C",
+      "number": "4985",
+      "variant": "C",
+      "c": 0,
+      "m": 45,
+      "y": 45,
+      "k": 48
+    },
+    {
+      "system": "PANTONE",
+      "name": "499 C",
+      "number": "499",
+      "variant": "C",
+      "c": 0,
+      "m": 54,
+      "y": 63,
+      "k": 52
+    },
+    {
+      "system": "PANTONE",
+      "name": "4995 C",
+      "number": "4995",
+      "variant": "C",
+      "c": 0,
+      "m": 35,
+      "y": 34,
+      "k": 35
+    },
+    {
+      "system": "PANTONE",
+      "name": "Cool Gray 5 C",
+      "number": "5",
+      "variant": "C",
+      "c": 0,
+      "m": 2,
+      "y": 6,
+      "k": 27
+    },
+    {
+      "system": "PANTONE",
+      "name": "Warm Gray 5 C",
+      "number": "5",
+      "variant": "C",
+      "c": 0,
+      "m": 7,
+      "y": 15,
+      "k": 29
+    },
+    {
+      "system": "PANTONE",
+      "name": "500 C",
+      "number": "500",
+      "variant": "C",
+      "c": 0,
+      "m": 33,
+      "y": 32,
+      "k": 19
+    },
+    {
+      "system": "PANTONE",
+      "name": "5005 C",
+      "number": "5005",
+      "variant": "C",
+      "c": 0,
+      "m": 28,
+      "y": 28,
+      "k": 26
+    },
+    {
+      "system": "PANTONE",
+      "name": "501 C",
+      "number": "501",
+      "variant": "C",
+      "c": 0,
+      "m": 24,
+      "y": 24,
+      "k": 8
+    },
+    {
+      "system": "PANTONE",
+      "name": "5015 C",
+      "number": "5015",
+      "variant": "C",
+      "c": 0,
+      "m": 20,
+      "y": 22,
+      "k": 15
+    },
+    {
+      "system": "PANTONE",
+      "name": "502 C",
+      "number": "502",
+      "variant": "C",
+      "c": 0,
+      "m": 18,
+      "y": 19,
+      "k": 5
+    },
+    {
+      "system": "PANTONE",
+      "name": "5025 C",
+      "number": "5025",
+      "variant": "C",
+      "c": 0,
+      "m": 17,
+      "y": 19,
+      "k": 11
+    },
+    {
+      "system": "PANTONE",
+      "name": "503 C",
+      "number": "503",
+      "variant": "C",
+      "c": 0,
+      "m": 14,
+      "y": 16,
+      "k": 4
+    },
+    {
+      "system": "PANTONE",
+      "name": "5035 C",
+      "number": "5035",
+      "variant": "C",
+      "c": 0,
+      "m": 13,
+      "y": 16,
+      "k": 7
+    },
+    {
+      "system": "PANTONE",
+      "name": "504 C",
+      "number": "504",
+      "variant": "C",
+      "c": 0,
+      "m": 63,
+      "y": 53,
+      "k": 68
+    },
+    {
+      "system": "PANTONE",
+      "name": "505 C",
+      "number": "505",
+      "variant": "C",
+      "c": 0,
+      "m": 71,
+      "y": 58,
+      "k": 60
+    },
+    {
+      "system": "PANTONE",
+      "name": "506 C",
+      "number": "506",
+      "variant": "C",
+      "c": 0,
+      "m": 69,
+      "y": 54,
+      "k": 52
+    },
+    {
+      "system": "PANTONE",
+      "name": "507 C",
+      "number": "507",
+      "variant": "C",
+      "c": 0,
+      "m": 37,
+      "y": 28,
+      "k": 15
+    },
+    {
+      "system": "PANTONE",
+      "name": "508 C",
+      "number": "508",
+      "variant": "C",
+      "c": 0,
+      "m": 29,
+      "y": 25,
+      "k": 9
+    },
+    {
+      "system": "PANTONE",
+      "name": "509 C",
+      "number": "509",
+      "variant": "C",
+      "c": 0,
+      "m": 23,
+      "y": 21,
+      "k": 5
+    },
+    {
+      "system": "PANTONE",
+      "name": "510 C",
+      "number": "510",
+      "variant": "C",
+      "c": 0,
+      "m": 19,
+      "y": 18,
+      "k": 4
+    },
+    {
+      "system": "PANTONE",
+      "name": "511 C",
+      "number": "511",
+      "variant": "C",
+      "c": 0,
+      "m": 66,
+      "y": 29,
+      "k": 62
+    },
+    {
+      "system": "PANTONE",
+      "name": "5115 C",
+      "number": "5115",
+      "variant": "C",
+      "c": 0,
+      "m": 58,
+      "y": 27,
+      "k": 69
+    },
+    {
+      "system": "PANTONE",
+      "name": "512 C",
+      "number": "512",
+      "variant": "C",
+      "c": 0,
+      "m": 75,
+      "y": 19,
+      "k": 48
+    },
+    {
+      "system": "PANTONE",
+      "name": "5125 C",
+      "number": "5125",
+      "variant": "C",
+      "c": 0,
+      "m": 39,
+      "y": 18,
+      "k": 54
+    },
+    {
+      "system": "PANTONE",
+      "name": "513 C",
+      "number": "513",
+      "variant": "C",
+      "c": 0,
+      "m": 78,
+      "y": 15,
+      "k": 38
+    },
+    {
+      "system": "PANTONE",
+      "name": "5135 C",
+      "number": "5135",
+      "variant": "C",
+      "c": 0,
+      "m": 27,
+      "y": 14,
+      "k": 42
+    },
+    {
+      "system": "PANTONE",
+      "name": "514 C",
+      "number": "514",
+      "variant": "C",
+      "c": 0,
+      "m": 39,
+      "y": 13,
+      "k": 15
+    },
+    {
+      "system": "PANTONE",
+      "name": "5145 C",
+      "number": "5145",
+      "variant": "C",
+      "c": 0,
+      "m": 22,
+      "y": 12,
+      "k": 32
+    },
+    {
+      "system": "PANTONE",
+      "name": "515 C",
+      "number": "515",
+      "variant": "C",
+      "c": 0,
+      "m": 30,
+      "y": 13,
+      "k": 9
+    },
+    {
+      "system": "PANTONE",
+      "name": "5155 C",
+      "number": "5155",
+      "variant": "C",
+      "c": 0,
+      "m": 14,
+      "y": 10,
+      "k": 20
+    },
+    {
+      "system": "PANTONE",
+      "name": "516 C",
+      "number": "516",
+      "variant": "C",
+      "c": 0,
+      "m": 23,
+      "y": 13,
+      "k": 5
+    },
+    {
+      "system": "PANTONE",
+      "name": "5165 C",
+      "number": "5165",
+      "variant": "C",
+      "c": 0,
+      "m": 10,
+      "y": 9,
+      "k": 12
+    },
+    {
+      "system": "PANTONE",
+      "name": "517 C",
+      "number": "517",
+      "variant": "C",
+      "c": 0,
+      "m": 16,
+      "y": 11,
+      "k": 4
+    },
+    {
+      "system": "PANTONE",
+      "name": "5175 C",
+      "number": "5175",
+      "variant": "C",
+      "c": 0,
+      "m": 8,
+      "y": 10,
+      "k": 9
+    },
+    {
+      "system": "PANTONE",
+      "name": "518 C",
+      "number": "518",
+      "variant": "C",
+      "c": 0,
+      "m": 44,
+      "y": 16,
+      "k": 68
+    },
+    {
+      "system": "PANTONE",
+      "name": "5185 C",
+      "number": "5185",
+      "variant": "C",
+      "c": 0,
+      "m": 44,
+      "y": 25,
+      "k": 72
+    },
+    {
+      "system": "PANTONE",
+      "name": "519 C",
+      "number": "519",
+      "variant": "C",
+      "c": 0,
+      "m": 52,
+      "y": 5,
+      "k": 61
+    },
+    {
+      "system": "PANTONE",
+      "name": "5195 C",
+      "number": "5195",
+      "variant": "C",
+      "c": 0,
+      "m": 43,
+      "y": 24,
+      "k": 65
+    },
+    {
+      "system": "PANTONE",
+      "name": "520 C",
+      "number": "520",
+      "variant": "C",
+      "c": 2,
+      "m": 54,
+      "y": 0,
+      "k": 55
+    },
+    {
+      "system": "PANTONE",
+      "name": "5205 C",
+      "number": "5205",
+      "variant": "C",
+      "c": 0,
+      "m": 27,
+      "y": 16,
+      "k": 44
+    },
+    {
+      "system": "PANTONE",
+      "name": "521 C",
+      "number": "521",
+      "variant": "C",
+      "c": 0,
+      "m": 23,
+      "y": 2,
+      "k": 29
+    },
+    {
+      "system": "PANTONE",
+      "name": "5215 C",
+      "number": "5215",
+      "variant": "C",
+      "c": 0,
+      "m": 19,
+      "y": 14,
+      "k": 29
+    },
+    {
+      "system": "PANTONE",
+      "name": "522 C",
+      "number": "522",
+      "variant": "C",
+      "c": 0,
+      "m": 18,
+      "y": 3,
+      "k": 22
+    },
+    {
+      "system": "PANTONE",
+      "name": "5225 C",
+      "number": "5225",
+      "variant": "C",
+      "c": 0,
+      "m": 15,
+      "y": 14,
+      "k": 20
+    },
+    {
+      "system": "PANTONE",
+      "name": "523 C",
+      "number": "523",
+      "variant": "C",
+      "c": 0,
+      "m": 13,
+      "y": 3,
+      "k": 17
+    },
+    {
+      "system": "PANTONE",
+      "name": "5235 C",
+      "number": "5235",
+      "variant": "C",
+      "c": 0,
+      "m": 10,
+      "y": 11,
+      "k": 13
+    },
+    {
+      "system": "PANTONE",
+      "name": "524 C",
+      "number": "524",
+      "variant": "C",
+      "c": 0,
+      "m": 10,
+      "y": 7,
+      "k": 11
+    },
+    {
+      "system": "PANTONE",
+      "name": "5245 C",
+      "number": "5245",
+      "variant": "C",
+      "c": 0,
+      "m": 8,
+      "y": 11,
+      "k": 10
+    },
+    {
+      "system": "PANTONE",
+      "name": "525 C",
+      "number": "525",
+      "variant": "C",
+      "c": 4,
+      "m": 55,
+      "y": 0,
+      "k": 67
+    },
+    {
+      "system": "PANTONE",
+      "name": "5255 C",
+      "number": "5255",
+      "variant": "C",
+      "c": 33,
+      "m": 52,
+      "y": 0,
+      "k": 69
+    },
+    {
+      "system": "PANTONE",
+      "name": "526 C",
+      "number": "526",
+      "variant": "C",
+      "c": 15,
+      "m": 73,
+      "y": 0,
+      "k": 52
+    },
+    {
+      "system": "PANTONE",
+      "name": "5265 C",
+      "number": "5265",
+      "variant": "C",
+      "c": 26,
+      "m": 38,
+      "y": 0,
+      "k": 61
+    },
+    {
+      "system": "PANTONE",
+      "name": "527 C",
+      "number": "527",
+      "variant": "C",
+      "c": 20,
+      "m": 80,
+      "y": 0,
+      "k": 40
+    },
+    {
+      "system": "PANTONE",
+      "name": "5275 C",
+      "number": "5275",
+      "variant": "C",
+      "c": 19,
+      "m": 28,
+      "y": 0,
+      "k": 53
+    },
+    {
+      "system": "PANTONE",
+      "name": "528 C",
+      "number": "528",
+      "variant": "C",
+      "c": 9,
+      "m": 41,
+      "y": 0,
+      "k": 24
+    },
+    {
+      "system": "PANTONE",
+      "name": "5285 C",
+      "number": "5285",
+      "variant": "C",
+      "c": 8,
+      "m": 15,
+      "y": 0,
+      "k": 40
+    },
+    {
+      "system": "PANTONE",
+      "name": "529 C",
+      "number": "529",
+      "variant": "C",
+      "c": 2,
+      "m": 23,
+      "y": 0,
+      "k": 17
+    },
+    {
+      "system": "PANTONE",
+      "name": "5295 C",
+      "number": "5295",
+      "variant": "C",
+      "c": 2,
+      "m": 7,
+      "y": 0,
+      "k": 29
+    },
+    {
+      "system": "PANTONE",
+      "name": "530 C",
+      "number": "530",
+      "variant": "C",
+      "c": 0,
+      "m": 18,
+      "y": 0,
+      "k": 16
+    },
+    {
+      "system": "PANTONE",
+      "name": "5305 C",
+      "number": "5305",
+      "variant": "C",
+      "c": 0,
+      "m": 5,
+      "y": 3,
+      "k": 20
+    },
+    {
+      "system": "PANTONE",
+      "name": "531 C",
+      "number": "531",
+      "variant": "C",
+      "c": 0,
+      "m": 14,
+      "y": 4,
+      "k": 10
+    },
+    {
+      "system": "PANTONE",
+      "name": "5315 C",
+      "number": "5315",
+      "variant": "C",
+      "c": 0,
+      "m": 4,
+      "y": 4,
+      "k": 14
+    },
+    {
+      "system": "PANTONE",
+      "name": "532 C",
+      "number": "532",
+      "variant": "C",
+      "c": 20,
+      "m": 15,
+      "y": 0,
+      "k": 74
+    },
+    {
+      "system": "PANTONE",
+      "name": "533 C",
+      "number": "533",
+      "variant": "C",
+      "c": 42,
+      "m": 31,
+      "y": 0,
+      "k": 64
+    },
+    {
+      "system": "PANTONE",
+      "name": "534 C",
+      "number": "534",
+      "variant": "C",
+      "c": 49,
+      "m": 36,
+      "y": 0,
+      "k": 55
+    },
+    {
+      "system": "PANTONE",
+      "name": "535 C",
+      "number": "535",
+      "variant": "C",
+      "c": 15,
+      "m": 11,
+      "y": 0,
+      "k": 28
+    },
+    {
+      "system": "PANTONE",
+      "name": "536 C",
+      "number": "536",
+      "variant": "C",
+      "c": 10,
+      "m": 8,
+      "y": 0,
+      "k": 24
+    },
+    {
+      "system": "PANTONE",
+      "name": "537 C",
+      "number": "537",
+      "variant": "C",
+      "c": 5,
+      "m": 4,
+      "y": 0,
+      "k": 19
+    },
+    {
+      "system": "PANTONE",
+      "name": "538 C",
+      "number": "538",
+      "variant": "C",
+      "c": 0,
+      "m": 1,
+      "y": 0,
+      "k": 16
+    },
+    {
+      "system": "PANTONE",
+      "name": "539 C",
+      "number": "539",
+      "variant": "C",
+      "c": 100,
+      "m": 34,
+      "y": 0,
+      "k": 71
+    },
+    {
+      "system": "PANTONE",
+      "name": "5395 C",
+      "number": "5395",
+      "variant": "C",
+      "c": 97,
+      "m": 31,
+      "y": 0,
+      "k": 77
+    },
+    {
+      "system": "PANTONE",
+      "name": "540 C",
+      "number": "540",
+      "variant": "C",
+      "c": 100,
+      "m": 44,
+      "y": 0,
+      "k": 64
+    },
+    {
+      "system": "PANTONE",
+      "name": "5405 C",
+      "number": "5405",
+      "variant": "C",
+      "c": 46,
+      "m": 18,
+      "y": 0,
+      "k": 54
+    },
+    {
+      "system": "PANTONE",
+      "name": "541 C",
+      "number": "541",
+      "variant": "C",
+      "c": 100,
+      "m": 47,
+      "y": 0,
+      "k": 53
+    },
+    {
+      "system": "PANTONE",
+      "name": "5415 C",
+      "number": "5415",
+      "variant": "C",
+      "c": 31,
+      "m": 11,
+      "y": 0,
+      "k": 45
+    },
+    {
+      "system": "PANTONE",
+      "name": "542 C",
+      "number": "542",
+      "variant": "C",
+      "c": 46,
+      "m": 22,
+      "y": 0,
+      "k": 26
+    },
+    {
+      "system": "PANTONE",
+      "name": "5425 C",
+      "number": "5425",
+      "variant": "C",
+      "c": 20,
+      "m": 7,
+      "y": 0,
+      "k": 35
+    },
+    {
+      "system": "PANTONE",
+      "name": "543 C",
+      "number": "543",
+      "variant": "C",
+      "c": 30,
+      "m": 12,
+      "y": 0,
+      "k": 18
+    },
+    {
+      "system": "PANTONE",
+      "name": "5435 C",
+      "number": "5435",
+      "variant": "C",
+      "c": 8,
+      "m": 2,
+      "y": 0,
+      "k": 25
+    },
+    {
+      "system": "PANTONE",
+      "name": "544 C",
+      "number": "544",
+      "variant": "C",
+      "c": 16,
+      "m": 7,
+      "y": 0,
+      "k": 14
+    },
+    {
+      "system": "PANTONE",
+      "name": "5445 C",
+      "number": "5445",
+      "variant": "C",
+      "c": 4,
+      "m": 0,
+      "y": 0,
+      "k": 20
+    },
+    {
+      "system": "PANTONE",
+      "name": "545 C",
+      "number": "545",
+      "variant": "C",
+      "c": 11,
+      "m": 5,
+      "y": 0,
+      "k": 13
+    },
+    {
+      "system": "PANTONE",
+      "name": "5455 C",
+      "number": "5455",
+      "variant": "C",
+      "c": 1,
+      "m": 0,
+      "y": 2,
+      "k": 15
+    },
+    {
+      "system": "PANTONE",
+      "name": "546 C",
+      "number": "546",
+      "variant": "C",
+      "c": 82,
+      "m": 18,
+      "y": 0,
+      "k": 73
+    },
+    {
+      "system": "PANTONE",
+      "name": "5463 C",
+      "number": "5463",
+      "variant": "C",
+      "c": 100,
+      "m": 9,
+      "y": 0,
+      "k": 77
+    },
+    {
+      "system": "PANTONE",
+      "name": "5467 C",
+      "number": "5467",
+      "variant": "C",
+      "c": 55,
+      "m": 0,
+      "y": 9,
+      "k": 78
+    },
+    {
+      "system": "PANTONE",
+      "name": "547 C",
+      "number": "547",
+      "variant": "C",
+      "c": 100,
+      "m": 25,
+      "y": 0,
+      "k": 67
+    },
+    {
+      "system": "PANTONE",
+      "name": "5473 C",
+      "number": "5473",
+      "variant": "C",
+      "c": 65,
+      "m": 5,
+      "y": 0,
+      "k": 57
+    },
+    {
+      "system": "PANTONE",
+      "name": "5477 C",
+      "number": "5477",
+      "variant": "C",
+      "c": 33,
+      "m": 0,
+      "y": 8,
+      "k": 66
+    },
+    {
+      "system": "PANTONE",
+      "name": "548 C",
+      "number": "548",
+      "variant": "C",
+      "c": 100,
+      "m": 24,
+      "y": 0,
+      "k": 65
+    },
+    {
+      "system": "PANTONE",
+      "name": "5483 C",
+      "number": "5483",
+      "variant": "C",
+      "c": 34,
+      "m": 0,
+      "y": 0,
+      "k": 43
+    },
+    {
+      "system": "PANTONE",
+      "name": "5487 C",
+      "number": "5487",
+      "variant": "C",
+      "c": 18,
+      "m": 0,
+      "y": 8,
+      "k": 51
+    },
+    {
+      "system": "PANTONE",
+      "name": "549 C",
+      "number": "549",
+      "variant": "C",
+      "c": 45,
+      "m": 10,
+      "y": 0,
+      "k": 33
+    },
+    {
+      "system": "PANTONE",
+      "name": "5493 C",
+      "number": "5493",
+      "variant": "C",
+      "c": 20,
+      "m": 0,
+      "y": 1,
+      "k": 31
+    },
+    {
+      "system": "PANTONE",
+      "name": "5497 C",
+      "number": "5497",
+      "variant": "C",
+      "c": 11,
+      "m": 0,
+      "y": 6,
+      "k": 36
+    },
+    {
+      "system": "PANTONE",
+      "name": "550 C",
+      "number": "550",
+      "variant": "C",
+      "c": 29,
+      "m": 8,
+      "y": 0,
+      "k": 25
+    },
+    {
+      "system": "PANTONE",
+      "name": "5503 C",
+      "number": "5503",
+      "variant": "C",
+      "c": 13,
+      "m": 0,
+      "y": 3,
+      "k": 23
+    },
+    {
+      "system": "PANTONE",
+      "name": "5507 C",
+      "number": "5507",
+      "variant": "C",
+      "c": 6,
+      "m": 0,
+      "y": 4,
+      "k": 27
+    },
+    {
+      "system": "PANTONE",
+      "name": "551 C",
+      "number": "551",
+      "variant": "C",
+      "c": 19,
+      "m": 4,
+      "y": 0,
+      "k": 21
+    },
+    {
+      "system": "PANTONE",
+      "name": "5513 C",
+      "number": "5513",
+      "variant": "C",
+      "c": 5,
+      "m": 0,
+      "y": 3,
+      "k": 15
+    },
+    {
+      "system": "PANTONE",
+      "name": "5517 C",
+      "number": "5517",
+      "variant": "C",
+      "c": 2,
+      "m": 0,
+      "y": 5,
+      "k": 19
+    },
+    {
+      "system": "PANTONE",
+      "name": "552 C",
+      "number": "552",
+      "variant": "C",
+      "c": 8,
+      "m": 0,
+      "y": 0,
+      "k": 16
+    },
+    {
+      "system": "PANTONE",
+      "name": "5523 C",
+      "number": "5523",
+      "variant": "C",
+      "c": 3,
+      "m": 0,
+      "y": 3,
+      "k": 13
+    },
+    {
+      "system": "PANTONE",
+      "name": "5527 C",
+      "number": "5527",
+      "variant": "C",
+      "c": 1,
+      "m": 0,
+      "y": 5,
+      "k": 18
+    },
+    {
+      "system": "PANTONE",
+      "name": "553 C",
+      "number": "553",
+      "variant": "C",
+      "c": 49,
+      "m": 0,
+      "y": 22,
+      "k": 73
+    },
+    {
+      "system": "PANTONE",
+      "name": "5535 C",
+      "number": "5535",
+      "variant": "C",
+      "c": 46,
+      "m": 0,
+      "y": 21,
+      "k": 76
+    },
+    {
+      "system": "PANTONE",
+      "name": "554 C",
+      "number": "554",
+      "variant": "C",
+      "c": 73,
+      "m": 0,
+      "y": 24,
+      "k": 63
+    },
+    {
+      "system": "PANTONE",
+      "name": "5545 C",
+      "number": "5545",
+      "variant": "C",
+      "c": 28,
+      "m": 0,
+      "y": 14,
+      "k": 57
+    },
+    {
+      "system": "PANTONE",
+      "name": "555 C",
+      "number": "555",
+      "variant": "C",
+      "c": 94,
+      "m": 0,
+      "y": 23,
+      "k": 57
+    },
+    {
+      "system": "PANTONE",
+      "name": "5555 C",
+      "number": "5555",
+      "variant": "C",
+      "c": 18,
+      "m": 0,
+      "y": 10,
+      "k": 43
+    },
+    {
+      "system": "PANTONE",
+      "name": "556 C",
+      "number": "556",
+      "variant": "C",
+      "c": 27,
+      "m": 0,
+      "y": 14,
+      "k": 34
+    },
+    {
+      "system": "PANTONE",
+      "name": "5565 C",
+      "number": "5565",
+      "variant": "C",
+      "c": 12,
+      "m": 0,
+      "y": 10,
+      "k": 33
+    },
+    {
+      "system": "PANTONE",
+      "name": "557 C",
+      "number": "557",
+      "variant": "C",
+      "c": 16,
+      "m": 0,
+      "y": 10,
+      "k": 24
+    },
+    {
+      "system": "PANTONE",
+      "name": "5575 C",
+      "number": "5575",
+      "variant": "C",
+      "c": 8,
+      "m": 0,
+      "y": 9,
+      "k": 25
+    },
+    {
+      "system": "PANTONE",
+      "name": "558 C",
+      "number": "558",
+      "variant": "C",
+      "c": 11,
+      "m": 0,
+      "y": 9,
+      "k": 19
+    },
+    {
+      "system": "PANTONE",
+      "name": "5585 C",
+      "number": "5585",
+      "variant": "C",
+      "c": 5,
+      "m": 0,
+      "y": 7,
+      "k": 19
+    },
+    {
+      "system": "PANTONE",
+      "name": "559 C",
+      "number": "559",
+      "variant": "C",
+      "c": 7,
+      "m": 0,
+      "y": 8,
+      "k": 16
+    },
+    {
+      "system": "PANTONE",
+      "name": "5595 C",
+      "number": "5595",
+      "variant": "C",
+      "c": 1,
+      "m": 0,
+      "y": 7,
+      "k": 14
+    },
+    {
+      "system": "PANTONE",
+      "name": "560 C",
+      "number": "560",
+      "variant": "C",
+      "c": 43,
+      "m": 0,
+      "y": 17,
+      "k": 70
+    },
+    {
+      "system": "PANTONE",
+      "name": "5605 C",
+      "number": "5605",
+      "variant": "C",
+      "c": 40,
+      "m": 0,
+      "y": 22,
+      "k": 77
+    },
+    {
+      "system": "PANTONE",
+      "name": "561 C",
+      "number": "561",
+      "variant": "C",
+      "c": 63,
+      "m": 0,
+      "y": 13,
+      "k": 60
+    },
+    {
+      "system": "PANTONE",
+      "name": "5615 C",
+      "number": "5615",
+      "variant": "C",
+      "c": 19,
+      "m": 0,
+      "y": 17,
+      "k": 59
+    },
+    {
+      "system": "PANTONE",
+      "name": "562 C",
+      "number": "562",
+      "variant": "C",
+      "c": 75,
+      "m": 0,
+      "y": 11,
+      "k": 52
+    },
+    {
+      "system": "PANTONE",
+      "name": "5625 C",
+      "number": "5625",
+      "variant": "C",
+      "c": 14,
+      "m": 0,
+      "y": 15,
+      "k": 48
+    },
+    {
+      "system": "PANTONE",
+      "name": "563 C",
+      "number": "563",
+      "variant": "C",
+      "c": 32,
+      "m": 0,
+      "y": 10,
+      "k": 26
+    },
+    {
+      "system": "PANTONE",
+      "name": "5635 C",
+      "number": "5635",
+      "variant": "C",
+      "c": 7,
+      "m": 0,
+      "y": 10,
+      "k": 33
+    },
+    {
+      "system": "PANTONE",
+      "name": "564 C",
+      "number": "564",
+      "variant": "C",
+      "c": 22,
+      "m": 0,
+      "y": 9,
+      "k": 19
+    },
+    {
+      "system": "PANTONE",
+      "name": "5645 C",
+      "number": "5645",
+      "variant": "C",
+      "c": 3,
+      "m": 0,
+      "y": 8,
+      "k": 24
+    },
+    {
+      "system": "PANTONE",
+      "name": "565 C",
+      "number": "565",
+      "variant": "C",
+      "c": 14,
+      "m": 0,
+      "y": 7,
+      "k": 14
+    },
+    {
+      "system": "PANTONE",
+      "name": "5655 C",
+      "number": "5655",
+      "variant": "C",
+      "c": 3,
+      "m": 0,
+      "y": 9,
+      "k": 20
+    },
+    {
+      "system": "PANTONE",
+      "name": "566 C",
+      "number": "566",
+      "variant": "C",
+      "c": 8,
+      "m": 0,
+      "y": 7,
+      "k": 11
+    },
+    {
+      "system": "PANTONE",
+      "name": "568 C",
+      "number": "568",
+      "variant": "C",
+      "c": 0,
+      "m": 0,
+      "y": 7,
+      "k": 16
+    },
+    {
+      "system": "PANTONE",
+      "name": "569 C",
+      "number": "569",
+      "variant": "C",
+      "c": 96,
+      "m": 0,
+      "y": 16,
+      "k": 56
+    },
+    {
+      "system": "PANTONE",
+      "name": "570 C",
+      "number": "570",
+      "variant": "C",
+      "c": 100,
+      "m": 0,
+      "y": 16,
+      "k": 47
+    },
+    {
+      "system": "PANTONE",
+      "name": "571 C",
+      "number": "571",
+      "variant": "C",
+      "c": 36,
+      "m": 0,
+      "y": 10,
+      "k": 22
+    },
+    {
+      "system": "PANTONE",
+      "name": "572 C",
+      "number": "572",
+      "variant": "C",
+      "c": 22,
+      "m": 0,
+      "y": 10,
+      "k": 14
+    },
+    {
+      "system": "PANTONE",
+      "name": "573 C",
+      "number": "573",
+      "variant": "C",
+      "c": 17,
+      "m": 0,
+      "y": 9,
+      "k": 11
+    },
+    {
+      "system": "PANTONE",
+      "name": "574 C",
+      "number": "574",
+      "variant": "C",
+      "c": 11,
+      "m": 0,
+      "y": 7,
+      "k": 10
+    },
+    {
+      "system": "PANTONE",
+      "name": "5743 C",
+      "number": "5743",
+      "variant": "C",
+      "c": 2,
+      "m": 0,
+      "y": 18,
+      "k": 13
+    },
+    {
+      "system": "PANTONE",
+      "name": "5747 C",
+      "number": "5747",
+      "variant": "C",
+      "c": 0,
+      "m": 1,
+      "y": 15,
+      "k": 15
+    },
+    {
+      "system": "PANTONE",
+      "name": "575 C",
+      "number": "575",
+      "variant": "C",
+      "c": 18,
+      "m": 0,
+      "y": 55,
+      "k": 65
+    },
+    {
+      "system": "PANTONE",
+      "name": "5753 C",
+      "number": "5753",
+      "variant": "C",
+      "c": 14,
+      "m": 0,
+      "y": 48,
+      "k": 71
+    },
+    {
+      "system": "PANTONE",
+      "name": "5757 C",
+      "number": "5757",
+      "variant": "C",
+      "c": 7,
+      "m": 0,
+      "y": 69,
+      "k": 72
+    },
+    {
+      "system": "PANTONE",
+      "name": "576 C",
+      "number": "576",
+      "variant": "C",
+      "c": 29,
+      "m": 0,
+      "y": 60,
+      "k": 53
+    },
+    {
+      "system": "PANTONE",
+      "name": "5763 C",
+      "number": "5763",
+      "variant": "C",
+      "c": 8,
+      "m": 0,
+      "y": 43,
+      "k": 60
+    },
+    {
+      "system": "PANTONE",
+      "name": "5767 C",
+      "number": "5767",
+      "variant": "C",
+      "c": 4,
+      "m": 0,
+      "y": 62,
+      "k": 56
+    },
+    {
+      "system": "PANTONE",
+      "name": "577 C",
+      "number": "577",
+      "variant": "C",
+      "c": 32,
+      "m": 0,
+      "y": 59,
+      "k": 44
+    },
+    {
+      "system": "PANTONE",
+      "name": "5773 C",
+      "number": "5773",
+      "variant": "C",
+      "c": 4,
+      "m": 0,
+      "y": 36,
+      "k": 51
+    },
+    {
+      "system": "PANTONE",
+      "name": "5777 C",
+      "number": "5777",
+      "variant": "C",
+      "c": 3,
+      "m": 0,
+      "y": 46,
+      "k": 43
+    },
+    {
+      "system": "PANTONE",
+      "name": "578 C",
+      "number": "578",
+      "variant": "C",
+      "c": 11,
+      "m": 0,
+      "y": 30,
+      "k": 20
+    },
+    {
+      "system": "PANTONE",
+      "name": "5783 C",
+      "number": "5783",
+      "variant": "C",
+      "c": 2,
+      "m": 0,
+      "y": 28,
+      "k": 38
+    },
+    {
+      "system": "PANTONE",
+      "name": "5787 C",
+      "number": "5787",
+      "variant": "C",
+      "c": 2,
+      "m": 0,
+      "y": 32,
+      "k": 32
+    },
+    {
+      "system": "PANTONE",
+      "name": "579 C",
+      "number": "579",
+      "variant": "C",
+      "c": 7,
+      "m": 0,
+      "y": 25,
+      "k": 16
+    },
+    {
+      "system": "PANTONE",
+      "name": "5793 C",
+      "number": "5793",
+      "variant": "C",
+      "c": 0,
+      "m": 0,
+      "y": 22,
+      "k": 29
+    },
+    {
+      "system": "PANTONE",
+      "name": "5797 C",
+      "number": "5797",
+      "variant": "C",
+      "c": 0,
+      "m": 0,
+      "y": 23,
+      "k": 22
+    },
+    {
+      "system": "PANTONE",
+      "name": "580 C",
+      "number": "580",
+      "variant": "C",
+      "c": 6,
+      "m": 0,
+      "y": 24,
+      "k": 16
+    },
+    {
+      "system": "PANTONE",
+      "name": "5807 C",
+      "number": "5807",
+      "variant": "C",
+      "c": 0,
+      "m": 1,
+      "y": 19,
+      "k": 17
+    },
+    {
+      "system": "PANTONE",
+      "name": "581 C",
+      "number": "581",
+      "variant": "C",
+      "c": 0,
+      "m": 1,
+      "y": 16,
+      "k": 12
+    },
+    {
+      "system": "PANTONE",
+      "name": "5815 C",
+      "number": "5815",
+      "variant": "C",
+      "c": 0,
+      "m": 7,
+      "y": 77,
+      "k": 71
+    },
+    {
+      "system": "PANTONE",
+      "name": "582 C",
+      "number": "582",
+      "variant": "C",
+      "c": 0,
+      "m": 2,
+      "y": 82,
+      "k": 62
+    },
+    {
+      "system": "PANTONE",
+      "name": "5825 C",
+      "number": "5825",
+      "variant": "C",
+      "c": 0,
+      "m": 4,
+      "y": 63,
+      "k": 54
+    },
+    {
+      "system": "PANTONE",
+      "name": "583 C",
+      "number": "583",
+      "variant": "C",
+      "c": 1,
+      "m": 0,
+      "y": 96,
+      "k": 46
+    },
+    {
+      "system": "PANTONE",
+      "name": "5835 C",
+      "number": "5835",
+      "variant": "C",
+      "c": 0,
+      "m": 3,
+      "y": 44,
+      "k": 38
+    },
+    {
+      "system": "PANTONE",
+      "name": "584 C",
+      "number": "584",
+      "variant": "C",
+      "c": 9,
+      "m": 0,
+      "y": 95,
+      "k": 27
+    },
+    {
+      "system": "PANTONE",
+      "name": "5845 C",
+      "number": "5845",
+      "variant": "C",
+      "c": 0,
+      "m": 4,
+      "y": 37,
+      "k": 30
+    },
+    {
+      "system": "PANTONE",
+      "name": "585 C",
+      "number": "585",
+      "variant": "C",
+      "c": 2,
+      "m": 0,
+      "y": 52,
+      "k": 12
+    },
+    {
+      "system": "PANTONE",
+      "name": "5855 C",
+      "number": "5855",
+      "variant": "C",
+      "c": 0,
+      "m": 3,
+      "y": 28,
+      "k": 20
+    },
+    {
+      "system": "PANTONE",
+      "name": "586 C",
+      "number": "586",
+      "variant": "C",
+      "c": 1,
+      "m": 0,
+      "y": 42,
+      "k": 10
+    },
+    {
+      "system": "PANTONE",
+      "name": "5865 C",
+      "number": "5865",
+      "variant": "C",
+      "c": 0,
+      "m": 4,
+      "y": 24,
+      "k": 16
+    },
+    {
+      "system": "PANTONE",
+      "name": "587 C",
+      "number": "587",
+      "variant": "C",
+      "c": 0,
+      "m": 0,
+      "y": 33,
+      "k": 9
+    },
+    {
+      "system": "PANTONE",
+      "name": "5875 C",
+      "number": "5875",
+      "variant": "C",
+      "c": 0,
+      "m": 2,
+      "y": 19,
+      "k": 12
+    },
+    {
+      "system": "PANTONE",
+      "name": "Cool Gray 6 C",
+      "number": "6",
+      "variant": "C",
+      "c": 0,
+      "m": 2,
+      "y": 6,
+      "k": 29
+    },
+    {
+      "system": "PANTONE",
+      "name": "Warm Gray 6 C",
+      "number": "6",
+      "variant": "C",
+      "c": 0,
+      "m": 7,
+      "y": 16,
+      "k": 31
+    },
+    {
+      "system": "PANTONE",
+      "name": "600 C",
+      "number": "600",
+      "variant": "C",
+      "c": 0,
+      "m": 3,
+      "y": 28,
+      "k": 4
+    },
+    {
+      "system": "PANTONE",
+      "name": "601 C",
+      "number": "601",
+      "variant": "C",
+      "c": 0,
+      "m": 2,
+      "y": 35,
+      "k": 5
+    },
+    {
+      "system": "PANTONE",
+      "name": "602 C",
+      "number": "602",
+      "variant": "C",
+      "c": 0,
+      "m": 3,
+      "y": 44,
+      "k": 5
+    },
+    {
+      "system": "PANTONE",
+      "name": "603 C",
+      "number": "603",
+      "variant": "C",
+      "c": 0,
+      "m": 2,
+      "y": 62,
+      "k": 7
+    },
+    {
+      "system": "PANTONE",
+      "name": "604 C",
+      "number": "604",
+      "variant": "C",
+      "c": 0,
+      "m": 5,
+      "y": 86,
+      "k": 9
+    },
+    {
+      "system": "PANTONE",
+      "name": "605 C",
+      "number": "605",
+      "variant": "C",
+      "c": 0,
+      "m": 7,
+      "y": 92,
+      "k": 13
+    },
+    {
+      "system": "PANTONE",
+      "name": "606 C",
+      "number": "606",
+      "variant": "C",
+      "c": 0,
+      "m": 9,
+      "y": 92,
+      "k": 17
+    },
+    {
+      "system": "PANTONE",
+      "name": "607 C",
+      "number": "607",
+      "variant": "C",
+      "c": 0,
+      "m": 3,
+      "y": 22,
+      "k": 5
+    },
+    {
+      "system": "PANTONE",
+      "name": "608 C",
+      "number": "608",
+      "variant": "C",
+      "c": 0,
+      "m": 3,
+      "y": 28,
+      "k": 6
+    },
+    {
+      "system": "PANTONE",
+      "name": "609 C",
+      "number": "609",
+      "variant": "C",
+      "c": 0,
+      "m": 2,
+      "y": 36,
+      "k": 8
+    },
+    {
+      "system": "PANTONE",
+      "name": "610 C",
+      "number": "610",
+      "variant": "C",
+      "c": 0,
+      "m": 3,
+      "y": 50,
+      "k": 11
+    },
+    {
+      "system": "PANTONE",
+      "name": "611 C",
+      "number": "611",
+      "variant": "C",
+      "c": 0,
+      "m": 4,
+      "y": 66,
+      "k": 16
+    },
+    {
+      "system": "PANTONE",
+      "name": "612 C",
+      "number": "612",
+      "variant": "C",
+      "c": 0,
+      "m": 5,
+      "y": 100,
+      "k": 23
+    },
+    {
+      "system": "PANTONE",
+      "name": "613 C",
+      "number": "613",
+      "variant": "C",
+      "c": 0,
+      "m": 9,
+      "y": 93,
+      "k": 31
+    },
+    {
+      "system": "PANTONE",
+      "name": "614 C",
+      "number": "614",
+      "variant": "C",
+      "c": 0,
+      "m": 3,
+      "y": 22,
+      "k": 8
+    },
+    {
+      "system": "PANTONE",
+      "name": "615 C",
+      "number": "615",
+      "variant": "C",
+      "c": 0,
+      "m": 3,
+      "y": 25,
+      "k": 11
+    },
+    {
+      "system": "PANTONE",
+      "name": "616 C",
+      "number": "616",
+      "variant": "C",
+      "c": 0,
+      "m": 3,
+      "y": 30,
+      "k": 13
+    },
+    {
+      "system": "PANTONE",
+      "name": "617 C",
+      "number": "617",
+      "variant": "C",
+      "c": 0,
+      "m": 4,
+      "y": 39,
+      "k": 20
+    },
+    {
+      "system": "PANTONE",
+      "name": "618 C",
+      "number": "618",
+      "variant": "C",
+      "c": 0,
+      "m": 6,
+      "y": 51,
+      "k": 29
+    },
+    {
+      "system": "PANTONE",
+      "name": "619 C",
+      "number": "619",
+      "variant": "C",
+      "c": 0,
+      "m": 7,
+      "y": 73,
+      "k": 41
+    },
+    {
+      "system": "PANTONE",
+      "name": "620 C",
+      "number": "620",
+      "variant": "C",
+      "c": 0,
+      "m": 10,
+      "y": 87,
+      "k": 48
+    },
+    {
+      "system": "PANTONE",
+      "name": "621 C",
+      "number": "621",
+      "variant": "C",
+      "c": 2,
+      "m": 0,
+      "y": 7,
+      "k": 13
+    },
+    {
+      "system": "PANTONE",
+      "name": "622 C",
+      "number": "622",
+      "variant": "C",
+      "c": 8,
+      "m": 0,
+      "y": 9,
+      "k": 18
+    },
+    {
+      "system": "PANTONE",
+      "name": "623 C",
+      "number": "623",
+      "variant": "C",
+      "c": 14,
+      "m": 0,
+      "y": 11,
+      "k": 25
+    },
+    {
+      "system": "PANTONE",
+      "name": "624 C",
+      "number": "624",
+      "variant": "C",
+      "c": 21,
+      "m": 0,
+      "y": 13,
+      "k": 37
+    },
+    {
+      "system": "PANTONE",
+      "name": "625 C",
+      "number": "625",
+      "variant": "C",
+      "c": 33,
+      "m": 0,
+      "y": 16,
+      "k": 47
+    },
+    {
+      "system": "PANTONE",
+      "name": "626 C",
+      "number": "626",
+      "variant": "C",
+      "c": 61,
+      "m": 0,
+      "y": 25,
+      "k": 67
+    },
+    {
+      "system": "PANTONE",
+      "name": "627 C",
+      "number": "627",
+      "variant": "C",
+      "c": 75,
+      "m": 0,
+      "y": 21,
+      "k": 81
+    },
+    {
+      "system": "PANTONE",
+      "name": "628 C",
+      "number": "628",
+      "variant": "C",
+      "c": 10,
+      "m": 0,
+      "y": 2,
+      "k": 11
+    },
+    {
+      "system": "PANTONE",
+      "name": "629 C",
+      "number": "629",
+      "variant": "C",
+      "c": 18,
+      "m": 0,
+      "y": 0,
+      "k": 15
+    },
+    {
+      "system": "PANTONE",
+      "name": "630 C",
+      "number": "630",
+      "variant": "C",
+      "c": 34,
+      "m": 3,
+      "y": 0,
+      "k": 17
+    },
+    {
+      "system": "PANTONE",
+      "name": "631 C",
+      "number": "631",
+      "variant": "C",
+      "c": 58,
+      "m": 8,
+      "y": 0,
+      "k": 22
+    },
+    {
+      "system": "PANTONE",
+      "name": "632 C",
+      "number": "632",
+      "variant": "C",
+      "c": 100,
+      "m": 14,
+      "y": 0,
+      "k": 27
+    },
+    {
+      "system": "PANTONE",
+      "name": "633 C",
+      "number": "633",
+      "variant": "C",
+      "c": 100,
+      "m": 17,
+      "y": 0,
+      "k": 40
+    },
+    {
+      "system": "PANTONE",
+      "name": "634 C",
+      "number": "634",
+      "variant": "C",
+      "c": 100,
+      "m": 20,
+      "y": 0,
+      "k": 50
+    },
+    {
+      "system": "PANTONE",
+      "name": "635 C",
+      "number": "635",
+      "variant": "C",
+      "c": 17,
+      "m": 0,
+      "y": 0,
+      "k": 12
+    },
+    {
+      "system": "PANTONE",
+      "name": "636 C",
+      "number": "636",
+      "variant": "C",
+      "c": 31,
+      "m": 3,
+      "y": 0,
+      "k": 13
+    },
+    {
+      "system": "PANTONE",
+      "name": "637 C",
+      "number": "637",
+      "variant": "C",
+      "c": 51,
+      "m": 8,
+      "y": 0,
+      "k": 14
+    },
+    {
+      "system": "PANTONE",
+      "name": "638 C",
+      "number": "638",
+      "variant": "C",
+      "c": 100,
+      "m": 15,
+      "y": 0,
+      "k": 16
+    },
+    {
+      "system": "PANTONE",
+      "name": "639 C",
+      "number": "639",
+      "variant": "C",
+      "c": 100,
+      "m": 18,
+      "y": 0,
+      "k": 23
+    },
+    {
+      "system": "PANTONE",
+      "name": "640 C",
+      "number": "640",
+      "variant": "C",
+      "c": 100,
+      "m": 21,
+      "y": 0,
+      "k": 30
+    },
+    {
+      "system": "PANTONE",
+      "name": "641 C",
+      "number": "641",
+      "variant": "C",
+      "c": 100,
+      "m": 26,
+      "y": 0,
+      "k": 35
+    },
+    {
+      "system": "PANTONE",
+      "name": "642 C",
+      "number": "642",
+      "variant": "C",
+      "c": 3,
+      "m": 0,
+      "y": 0,
+      "k": 15
+    },
+    {
+      "system": "PANTONE",
+      "name": "643 C",
+      "number": "643",
+      "variant": "C",
+      "c": 7,
+      "m": 2,
+      "y": 0,
+      "k": 16
+    },
+    {
+      "system": "PANTONE",
+      "name": "644 C",
+      "number": "644",
+      "variant": "C",
+      "c": 21,
+      "m": 11,
+      "y": 0,
+      "k": 23
+    },
+    {
+      "system": "PANTONE",
+      "name": "645 C",
+      "number": "645",
+      "variant": "C",
+      "c": 33,
+      "m": 16,
+      "y": 0,
+      "k": 30
+    },
+    {
+      "system": "PANTONE",
+      "name": "646 C",
+      "number": "646",
+      "variant": "C",
+      "c": 42,
+      "m": 20,
+      "y": 0,
+      "k": 36
+    },
+    {
+      "system": "PANTONE",
+      "name": "647 C",
+      "number": "647",
+      "variant": "C",
+      "c": 69,
+      "m": 32,
+      "y": 0,
+      "k": 51
+    },
+    {
+      "system": "PANTONE",
+      "name": "648 C",
+      "number": "648",
+      "variant": "C",
+      "c": 100,
+      "m": 49,
+      "y": 0,
+      "k": 63
+    },
+    {
+      "system": "PANTONE",
+      "name": "649 C",
+      "number": "649",
+      "variant": "C",
+      "c": 1,
+      "m": 1,
+      "y": 0,
+      "k": 15
+    },
+    {
+      "system": "PANTONE",
+      "name": "650 C",
+      "number": "650",
+      "variant": "C",
+      "c": 9,
+      "m": 5,
+      "y": 0,
+      "k": 18
+    },
+    {
+      "system": "PANTONE",
+      "name": "651 C",
+      "number": "651",
+      "variant": "C",
+      "c": 19,
+      "m": 11,
+      "y": 0,
+      "k": 25
+    },
+    {
+      "system": "PANTONE",
+      "name": "652 C",
+      "number": "652",
+      "variant": "C",
+      "c": 35,
+      "m": 20,
+      "y": 0,
+      "k": 34
+    },
+    {
+      "system": "PANTONE",
+      "name": "653 C",
+      "number": "653",
+      "variant": "C",
+      "c": 62,
+      "m": 36,
+      "y": 0,
+      "k": 47
+    },
+    {
+      "system": "PANTONE",
+      "name": "654 C",
+      "number": "654",
+      "variant": "C",
+      "c": 84,
+      "m": 53,
+      "y": 0,
+      "k": 64
+    },
+    {
+      "system": "PANTONE",
+      "name": "655 C",
+      "number": "655",
+      "variant": "C",
+      "c": 83,
+      "m": 61,
+      "y": 0,
+      "k": 72
+    },
+    {
+      "system": "PANTONE",
+      "name": "656 C",
+      "number": "656",
+      "variant": "C",
+      "c": 4,
+      "m": 2,
+      "y": 0,
+      "k": 12
+    },
+    {
+      "system": "PANTONE",
+      "name": "657 C",
+      "number": "657",
+      "variant": "C",
+      "c": 13,
+      "m": 9,
+      "y": 0,
+      "k": 13
+    },
+    {
+      "system": "PANTONE",
+      "name": "658 C",
+      "number": "658",
+      "variant": "C",
+      "c": 23,
+      "m": 18,
+      "y": 0,
+      "k": 16
+    },
+    {
+      "system": "PANTONE",
+      "name": "659 C",
+      "number": "659",
+      "variant": "C",
+      "c": 34,
+      "m": 27,
+      "y": 0,
+      "k": 25
+    },
+    {
+      "system": "PANTONE",
+      "name": "660 C",
+      "number": "660",
+      "variant": "C",
+      "c": 47,
+      "m": 43,
+      "y": 0,
+      "k": 34
+    },
+    {
+      "system": "PANTONE",
+      "name": "661 C",
+      "number": "661",
+      "variant": "C",
+      "c": 68,
+      "m": 64,
+      "y": 0,
+      "k": 44
+    },
+    {
+      "system": "PANTONE",
+      "name": "662 C",
+      "number": "662",
+      "variant": "C",
+      "c": 90,
+      "m": 79,
+      "y": 0,
+      "k": 54
+    },
+    {
+      "system": "PANTONE",
+      "name": "663 C",
+      "number": "663",
+      "variant": "C",
+      "c": 0,
+      "m": 7,
+      "y": 5,
+      "k": 11
+    },
+    {
+      "system": "PANTONE",
+      "name": "664 C",
+      "number": "664",
+      "variant": "C",
+      "c": 0,
+      "m": 6,
+      "y": 3,
+      "k": 15
+    },
+    {
+      "system": "PANTONE",
+      "name": "665 C",
+      "number": "665",
+      "variant": "C",
+      "c": 0,
+      "m": 9,
+      "y": 1,
+      "k": 22
+    },
+    {
+      "system": "PANTONE",
+      "name": "666 C",
+      "number": "666",
+      "variant": "C",
+      "c": 3,
+      "m": 15,
+      "y": 0,
+      "k": 32
+    },
+    {
+      "system": "PANTONE",
+      "name": "667 C",
+      "number": "667",
+      "variant": "C",
+      "c": 7,
+      "m": 26,
+      "y": 0,
+      "k": 46
+    },
+    {
+      "system": "PANTONE",
+      "name": "668 C",
+      "number": "668",
+      "variant": "C",
+      "c": 13,
+      "m": 38,
+      "y": 0,
+      "k": 54
+    },
+    {
+      "system": "PANTONE",
+      "name": "669 C",
+      "number": "669",
+      "variant": "C",
+      "c": 20,
+      "m": 52,
+      "y": 0,
+      "k": 65
+    },
+    {
+      "system": "PANTONE",
+      "name": "670 C",
+      "number": "670",
+      "variant": "C",
+      "c": 0,
+      "m": 12,
+      "y": 11,
+      "k": 5
+    },
+    {
+      "system": "PANTONE",
+      "name": "671 C",
+      "number": "671",
+      "variant": "C",
+      "c": 0,
+      "m": 17,
+      "y": 12,
+      "k": 6
+    },
+    {
+      "system": "PANTONE",
+      "name": "672 C",
+      "number": "672",
+      "variant": "C",
+      "c": 0,
+      "m": 27,
+      "y": 16,
+      "k": 8
+    },
+    {
+      "system": "PANTONE",
+      "name": "673 C",
+      "number": "673",
+      "variant": "C",
+      "c": 0,
+      "m": 38,
+      "y": 21,
+      "k": 12
+    },
+    {
+      "system": "PANTONE",
+      "name": "674 C",
+      "number": "674",
+      "variant": "C",
+      "c": 0,
+      "m": 49,
+      "y": 25,
+      "k": 17
+    },
+    {
+      "system": "PANTONE",
+      "name": "675 C",
+      "number": "675",
+      "variant": "C",
+      "c": 0,
+      "m": 70,
+      "y": 37,
+      "k": 26
+    },
+    {
+      "system": "PANTONE",
+      "name": "676 C",
+      "number": "676",
+      "variant": "C",
+      "c": 0,
+      "m": 100,
+      "y": 48,
+      "k": 37
+    },
+    {
+      "system": "PANTONE",
+      "name": "677 C",
+      "number": "677",
+      "variant": "C",
+      "c": 0,
+      "m": 10,
+      "y": 10,
+      "k": 7
+    },
+    {
+      "system": "PANTONE",
+      "name": "678 C",
+      "number": "678",
+      "variant": "C",
+      "c": 0,
+      "m": 13,
+      "y": 12,
+      "k": 8
+    },
+    {
+      "system": "PANTONE",
+      "name": "679 C",
+      "number": "679",
+      "variant": "C",
+      "c": 0,
+      "m": 17,
+      "y": 14,
+      "k": 10
+    },
+    {
+      "system": "PANTONE",
+      "name": "680 C",
+      "number": "680",
+      "variant": "C",
+      "c": 0,
+      "m": 25,
+      "y": 17,
+      "k": 17
+    },
+    {
+      "system": "PANTONE",
+      "name": "681 C",
+      "number": "681",
+      "variant": "C",
+      "c": 0,
+      "m": 38,
+      "y": 22,
+      "k": 28
+    },
+    {
+      "system": "PANTONE",
+      "name": "682 C",
+      "number": "682",
+      "variant": "C",
+      "c": 0,
+      "m": 49,
+      "y": 27,
+      "k": 37
+    },
+    {
+      "system": "PANTONE",
+      "name": "683 C",
+      "number": "683",
+      "variant": "C",
+      "c": 0,
+      "m": 69,
+      "y": 38,
+      "k": 50
+    },
+    {
+      "system": "PANTONE",
+      "name": "684 C",
+      "number": "684",
+      "variant": "C",
+      "c": 0,
+      "m": 15,
+      "y": 14,
+      "k": 6
+    },
+    {
+      "system": "PANTONE",
+      "name": "685 C",
+      "number": "685",
+      "variant": "C",
+      "c": 0,
+      "m": 18,
+      "y": 16,
+      "k": 8
+    },
+    {
+      "system": "PANTONE",
+      "name": "686 C",
+      "number": "686",
+      "variant": "C",
+      "c": 0,
+      "m": 24,
+      "y": 17,
+      "k": 12
+    },
+    {
+      "system": "PANTONE",
+      "name": "687 C",
+      "number": "687",
+      "variant": "C",
+      "c": 0,
+      "m": 32,
+      "y": 21,
+      "k": 21
+    },
+    {
+      "system": "PANTONE",
+      "name": "688 C",
+      "number": "688",
+      "variant": "C",
+      "c": 0,
+      "m": 43,
+      "y": 26,
+      "k": 30
+    },
+    {
+      "system": "PANTONE",
+      "name": "689 C",
+      "number": "689",
+      "variant": "C",
+      "c": 0,
+      "m": 55,
+      "y": 31,
+      "k": 42
+    },
+    {
+      "system": "PANTONE",
+      "name": "690 C",
+      "number": "690",
+      "variant": "C",
+      "c": 0,
+      "m": 69,
+      "y": 41,
+      "k": 56
+    },
+    {
+      "system": "PANTONE",
+      "name": "691 C",
+      "number": "691",
+      "variant": "C",
+      "c": 0,
+      "m": 13,
+      "y": 16,
+      "k": 6
+    },
+    {
+      "system": "PANTONE",
+      "name": "692 C",
+      "number": "692",
+      "variant": "C",
+      "c": 0,
+      "m": 18,
+      "y": 20,
+      "k": 9
+    },
+    {
+      "system": "PANTONE",
+      "name": "693 C",
+      "number": "693",
+      "variant": "C",
+      "c": 0,
+      "m": 23,
+      "y": 25,
+      "k": 14
+    },
+    {
+      "system": "PANTONE",
+      "name": "694 C",
+      "number": "694",
+      "variant": "C",
+      "c": 0,
+      "m": 30,
+      "y": 30,
+      "k": 21
+    },
+    {
+      "system": "PANTONE",
+      "name": "695 C",
+      "number": "695",
+      "variant": "C",
+      "c": 0,
+      "m": 40,
+      "y": 37,
+      "k": 30
+    },
+    {
+      "system": "PANTONE",
+      "name": "696 C",
+      "number": "696",
+      "variant": "C",
+      "c": 0,
+      "m": 50,
+      "y": 49,
+      "k": 44
+    },
+    {
+      "system": "PANTONE",
+      "name": "697 C",
+      "number": "697",
+      "variant": "C",
+      "c": 0,
+      "m": 56,
+      "y": 54,
+      "k": 50
+    },
+    {
+      "system": "PANTONE",
+      "name": "698 C",
+      "number": "698",
+      "variant": "C",
+      "c": 0,
+      "m": 15,
+      "y": 17,
+      "k": 3
+    },
+    {
+      "system": "PANTONE",
+      "name": "699 C",
+      "number": "699",
+      "variant": "C",
+      "c": 0,
+      "m": 23,
+      "y": 23,
+      "k": 3
+    },
+    {
+      "system": "PANTONE",
+      "name": "Cool Gray 7 C",
+      "number": "7",
+      "variant": "C",
+      "c": 0,
+      "m": 1,
+      "y": 4,
+      "k": 35
+    },
+    {
+      "system": "PANTONE",
+      "name": "Warm Gray 7 C",
+      "number": "7",
+      "variant": "C",
+      "c": 0,
+      "m": 8,
+      "y": 17,
+      "k": 36
+    },
+    {
+      "system": "PANTONE",
+      "name": "700 C",
+      "number": "700",
+      "variant": "C",
+      "c": 0,
+      "m": 32,
+      "y": 30,
+      "k": 5
+    },
+    {
+      "system": "PANTONE",
+      "name": "701 C",
+      "number": "701",
+      "variant": "C",
+      "c": 0,
+      "m": 42,
+      "y": 39,
+      "k": 9
+    },
+    {
+      "system": "PANTONE",
+      "name": "702 C",
+      "number": "702",
+      "variant": "C",
+      "c": 0,
+      "m": 55,
+      "y": 49,
+      "k": 16
+    },
+    {
+      "system": "PANTONE",
+      "name": "703 C",
+      "number": "703",
+      "variant": "C",
+      "c": 0,
+      "m": 69,
+      "y": 63,
+      "k": 28
+    },
+    {
+      "system": "PANTONE",
+      "name": "704 C",
+      "number": "704",
+      "variant": "C",
+      "c": 0,
+      "m": 75,
+      "y": 75,
+      "k": 38
+    },
+    {
+      "system": "PANTONE",
+      "name": "705 C",
+      "number": "705",
+      "variant": "C",
+      "c": 0,
+      "m": 11,
+      "y": 14,
+      "k": 2
+    },
+    {
+      "system": "PANTONE",
+      "name": "706 C",
+      "number": "706",
+      "variant": "C",
+      "c": 0,
+      "m": 20,
+      "y": 21,
+      "k": 1
+    },
+    {
+      "system": "PANTONE",
+      "name": "707 C",
+      "number": "707",
+      "variant": "C",
+      "c": 0,
+      "m": 31,
+      "y": 31,
+      "k": 1
+    },
+    {
+      "system": "PANTONE",
+      "name": "708 C",
+      "number": "708",
+      "variant": "C",
+      "c": 0,
+      "m": 43,
+      "y": 39,
+      "k": 2
+    },
+    {
+      "system": "PANTONE",
+      "name": "709 C",
+      "number": "709",
+      "variant": "C",
+      "c": 0,
+      "m": 57,
+      "y": 51,
+      "k": 5
+    },
+    {
+      "system": "PANTONE",
+      "name": "710 C",
+      "number": "710",
+      "variant": "C",
+      "c": 0,
+      "m": 71,
+      "y": 64,
+      "k": 12
+    },
+    {
+      "system": "PANTONE",
+      "name": "711 C",
+      "number": "711",
+      "variant": "C",
+      "c": 0,
+      "m": 78,
+      "y": 76,
+      "k": 18
+    },
+    {
+      "system": "PANTONE",
+      "name": "712 C",
+      "number": "712",
+      "variant": "C",
+      "c": 0,
+      "m": 17,
+      "y": 33,
+      "k": 0
+    },
+    {
+      "system": "PANTONE",
+      "name": "713 C",
+      "number": "713",
+      "variant": "C",
+      "c": 0,
+      "m": 19,
+      "y": 35,
+      "k": 2
+    },
+    {
+      "system": "PANTONE",
+      "name": "714 C",
+      "number": "714",
+      "variant": "C",
+      "c": 0,
+      "m": 25,
+      "y": 48,
+      "k": 2
+    },
+    {
+      "system": "PANTONE",
+      "name": "715 C",
+      "number": "715",
+      "variant": "C",
+      "c": 0,
+      "m": 37,
+      "y": 71,
+      "k": 1
+    },
+    {
+      "system": "PANTONE",
+      "name": "716 C",
+      "number": "716",
+      "variant": "C",
+      "c": 0,
+      "m": 45,
+      "y": 93,
+      "k": 5
+    },
+    {
+      "system": "PANTONE",
+      "name": "717 C",
+      "number": "717",
+      "variant": "C",
+      "c": 0,
+      "m": 48,
+      "y": 100,
+      "k": 17
+    },
+    {
+      "system": "PANTONE",
+      "name": "718 C",
+      "number": "718",
+      "variant": "C",
+      "c": 0,
+      "m": 52,
+      "y": 100,
+      "k": 25
+    },
+    {
+      "system": "PANTONE",
+      "name": "719 C",
+      "number": "719",
+      "variant": "C",
+      "c": 0,
+      "m": 14,
+      "y": 28,
+      "k": 4
+    },
+    {
+      "system": "PANTONE",
+      "name": "720 C",
+      "number": "720",
+      "variant": "C",
+      "c": 0,
+      "m": 18,
+      "y": 34,
+      "k": 6
+    },
+    {
+      "system": "PANTONE",
+      "name": "721 C",
+      "number": "721",
+      "variant": "C",
+      "c": 0,
+      "m": 23,
+      "y": 44,
+      "k": 9
+    },
+    {
+      "system": "PANTONE",
+      "name": "722 C",
+      "number": "722",
+      "variant": "C",
+      "c": 0,
+      "m": 32,
+      "y": 60,
+      "k": 18
+    },
+    {
+      "system": "PANTONE",
+      "name": "723 C",
+      "number": "723",
+      "variant": "C",
+      "c": 0,
+      "m": 37,
+      "y": 74,
+      "k": 27
+    },
+    {
+      "system": "PANTONE",
+      "name": "724 C",
+      "number": "724",
+      "variant": "C",
+      "c": 0,
+      "m": 49,
+      "y": 96,
+      "k": 44
+    },
+    {
+      "system": "PANTONE",
+      "name": "725 C",
+      "number": "725",
+      "variant": "C",
+      "c": 0,
+      "m": 52,
+      "y": 98,
+      "k": 54
+    },
+    {
+      "system": "PANTONE",
+      "name": "726 C",
+      "number": "726",
+      "variant": "C",
+      "c": 0,
+      "m": 11,
+      "y": 24,
+      "k": 7
+    },
+    {
+      "system": "PANTONE",
+      "name": "727 C",
+      "number": "727",
+      "variant": "C",
+      "c": 0,
+      "m": 15,
+      "y": 31,
+      "k": 11
+    },
+    {
+      "system": "PANTONE",
+      "name": "728 C",
+      "number": "728",
+      "variant": "C",
+      "c": 0,
+      "m": 20,
+      "y": 41,
+      "k": 17
+    },
+    {
+      "system": "PANTONE",
+      "name": "729 C",
+      "number": "729",
+      "variant": "C",
+      "c": 0,
+      "m": 26,
+      "y": 50,
+      "k": 24
+    },
+    {
+      "system": "PANTONE",
+      "name": "730 C",
+      "number": "730",
+      "variant": "C",
+      "c": 0,
+      "m": 31,
+      "y": 63,
+      "k": 33
+    },
+    {
+      "system": "PANTONE",
+      "name": "731 C",
+      "number": "731",
+      "variant": "C",
+      "c": 0,
+      "m": 45,
+      "y": 91,
+      "k": 55
+    },
+    {
+      "system": "PANTONE",
+      "name": "732 C",
+      "number": "732",
+      "variant": "C",
+      "c": 0,
+      "m": 47,
+      "y": 90,
+      "k": 62
+    },
+    {
+      "system": "PANTONE",
+      "name": "Cool Gray 8 C",
+      "number": "8",
+      "variant": "C",
+      "c": 0,
+      "m": 1,
+      "y": 5,
+      "k": 39
+    },
+    {
+      "system": "PANTONE",
+      "name": "Warm Gray 8 C",
+      "number": "8",
+      "variant": "C",
+      "c": 0,
+      "m": 9,
+      "y": 19,
+      "k": 41
+    },
+    {
+      "system": "PANTONE",
+      "name": "803 C",
+      "number": "803",
+      "variant": "C",
+      "c": 0,
+      "m": 0,
+      "y": 17,
+      "k": 22
+    },
+    {
+      "system": "PANTONE",
+      "name": "Cool Gray 9 C",
+      "number": "9",
+      "variant": "C",
+      "c": 0,
+      "m": 2,
+      "y": 6,
+      "k": 45
+    },
+    {
+      "system": "PANTONE",
+      "name": "Warm Gray 9 C",
+      "number": "9",
+      "variant": "C",
+      "c": 0,
+      "m": 9,
+      "y": 20,
+      "k": 45
+    }
+  ]
+}

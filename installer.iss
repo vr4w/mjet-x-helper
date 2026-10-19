@@ -1,5 +1,5 @@
 #define MyAppName "MJET-X Helper"
-#define MyAppVersion "1.1.1"
+#define MyAppVersion "1.1.4"
 #define MyAppPublisher "AE / Marvin Schoeffel"
 #define MyAppExeName "MJETXHelper.exe"
 
@@ -20,6 +20,8 @@ PrivilegesRequired=lowest
 ArchitecturesInstallIn64BitMode=x64
 UninstallDisplayIcon={app}\{#MyAppExeName}
 SetupLogging=yes
+CloseApplications=yes
+RestartApplications=no
 
 [Languages]
 Name: "german"; MessagesFile: "compiler:Languages\German.isl"
@@ -30,6 +32,8 @@ Name: "startup"; Description: "MJET-X Helper automatisch mit Windows starten"; G
 
 [Files]
 Source: "dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "data\reference_colors.json"; DestDir: "{app}\data"; Flags: ignoreversion
+Source: "assets\mprint_logo.svg"; DestDir: "{app}\assets"; Flags: ignoreversion
 Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "helper_config.example.json"; DestDir: "{app}"; Flags: ignoreversion
 
@@ -40,3 +44,4 @@ Name: "{userstartup}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: st
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{#MyAppName} starten"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExeName}"; Flags: nowait skipifnotsilent

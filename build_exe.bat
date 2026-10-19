@@ -85,6 +85,8 @@ echo Baue MJETXHelper.exe...
   --hidden-import PIL.ImageChops ^
   --hidden-import PIL.ImageFilter ^
   --hidden-import PIL.PngImagePlugin ^
+  --add-data "data\reference_colors.json;data" ^
+  --add-data "assets\mprint_logo.svg;assets" ^
   main.py
 if errorlevel 1 goto build_failed
 

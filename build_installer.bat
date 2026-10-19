@@ -62,7 +62,7 @@ echo  Fertig.
 echo ==========================================
 echo.
 echo Installer:
-echo %CD%\installer_dist\MJETXHelper_Setup_v1.1.1.exe
+echo %CD%\installer_dist\MJETXHelper_Setup_v1.1.4.exe
 echo.
 echo Diese Datei kann als GitHub Release-Datei hochgeladen werden.
 echo.

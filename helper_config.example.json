@@ -1,9 +1,9 @@
 {
-  "nas_root": "Z:\\_MPRINT_4c",
-  "color_root": "Z:\\_MPRINT_4c\\Maschinenfarben",
-  "single_color_dir": "Z:\\_MPRINT_4c\\Maschinenfarben\\Einzelfarben",
-  "backup_dir": "Z:\\_MPRINT_4c\\Maschinenfarben\\Backup",
-  "master_cct": "Z:\\_MPRINT_4c\\Maschinenfarben\\mprint4c-master.cct",
+  "nas_root": "Z:\\",
+  "color_root": "Z:\\Maschinenfarben",
+  "single_color_dir": "Z:\\Maschinenfarben\\Einzelfarben",
+  "backup_dir": "Z:\\Maschinenfarben\\Backup",
+  "master_cct": "Z:\\Maschinenfarben\\mprint4c-master.cct",
   "colorgate_root": "C:\\ProgramData\\ColorGATE Software\\Productionserver25",
   "colorgate_ini": "C:\\ProgramData\\ColorGATE Software\\Productionserver25\\Productionserver25.INI",
   "colorgate_cos": "C:\\ProgramData\\ColorGATE Software\\Productionserver25\\Settings\\mprint mlabel.cos",
@@ -15,10 +15,10 @@
     "900X600 DPI MJET-X",
     "1200X600 DPI MJET-X"
   ],
-  "expected_master_path": "Z:\\_MPRINT_4c\\Maschinenfarben\\mprint4c-master.cct",
+  "expected_master_path": "Z:\\Maschinenfarben\\mprint4c-master.cct",
   "color_overview_csv": "work\\MPRINT_Farbuebersicht_daten.csv",
-  "legacy_color_overview_csv": "Z:\\_MPRINT_4c\\MPRINT_Farbuebersicht.csv",
-  "color_overview_html": "Z:\\_MPRINT_4c\\MPRINT_Farbuebersicht.html",
+  "legacy_color_overview_csv": "Z:\\MPRINT_Farbuebersicht.csv",
+  "color_overview_html": "Z:\\MPRINT_Farbuebersicht.html",
   "color_request_server_enabled": true,
   "color_request_server_host": "0.0.0.0",
   "color_request_server_port": 8765,
@@ -29,7 +29,7 @@
   "always_on_top": true,
   "window_width": 260,
   "update_check_enabled": true,
-  "update_check_url": "https://raw.githubusercontent.com/vr4w/mjet-x-helper/main/update_info.json",
+  "update_check_url": "https://api.github.com/repos/vr4w/mjet-x-helper/releases/latest",
   "known_processes": [
     "Productionserver25.exe",
     "lp2000i.exe"
