@@ -166,8 +166,14 @@ def load_config() -> dict:
             f"Config konnte nicht gelesen werden. Kopie liegt hier: {backup_path}"
         ) from exc
 
-    merged = migrate_legacy_mprint_paths(merge_defaults(loaded, DEFAULT_CONFIG))
+    with_defaults = merge_defaults(loaded, DEFAULT_CONFIG)
+    merged = migrate_legacy_mprint_paths(with_defaults)
     if merged != loaded:
+        if merged != with_defaults:
+            backup_path = CONFIG_PATH.with_name(
+                f"{CONFIG_PATH.stem}.before-path-migration-{int(time.time())}{CONFIG_PATH.suffix}"
+            )
+            shutil.copy2(CONFIG_PATH, backup_path)
         save_config(merged)
     return merged
 
