@@ -1,15 +1,13 @@
 # MJET-X Helper
 
-Kleines Windows-Desktop-Tool für den Maschinenrechner der MJET-X / MPRINT IP2000i 4c.
+Der MJET-X Helper macht wiederkehrende Arbeiten rund um die MPRINT-Druckmaschine einfacher. Er hilft dabei, Farben abzugleichen, die Farbübersicht für die Vorstufe aktuell zu halten und den Druckdatenordner aufzuräumen.
 
-Der Helper soll den Alltag an der Maschine einfacher machen:
+Kurz gesagt: weniger Suchen und Aufräumen, mehr Überblick im Arbeitsalltag.
 
-- neue Kundenfarben in die Master-Farbtabelle übernehmen
-- beim Start direkt zeigen, ob der Farbabgleich sauber ist
-- den Druckdaten-Übergabeordner aufräumen, damit LP2000i nicht mit alten Dateien voll läuft
-- eine gut lesbare Farbübersicht für die Vorstufe schreiben
-- PDFs mit negativer Überfüllung/Choke vorbereiten
-- auf Wunsch prüfen, ob eine neue Helper-Version bereitliegt
+<details>
+<summary>Alle Funktionen, Einrichtung und technische Details anzeigen</summary>
+
+Die folgenden Abschnitte richten sich an alle, die das Tool einrichten, bedienen oder technisch betreuen.
 
 ## Start
 
@@ -337,3 +335,5 @@ Z:\Maschinenfarben\Backup\helper_logs
 ```
 
 Falls dieser Ordner nicht erreichbar ist, nutzt das Tool einen lokalen `helper_logs`-Ordner neben `main.py` beziehungsweise neben der EXE.
+
+</details>
