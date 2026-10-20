@@ -3,6 +3,7 @@ import tempfile
 import unittest
 import xml.etree.ElementTree as ET
 from pathlib import Path
+from unittest import mock
 
 from main import ColorTableManager, DEFAULT_CONFIG, HelperLogger, local_name
 
@@ -113,6 +114,39 @@ class ColorOverviewChangesTest(unittest.TestCase):
         self.manager.rebuild_master(write_master=True)
         self.assertEqual(self.manager.rename_overview_color("Normal Blau", "Neu Blau")["status"], 409)
         self.assertTrue(Path(self.config["color_overview_html"]).read_text(encoding="utf-8").count("data:image/svg+xml;base64,"))
+
+    def test_prepress_colors_survive_install_folder_change(self):
+        old_install = Path(self.temp.name) / "old-install"
+        new_install = Path(self.temp.name) / "new-install"
+        stable_data = Path(self.temp.name) / "user-data"
+        legacy_csv = old_install / "work" / "MPRINT_Farbuebersicht_daten.csv"
+        legacy_csv.parent.mkdir(parents=True)
+        legacy_csv.write_text(
+            "Farbbezeichnung;Quelle;source\nWittmann mblau 7690;Vorstufe;PREPRESS\n",
+            encoding="utf-8-sig",
+        )
+        config = dict(self.config)
+        config["color_overview_csv"] = "work/MPRINT_Farbuebersicht_daten.csv"
+        manager = ColorTableManager(config, HelperLogger(config))
+
+        with mock.patch("main.APP_DIR", old_install), mock.patch(
+            "main.user_data_dir", return_value=stable_data
+        ):
+            migrated_csv = manager._overview_csv_path()
+            self.assertEqual(migrated_csv.read_bytes(), legacy_csv.read_bytes())
+            manager.refresh_color_overview()
+
+        with mock.patch("main.APP_DIR", new_install), mock.patch(
+            "main.user_data_dir", return_value=stable_data
+        ):
+            updated_manager = ColorTableManager(config, HelperLogger(config))
+            self.assertEqual(updated_manager._overview_csv_path(), migrated_csv)
+            updated_manager.refresh_color_overview()
+
+        self.assertTrue(legacy_csv.exists())
+        with migrated_csv.open(encoding="utf-8-sig", newline="") as handle:
+            rows = list(csv.DictReader(handle, delimiter=";"))
+        self.assertEqual([row["Farbbezeichnung"] for row in rows], ["Wittmann mblau 7690"])
 
 
 if __name__ == "__main__":

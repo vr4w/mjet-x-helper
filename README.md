@@ -233,7 +233,7 @@ pyinstaller --onefile --noconsole --clean --name MJETXHelper --collect-all fitz 
 
 Die fertige EXE liegt danach unter `dist\MJETXHelper.exe`.
 
-Wichtig: `helper_config.json` muss neben der EXE liegen. Wenn sie dort fehlt, erstellt die EXE beim ersten Start eine neue Default-Datei.
+Wichtig: `helper_config.json` muss neben der EXE liegen. Wenn sie dort fehlt, erstellt die EXE beim ersten Start eine neue Default-Datei. Interne Farbübersichts-Daten liegen unter `%LOCALAPPDATA%\MJET-X Helper\Data` und bleiben dadurch auch erhalten, wenn der Programmordner beim Update wechselt. Vorhandene `work`-Dateien werden beim ersten Start kopiert, nicht verschoben.
 
 ## Installer Build
 
@@ -249,7 +249,7 @@ Der Ablauf auf Windows:
 Die fertige Installer-Datei liegt danach unter:
 
 ```text
-installer_dist\MJETXHelper_Setup_v1.1.4.exe
+installer_dist\MJETXHelper_Setup_v1.1.6.exe
 ```
 
 Der Installer legt den Helper bewusst im Benutzerordner ab:
@@ -258,16 +258,16 @@ Der Installer legt den Helper bewusst im Benutzerordner ab:
 %LOCALAPPDATA%\MJET-X Helper
 ```
 
-Das ist wichtig, weil der Helper dort seine lokale Einstellung, Logs und interne Arbeitsdaten speichern kann, ohne dass Windows nach Adminrechten fragt.
+Das ist wichtig, weil der Helper dort seine lokale Einstellung und Logs speichern kann, ohne dass Windows nach Adminrechten fragt. Interne Farbübersichts-Daten liegen getrennt davon unter `%LOCALAPPDATA%\MJET-X Helper\Data`.
 
 ## GitHub / Release
 
 1. Änderungen nach `main` bringen. `APP_VERSION` in `main.py` und `MyAppVersion` in `installer.iss` müssen gleich sein.
 2. Für einen Test-Build auf einem Arbeitsbranch einen Pull Request nach `main` öffnen. Der Workflow **Windows-Installer** läuft dann automatisch und bietet den Installer als herunterladbares Workflow-Artefakt an. Nach Aufnahme des Workflows auf `main` kann er auch im GitHub-Reiter **Actions** manuell gestartet werden. Dabei wird noch kein Release veröffentlicht.
-3. Für einen fertigen Stand auf `main` einen passenden Tag setzen und pushen, zum Beispiel `v1.1.4`. Der Workflow prüft Tag und Version, führt Tests aus, baut EXE und Installer und legt einen **Release-Entwurf** mit Installer an.
+3. Für einen fertigen Stand auf `main` einen passenden Tag setzen und pushen, zum Beispiel `v1.1.6`. Der Workflow prüft Tag und Version, führt Tests aus, baut EXE und Installer und legt einen **Release-Entwurf** mit Installer an.
 4. Release-Entwurf und Installer prüfen und das Release bewusst veröffentlichen. Erst dann erscheint es bei der Update-Prüfung an der Maschine.
 
-Der Installer enthält keine `helper_config.json` und keine `work/`- oder `config/`-Arbeitsdaten. Diese bleiben bei einer Installation am bisherigen Ort erhalten. Den Installationsordner nicht vor dem Update löschen.
+Der Installer enthält keine `helper_config.json` und keine Farbübersichts-Arbeitsdaten. CSV, Vorstufenhinweise, Ausblendliste und Farbexport bleiben im lokalen Datenordner erhalten. Vorhandene relative `work/`- und `config/`-Dateien werden beim ersten Start kopiert; den Installationsordner vor einem Update nicht manuell löschen.
 
 ## Maschinen-Test nach Build
 

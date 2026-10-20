@@ -44,7 +44,7 @@ from update_service import (
 
 
 APP_NAME = "MJET-X Helper"
-APP_VERSION = "1.1.5"
+APP_VERSION = "1.1.6"
 APP_AUTHOR = "AE / Marvin Schöffel"
 APP_CONTACT = "ms@graphic-druck.de"
 CONFIG_NAME = "helper_config.json"
@@ -139,6 +139,15 @@ def app_dir() -> Path:
 
 APP_DIR = app_dir()
 CONFIG_PATH = APP_DIR / CONFIG_NAME
+
+
+def user_data_dir() -> Path:
+    if os.name == "nt":
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        if local_app_data:
+            return Path(local_app_data) / APP_NAME / "Data"
+        return Path.home() / "AppData" / "Local" / APP_NAME / "Data"
+    return APP_DIR / "user_data"
 
 
 def merge_defaults(config: dict, defaults: dict) -> dict:
@@ -2630,13 +2639,27 @@ class ColorTableManager:
         return f"C {c} / M {m} / Y {y} / K {k}"
 
     def _overview_csv_path(self) -> Path:
-        configured = str(self.config.get("color_overview_csv", "")).strip()
-        if not configured:
-            return APP_DIR / "work" / "MPRINT_Farbuebersicht_daten.csv"
+        return self._persistent_data_path(
+            "color_overview_csv", "work/MPRINT_Farbuebersicht_daten.csv"
+        )
+
+    def _persistent_data_path(self, key: str, default_relative: str) -> Path:
+        configured = str(self.config.get(key, "") or default_relative).strip()
         path = Path(configured)
         if path.is_absolute() or re.match(r"^[A-Za-z]:[\\/]", configured):
             return path
-        return APP_DIR / path
+
+        persistent_path = user_data_dir() / path
+        legacy_path = APP_DIR / path
+        if not persistent_path.exists() and legacy_path.is_file():
+            try:
+                persistent_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(legacy_path, persistent_path)
+                self.logger.log(f"Lokale Arbeitsdaten übernommen: {legacy_path} -> {persistent_path}")
+            except Exception as exc:
+                self.logger.log(f"Arbeitsdaten konnten nicht übernommen werden: {exc}", "WARN")
+                return legacy_path
+        return persistent_path
 
     def _read_color_overview_with_legacy(self, csv_path: Path) -> tuple[list[dict[str, str]], list[str]]:
         rows, fields = self._read_color_overview(csv_path)
@@ -2684,13 +2707,7 @@ class ColorTableManager:
         return self._color_export_records(rows)
 
     def _color_export_path(self) -> Path:
-        configured = str(self.config.get("color_export_json", "")).strip()
-        if not configured:
-            return APP_DIR / "export" / "mprint_colors.json"
-        path = Path(configured)
-        if path.is_absolute() or re.match(r"^[A-Za-z]:[\\/]", configured):
-            return path
-        return APP_DIR / path
+        return self._persistent_data_path("color_export_json", "export/mprint_colors.json")
 
     def _write_color_export(self, rows: list[dict[str, str]]) -> None:
         export_path = self._color_export_path()
@@ -2773,22 +2790,10 @@ class ColorTableManager:
         return data if isinstance(data, dict) else {}
 
     def _hidden_colors_path(self) -> Path:
-        configured = str(self.config.get("hidden_colors_json", "")).strip()
-        if not configured:
-            return APP_DIR / "config" / "hidden_colors.json"
-        path = Path(configured)
-        if path.is_absolute() or re.match(r"^[A-Za-z]:[\\/]", configured):
-            return path
-        return APP_DIR / path
+        return self._persistent_data_path("hidden_colors_json", "config/hidden_colors.json")
 
     def _prepress_notes_path(self) -> Path:
-        configured = str(self.config.get("prepress_notes_json", "")).strip()
-        if not configured:
-            return APP_DIR / "work" / "prepress_notes.json"
-        path = Path(configured)
-        if path.is_absolute() or re.match(r"^[A-Za-z]:[\\/]", configured):
-            return path
-        return APP_DIR / path
+        return self._persistent_data_path("prepress_notes_json", "work/prepress_notes.json")
 
     def _read_prepress_notes(self) -> list[dict[str, str]]:
         path = self._prepress_notes_path()
@@ -5998,6 +6003,7 @@ class SetupDialog(tk.Toplevel):
         self.grab_set()
         self.resizable(True, True)
         self.geometry("780x620")
+        self.minsize(700, 520)
 
         header = tk.Frame(self, bg=THEME["window"], padx=14, pady=12)
         header.pack(fill="x")
@@ -6025,7 +6031,11 @@ class SetupDialog(tk.Toplevel):
         scrollbar = ttk.Scrollbar(self, orient="vertical", command=canvas.yview)
         form = tk.Frame(canvas, bg=THEME["window"], padx=14, pady=4)
         form.bind("<Configure>", lambda _event: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.create_window((0, 0), window=form, anchor="nw")
+        form_window = canvas.create_window((0, 0), window=form, anchor="nw")
+        canvas.bind(
+            "<Configure>",
+            lambda event: canvas.itemconfigure(form_window, width=event.width),
+        )
         canvas.configure(yscrollcommand=scrollbar.set)
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
