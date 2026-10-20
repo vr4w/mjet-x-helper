@@ -1,6 +1,6 @@
-# MJET HTML-Farbuebersicht: Zeitstempel und Verbindungstest
+# Archiv: MJET HTML-Farbuebersicht Zeitstempel und Verbindungstest
 
-Stand: 2026-08-05
+Historische Notiz vom 05.08.2026 zum damaligen Entwicklungsstand 1.1.1. Die enthaltene Windows-Checkliste und Build-Empfehlung sind nicht mehr aktuell.
 
 ## Produktive Basis
 
@@ -62,7 +62,7 @@ wird neben der CSV automatisch ein Backup mit
   - `Verbindung wird geprueft`
 - Bei Verbindungsproblemen bleibt die eingetragene Farbbezeichnung im Feld.
 
-## Windows-Test vor neuem Installer
+## Historischer Windows-Test vor Installer 1.1.4
 
 1. Helper auf der MJET starten.
 2. HTML-Farbuebersicht von der NAS oeffnen.

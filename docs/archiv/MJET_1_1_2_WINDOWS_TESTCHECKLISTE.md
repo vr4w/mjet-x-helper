@@ -1,9 +1,6 @@
-# MJET-X Helper 1.1.2: Windows-Praxistest
+# Archiv: MJET-X Helper 1.1.2 Windows-Praxistest
 
-Stand: 2026-08-19
-
-Diese Checkliste ist fuer den Test an der MJET gedacht, bevor Version 1.1.2
-produktiv genutzt oder weitergegeben wird.
+Historische Checkliste vom 19.08.2026. Sie gilt nur fuer den damaligen Stand 1.1.2 und ist keine aktuelle Test- oder Installationsanleitung.
 
 ## Vor dem Update
 
@@ -32,20 +29,15 @@ produktiv genutzt oder weitergegeben wird.
 ## Farbmischer
 
 1. Im Helper auf `Farbmischer` klicken.
-2. Pruefen, ob ein separates Fenster oeffnet und der Helper weiter bedienbar
-   bleibt.
-3. Noch einmal auf `Farbmischer` klicken und pruefen, dass kein Stapel
-   identischer Fenster entsteht.
+2. Pruefen, ob ein separates Fenster oeffnet und der Helper weiter bedienbar bleibt.
+3. Noch einmal auf `Farbmischer` klicken und pruefen, dass kein Stapel identischer Fenster entsteht.
 4. C, M, Y und K-Regler bewegen.
 5. Pruefen, ob Prozentwerte und Farbfeld sofort reagieren.
 6. Zahlenfelder testen und pruefen, ob nur Werte von 0 bis 100 bleiben.
 7. `Zuruecksetzen` klicken und pruefen, ob alle Werte wieder 0 sind.
-8. Nach einer lokalen Referenzfarbe suchen, zum Beispiel nach einer vorhandenen
-   Kundenfarbe aus den MJET-Farbtabellen.
-9. Treffer anklicken und pruefen, ob die CMYK-Werte in die Regler uebernommen
-   werden.
-10. Danach Regler manuell veraendern und pruefen, ob die Vorschau weiter
-    reagiert.
+8. Nach einer lokalen Referenzfarbe suchen, zum Beispiel nach einer vorhandenen Kundenfarbe aus den MJET-Farbtabellen.
+9. Treffer anklicken und pruefen, ob die CMYK-Werte in die Regler uebernommen werden.
+10. Danach Regler manuell veraendern und pruefen, ob die Vorschau weiter reagiert.
 11. Fenster schliessen und erneut oeffnen.
 
 ## Druck, Freigabe, Uebernahme
@@ -54,8 +46,7 @@ produktiv genutzt oder weitergegeben wird.
 2. Pruefen, dass noch keine Freigabe automatisch gesetzt wurde.
 3. Freigabe durch Andreas bestaetigen.
 4. Pruefen, dass die Uebernahme weiterhin offen bleibt.
-5. Uebernahme offen lassen und pruefen, ob sie oben in der Zusammenfassung
-   sichtbar bleibt.
+5. Uebernahme offen lassen und pruefen, ob sie oben in der Zusammenfassung sichtbar bleibt.
 6. Uebernahme bestaetigen.
 7. Pruefen, dass nur diese SK als uebernommen markiert wurde.
 
@@ -75,8 +66,6 @@ produktiv genutzt oder weitergegeben wird.
 2. HTML im Browser offen lassen oder neu oeffnen.
 3. Pruefen, ob `MJET nicht erreichbar` angezeigt wird.
 4. Eine Farbe oder SK-Aktion versuchen.
-5. Pruefen, ob eine verstaendliche deutsche Meldung erscheint und nicht nur
-   `Failed to fetch`.
+5. Pruefen, ob eine verstaendliche deutsche Meldung erscheint und nicht nur `Failed to fetch`.
 
-Erst wenn diese Punkte an der MJET erfolgreich sind, ist der Workflow fuer den
-produktiven Einsatz freigegeben.
+Erst wenn diese Punkte an der MJET erfolgreich sind, ist der Workflow fuer den produktiven Einsatz freigegeben.
