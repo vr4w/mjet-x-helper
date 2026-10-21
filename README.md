@@ -262,7 +262,7 @@ Das ist wichtig, weil der Helper dort seine lokale Einstellung und Logs speicher
 
 1. Änderungen nach `main` bringen. `APP_VERSION` in `main.py` und `MyAppVersion` in `installer.iss` müssen gleich sein.
 2. Für einen Test-Build auf einem Arbeitsbranch einen Pull Request nach `main` öffnen. Der Workflow **Windows-Installer** läuft dann automatisch und bietet den Installer als herunterladbares Workflow-Artefakt an. Nach Aufnahme des Workflows auf `main` kann er auch im GitHub-Reiter **Actions** manuell gestartet werden. Dabei wird noch kein Release veröffentlicht.
-3. Für einen fertigen Stand auf `main` einen passenden Tag setzen und pushen, zum Beispiel `v1.1.6`. Der Workflow prüft Tag und Version, führt Tests aus, baut EXE und Installer und legt einen **Release-Entwurf** mit Installer an.
+3. Für einen fertigen Stand auf `main` zuerst die kurze Änderungsübersicht unter `release_notes/vX.Y.Z.md` anlegen, zum Beispiel `release_notes/v1.1.6.md`. Danach einen passenden Tag setzen und pushen. Der Workflow prüft Tag und Version, führt Tests aus, baut EXE und Installer und legt mit diesen Notizen einen **Release-Entwurf** an.
 4. Release-Entwurf und Installer prüfen und das Release bewusst veröffentlichen. Erst dann erscheint es bei der Update-Prüfung an der Maschine.
 
 Der Installer enthält keine `helper_config.json` und keine Farbübersichts-Arbeitsdaten. CSV, Vorstufenhinweise, Ausblendliste und Farbexport bleiben im lokalen Datenordner erhalten. Vorhandene relative `work/`- und `config/`-Dateien werden beim ersten Start kopiert; den Installationsordner vor einem Update nicht manuell löschen.

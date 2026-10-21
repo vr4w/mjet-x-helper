@@ -44,7 +44,7 @@ from update_service import (
 
 
 APP_NAME = "MJET-X Helper"
-APP_VERSION = "1.1.6"
+APP_VERSION = "1.1.7"
 APP_AUTHOR = "AE / Marvin Schöffel"
 APP_CONTACT = "ms@graphic-druck.de"
 CONFIG_NAME = "helper_config.json"
@@ -1165,6 +1165,10 @@ class ColorTableManager:
         return list(self._master_entry_signatures(master_path).keys())
 
     def _write_color_overview(self, single_names: list[str], master_names: list[str]) -> str | None:
+        with self.overview_lock:
+            return self._write_color_overview_locked(single_names, master_names)
+
+    def _write_color_overview_locked(self, single_names: list[str], master_names: list[str]) -> str | None:
         csv_path = self._overview_csv_path()
         html_path = as_path(self.config.get("color_overview_html", ""))
         if not str(html_path):
@@ -1366,7 +1370,12 @@ class ColorTableManager:
                 writer = csv.DictWriter(handle, fieldnames=fieldnames, delimiter=";")
                 writer.writeheader()
                 writer.writerows(rows)
-            os.replace(temp_csv, csv_path)
+            regression = self._overview_state_regression(existing_rows, rows, name_column)
+            if regression:
+                temp_csv.unlink(missing_ok=True)
+                self.logger.log(regression, "ERROR")
+                return regression
+            self._replace_color_overview(temp_csv, csv_path)
             self.logger.log(f"Interne Farbdaten geschrieben: {csv_path}")
 
             self._write_color_overview_html(html_path, self._visible_overview_rows(rows))
@@ -1456,7 +1465,7 @@ class ColorTableManager:
                         if name_column != "Farbbezeichnung":
                             normalized["Farbbezeichnung"] = row.get(name_column, "")
                         writer.writerow({field: normalized.get(field, "") for field in fields})
-                os.replace(temp_csv, csv_path)
+                self._replace_color_overview(temp_csv, csv_path)
                 self.logger.log(f"Kundenfarbe eingetragen: {cleaned}")
             else:
                 return f"Kundenfarbe ist bereits in der Übersicht: {cleaned}"
@@ -1716,7 +1725,7 @@ class ColorTableManager:
                 writer = csv.DictWriter(handle, fieldnames=fields, delimiter=";")
                 writer.writeheader()
                 writer.writerows({field: row.get(field, "") for field in fields} for row in rows)
-            os.replace(temp_csv, csv_path)
+            self._replace_color_overview(temp_csv, csv_path)
             self.logger.log(f"Vorstufenfarbe umbenannt: {old_name} -> {new_name}")
 
         self.refresh_color_overview()
@@ -1768,7 +1777,7 @@ class ColorTableManager:
                     if name_column != "Farbbezeichnung":
                         normalized["Farbbezeichnung"] = row.get(name_column, "")
                     writer.writerow({field: normalized.get(field, "") for field in fields})
-            os.replace(temp_csv, csv_path)
+            self._replace_color_overview(temp_csv, csv_path)
 
         self.refresh_color_overview()
         return self._api_result(True, result_message, 200)
@@ -1827,7 +1836,7 @@ class ColorTableManager:
                     if name_column != "Farbbezeichnung":
                         normalized["Farbbezeichnung"] = row.get(name_column, "")
                     writer.writerow({field: normalized.get(field, "") for field in fields})
-            os.replace(temp_csv, csv_path)
+            self._replace_color_overview(temp_csv, csv_path)
 
         self.refresh_color_overview()
         return self._api_result(True, message, 200)
@@ -2582,6 +2591,146 @@ class ColorTableManager:
         except Exception as exc:
             self.logger.log(f"Backup vor Router-Export-Migration fehlgeschlagen: {exc}", "WARN")
 
+    def _backup_color_overview_before_write(self, csv_path: Path) -> bool:
+        if not csv_path.is_file():
+            return True
+        backup_dir = csv_path.parent / "Backup"
+        try:
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            backup_path = backup_dir / (
+                f"{csv_path.stem}_vor_Aenderung_{dt.datetime.now():%Y%m%d_%H%M%S_%f}{csv_path.suffix}"
+            )
+            shutil.copy2(csv_path, backup_path)
+            backups = sorted(
+                backup_dir.glob(f"{csv_path.stem}_vor_Aenderung_*{csv_path.suffix}"),
+                key=lambda path: path.stat().st_mtime,
+                reverse=True,
+            )
+            for old_backup in backups[50:]:
+                old_backup.unlink(missing_ok=True)
+            self.logger.log(f"Farbübersicht vor Änderung gesichert: {backup_path}")
+            return True
+        except Exception as exc:
+            self.logger.log(f"Backup der Farbübersicht fehlgeschlagen: {exc}", "WARN")
+            return False
+
+    def _archive_color_overview(self, source_path: Path) -> Path:
+        backup_value = str(self.config.get("backup_dir", "") or "").strip()
+        if not backup_value:
+            raise OSError("Für die Farbübersicht ist kein Backup-Ordner eingerichtet.")
+        backup_root = as_path(backup_value)
+        archive_dir = backup_root / "Farbuebersicht"
+        archive_dir.mkdir(parents=True, exist_ok=True)
+        stamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        archive_path = archive_dir / f"Farbuebersicht_{stamp}.csv"
+        temp_path = archive_path.with_suffix(".csv.tmp")
+        shutil.copy2(source_path, temp_path)
+        os.replace(temp_path, archive_path)
+        self.logger.log(f"Dauerhafte Farbübersicht-Sicherung geschrieben: {archive_path}")
+        return archive_path
+
+    def _replace_color_overview(self, temp_csv: Path, csv_path: Path) -> None:
+        if not self._backup_color_overview_before_write(csv_path):
+            temp_csv.unlink(missing_ok=True)
+            raise OSError("Sicherheitskopie der Farbübersicht konnte nicht erstellt werden; Daten wurden nicht geändert.")
+        try:
+            self._archive_color_overview(temp_csv)
+        except Exception as exc:
+            temp_csv.unlink(missing_ok=True)
+            self.logger.log(f"Dauerhafte Farbübersicht-Sicherung fehlgeschlagen: {exc}", "ERROR")
+            raise OSError(
+                "Die Farbübersicht wurde nicht geändert, weil keine dauerhafte Sicherung "
+                "im Maschinen-Backup erstellt werden konnte."
+            ) from exc
+        os.replace(temp_csv, csv_path)
+
+    def _row_has_saved_workflow_state(self, row: dict[str, str]) -> bool:
+        if any(
+            self._truthy(row.get(field, ""))
+            for field in ("printed", "approved", "not_printable")
+        ):
+            return True
+        if any(
+            str(row.get(field, "") or "").strip()
+            for field in (
+                "printed_at",
+                "approved_at",
+                "not_printable_at",
+                "not_printable_by",
+                "not_printable_reason",
+                "Gedruckt am",
+                "legacy_printed_at",
+            )
+        ):
+            return True
+        if self._parse_sk_assignments(row) or self._parse_history_events(row.get("history_events", "")):
+            return True
+        transfer = self._parse_transfer(row.get("transfer", ""))
+        if any(bool(transfer.get(field)) for field in ("completed", "template_updated", "portal_informed")):
+            return True
+        return any(
+            item.get("status") in {"printed", "approved", "transfer_completed"}
+            for item in self._parse_machine_values(row.get("machine_values", ""))
+        )
+
+    def _workflow_state_regression(
+        self,
+        old_row: dict[str, str],
+        new_row: dict[str, str],
+    ) -> str | None:
+        for field in ("printed", "approved", "not_printable"):
+            if self._truthy(old_row.get(field, "")) and not self._truthy(new_row.get(field, "")):
+                return f"Farbübersicht geschützt: Status '{field}' würde für {old_row.get('Farbbezeichnung', '')} verloren gehen."
+        for field in ("printed_at", "approved_at", "not_printable_at", "not_printable_reason"):
+            if str(old_row.get(field, "") or "").strip() and not str(new_row.get(field, "") or "").strip():
+                return f"Farbübersicht geschützt: gespeicherte Angaben '{field}' würden für {old_row.get('Farbbezeichnung', '')} verloren gehen."
+
+        new_assignments = {
+            str(item.get("sk_number", "")).casefold(): item
+            for item in self._parse_sk_assignments(new_row)
+        }
+        for old_assignment in self._parse_sk_assignments(old_row):
+            sk_key = str(old_assignment.get("sk_number", "")).casefold()
+            new_assignment = new_assignments.get(sk_key)
+            if new_assignment is None:
+                return f"Farbübersicht geschützt: SK {old_assignment.get('sk_number', '')} würde für {old_row.get('Farbbezeichnung', '')} verloren gehen."
+            if self._assignment_transfer(old_assignment).get("completed") and not self._assignment_transfer(new_assignment).get("completed"):
+                return f"Farbübersicht geschützt: erledigte Übernahme für SK {old_assignment.get('sk_number', '')} würde verloren gehen."
+
+        old_events = {
+            (event.get("event"), event.get("timestamp"), event.get("user"), event.get("details"))
+            for event in self._parse_history_events(old_row.get("history_events", ""))
+        }
+        new_events = {
+            (event.get("event"), event.get("timestamp"), event.get("user"), event.get("details"))
+            for event in self._parse_history_events(new_row.get("history_events", ""))
+        }
+        if not old_events.issubset(new_events):
+            return f"Farbübersicht geschützt: Historieneinträge würden für {old_row.get('Farbbezeichnung', '')} verloren gehen."
+        return None
+
+    def _overview_state_regression(
+        self,
+        old_rows: list[dict[str, str]],
+        new_rows: list[dict[str, str]],
+        old_name_column: str,
+    ) -> str | None:
+        new_by_name = {
+            self._normalized_color_key(row.get("Farbbezeichnung", "")): row
+            for row in new_rows
+        }
+        for old_row in old_rows:
+            if not self._row_has_saved_workflow_state(old_row):
+                continue
+            name = str(old_row.get(old_name_column) or old_row.get("Farbbezeichnung") or "")
+            new_row = new_by_name.get(self._normalized_color_key(name))
+            if new_row is None:
+                return f"Farbübersicht geschützt: Farbe '{name}' mit gespeicherten Statusdaten würde entfernt."
+            regression = self._workflow_state_regression(old_row, new_row)
+            if regression:
+                return regression
+        return None
+
     def refresh_color_overview(self) -> None:
         single_names = self._single_color_names()
         master_path = as_path(self.config["master_cct"])
@@ -2663,19 +2812,120 @@ class ColorTableManager:
 
     def _read_color_overview_with_legacy(self, csv_path: Path) -> tuple[list[dict[str, str]], list[str]]:
         rows, fields = self._read_color_overview(csv_path)
-        if rows or csv_path.exists():
+        legacy_paths: list[Path] = []
+        backup_root = as_path(self.config.get("backup_dir", ""))
+        archive_dir = backup_root / "Farbuebersicht"
+        if archive_dir.is_dir():
+            legacy_paths.extend(
+                sorted(
+                    archive_dir.glob("Farbuebersicht_*.csv"),
+                    key=lambda path: path.stat().st_mtime,
+                    reverse=True,
+                )
+            )
+        configured_csv = str(self.config.get("color_overview_csv", "") or "").strip()
+        if configured_csv:
+            install_path = Path(configured_csv)
+            if not install_path.is_absolute() and not re.match(r"^[A-Za-z]:[\\/]", configured_csv):
+                install_path = APP_DIR / configured_csv
+            legacy_paths.append(install_path)
+        legacy_value = str(self.config.get("legacy_color_overview_csv", "")).strip()
+        if legacy_value:
+            legacy_paths.append(Path(legacy_value))
+
+        unique_legacy_paths: list[Path] = []
+        current_resolved = csv_path.resolve(strict=False)
+        seen_paths = {current_resolved}
+        for path in legacy_paths:
+            resolved = path.resolve(strict=False)
+            if resolved not in seen_paths:
+                seen_paths.add(resolved)
+                unique_legacy_paths.append(path)
+
+        legacy_sources: list[tuple[Path, list[dict[str, str]], list[str]]] = []
+        for path in unique_legacy_paths:
+            legacy_rows, legacy_fields = self._read_color_overview(path)
+            if legacy_rows:
+                legacy_sources.append((path, legacy_rows, legacy_fields))
+
+        if not rows:
+            for path, legacy_rows, legacy_fields in legacy_sources:
+                self.logger.log(f"Alte Farbübersichtsdaten werden übernommen: {path}")
+                return legacy_rows, legacy_fields
             return rows, fields
 
-        legacy_value = str(self.config.get("legacy_color_overview_csv", "")).strip()
-        if not legacy_value:
-            return rows, fields
-        legacy_path = Path(legacy_value)
-        if legacy_path == csv_path:
-            return rows, fields
-        legacy_rows, legacy_fields = self._read_color_overview(legacy_path)
-        if legacy_rows:
-            self.logger.log(f"Alte Server-CSV einmalig übernommen: {legacy_path}")
-            return legacy_rows, legacy_fields
+        # Recover from a freshly-created overview when the old install still has
+        # workflow data. Never replace a current row that already has history.
+        current_has_state = any(self._row_has_saved_workflow_state(row) for row in rows)
+        legacy_has_state = any(
+            self._row_has_saved_workflow_state(row)
+            for _path, legacy_rows, _legacy_fields in legacy_sources
+            for row in legacy_rows
+        )
+        recovering_reset = not current_has_state and legacy_has_state
+        merged = 0
+        legacy_workflow_fields = {
+            "color_id",
+            "printed",
+            "printed_at",
+            "last_printed_at",
+            "Gedruckt am",
+            "legacy_printed_at",
+            "approved",
+            "approved_at",
+            "sk_assignments",
+            "SK-Zuordnungen",
+            "transfer",
+            "not_printable",
+            "not_printable_at",
+            "not_printable_by",
+            "not_printable_reason",
+            "approval_notification_json",
+            "approval_mail_preview",
+            "history_events",
+            "machine_values",
+        }
+        for path, legacy_rows, legacy_fields in legacy_sources:
+            legacy_name_column = self._find_name_column(legacy_fields) or "Farbbezeichnung"
+            for legacy_row in legacy_rows:
+                legacy_name = str(legacy_row.get(legacy_name_column) or legacy_row.get("Farbbezeichnung") or "").strip()
+                legacy_id = str(legacy_row.get("color_id") or "").strip().casefold()
+                target = next(
+                    (
+                        row for row in rows
+                        if (legacy_name and self._normalized_color_key(
+                            row.get(self._find_name_column(fields) or "Farbbezeichnung") or row.get("Farbbezeichnung") or ""
+                        ) == self._normalized_color_key(legacy_name))
+                        or (legacy_id and str(row.get("color_id") or "").strip().casefold() == legacy_id)
+                    ),
+                    None,
+                )
+                legacy_has_workflow = self._row_has_saved_workflow_state(legacy_row)
+                legacy_is_prepress = self._technical_color_source(
+                    legacy_row.get("source", "") or legacy_row.get("Quelle", "")
+                ) == "PREPRESS"
+                if target is None:
+                    if recovering_reset and (legacy_has_workflow or legacy_is_prepress):
+                        rows.append(dict(legacy_row))
+                        for field in legacy_fields:
+                            if field and field not in fields:
+                                fields.append(field)
+                        merged += 1
+                    continue
+                if self._row_has_saved_workflow_state(target) or not legacy_has_workflow:
+                    continue
+                for field in legacy_workflow_fields:
+                    if field in legacy_row:
+                        target[field] = legacy_row.get(field, "")
+                        if field not in fields:
+                            fields.append(field)
+                merged += 1
+            if merged:
+                self.logger.log(
+                    f"{merged} Farbübersichts-Datensatz/Datensätze aus dem älteren Speicherstand "
+                    f"abgesichert übernommen ({path}).",
+                    "WARNING",
+                )
         return rows, fields
 
     def _read_color_overview(self, csv_path: Path) -> tuple[list[dict[str, str]], list[str]]:
@@ -3290,6 +3540,12 @@ class ColorTableManager:
     .searchBar label {{ color: #626b75; font-weight: 700; font-size: 13px; }}
     .searchBar input {{ font-size: 16px; padding: 11px 13px; }}
     body:not(.detailMode) .searchBar {{ grid-column: 1 / -1; max-width: 640px; }}
+    body.detailMode .topBar {{ display: block; margin-bottom: 14px; }}
+    body.detailMode .searchBar {{ max-width: 920px; margin-bottom: 14px; }}
+    body.detailMode .searchBar label {{ color: #1d3348; font-size: 16px; }}
+    body.detailMode .searchBar input {{ font-size: 22px; padding: 15px 17px; }}
+    body.detailMode .entry {{ max-width: 760px; margin: 0 0 14px; padding: 12px 14px; background: #f3f6f8; border-left: 4px solid #2f6545; }}
+    body.detailMode .entry label {{ font-size: 15px; }}
     .viewControls {{ margin: 0 0 16px; }}
     .viewToggle {{ min-width: 155px; }}
     .prepressControls {{ margin: 0 0 14px; }}
@@ -3538,23 +3794,11 @@ class ColorTableManager:
   </header>
   {preview_banner}
   <div class="topBar">
-    <form class="entry" method="post" action="{html.escape(submit_url, quote=True)}" target="submitFrame" data-prepress-only hidden>
-      <label for="farbe">Kundenfarbe eintragen</label>
-      <div class="entryRow">
-        <input name="farbe" id="farbe" autocomplete="off" placeholder="Neue Farbbezeichnung">
-        <button type="submit">Eintragen</button>
-      </div>
-    </form>
     <div class="searchBar">
       <label for="colorSearch">Farbname suchen</label>
       <input type="search" id="colorSearch" autocomplete="off" placeholder="Farbname suchen...">
     </div>
   </div>
-  <section id="prepressControls" class="prepressControls" data-prepress-only hidden>
-    <div class="summary">{summary_html}</div>
-  </section>
-  <div id="entryStatus"></div>
-  <iframe name="submitFrame" style="display:none"></iframe>
   <details class="prepressNotes" aria-label="Vorstufen-Hinweise" data-prepress-only hidden>
     <summary>Vorstufen-Hinweise <span id="prepressNoteCount">{len(prepress_notes)}</span></summary>
     <div class="prepressNotesBody">
@@ -3570,6 +3814,18 @@ class ColorTableManager:
     <div id="prepressNoteList" class="prepressNoteList">{prepress_note_html}</div>
     </div>
   </details>
+  <form class="entry" method="post" action="{html.escape(submit_url, quote=True)}" target="submitFrame" data-prepress-only hidden>
+    <label for="farbe">Kundenfarbe eintragen</label>
+    <div class="entryRow">
+      <input name="farbe" id="farbe" autocomplete="off" placeholder="Neue Farbbezeichnung">
+      <button type="submit">Eintragen</button>
+    </div>
+  </form>
+  <div id="entryStatus"></div>
+  <iframe name="submitFrame" style="display:none"></iframe>
+  <section id="prepressControls" class="prepressControls" data-prepress-only hidden>
+    <div class="summary">{summary_html}</div>
+  </section>
   <div class="tableWrap"><table>
     <thead><tr><th class="indicator"></th><th>Kundenfarbe</th><th></th><th>CMYK</th><th>Druck</th><th>Betroffene Eindruckvorlagen</th><th>Prüfung</th><th>Übernahme</th><th>Historie</th><th class="adminOnly"></th></tr></thead>
     <tbody>{''.join(body_rows)}</tbody>

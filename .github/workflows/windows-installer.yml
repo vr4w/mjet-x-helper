@@ -98,6 +98,8 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           name: MJETXHelper-Windows-Installer
@@ -108,7 +110,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
           RELEASE_VERSION: ${{ needs.build.outputs.version }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
+          NOTES_FILE="release_notes/${RELEASE_TAG}.md"
+          if [ ! -f "$NOTES_FILE" ]; then
+            echo "::error::Release-Notizen fehlen: $NOTES_FILE"
+            exit 1
+          fi
           gh release create "$RELEASE_TAG" \
             "installer_dist/MJETXHelper_Setup_v${RELEASE_VERSION}.exe" \
-            --repo "$GITHUB_REPOSITORY" --draft --generate-notes
+            --repo "$GITHUB_REPOSITORY" \
+            --draft \
+            --title "MJET-X Helper ${RELEASE_VERSION}" \
+            --notes-file "$NOTES_FILE"
