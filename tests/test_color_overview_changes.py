@@ -123,6 +123,39 @@ class ColorOverviewChangesTest(unittest.TestCase):
         self.assertEqual(self.manager.rename_overview_color("Normal Blau", "Neu Blau")["status"], 409)
         self.assertTrue(Path(self.config["color_overview_html"]).read_text(encoding="utf-8").count("data:image/svg+xml;base64,"))
 
+    def test_customer_assignment_survives_refresh_and_is_rendered_in_prepress_view(self):
+        self.manager.add_requested_color("Schneider Blau")
+        before = self.overview_rows()[0]
+
+        result = self.manager.rename_overview_color("Schneider Blau", "Schneider Blau", "Schneider Druck")
+        self.assertTrue(result["ok"])
+        self.assertEqual(self.overview_rows()[0]["Kunde"], "Schneider Druck")
+        self.assertEqual(self.overview_rows()[0]["color_id"], before["color_id"])
+
+        self.manager.refresh_color_overview()
+        after = self.overview_rows()[0]
+        self.assertEqual(after["Kunde"], "Schneider Druck")
+        html = Path(self.config["color_overview_html"]).read_text(encoding="utf-8")
+        self.assertIn("Kunde: Schneider Druck", html)
+        self.assertIn("data-customer=\"Schneider Druck\"", html)
+
+        cleared = self.manager.rename_overview_color("Schneider Blau", "Schneider Blau", "")
+        self.assertTrue(cleared["ok"])
+        self.assertEqual(self.overview_rows()[0]["Kunde"], "")
+
+    def test_machine_color_allows_customer_assignment_but_not_renaming(self):
+        self.color_file("Schneider Blau.cct", "Schneider Blau", True)
+        self.manager.rebuild_master(write_master=True)
+
+        assigned = self.manager.rename_overview_color("Schneider Blau", "Schneider Blau", "Schneider Kunde 2")
+        self.assertTrue(assigned["ok"])
+        row = self.overview_rows()[0]
+        self.assertEqual(row["Farbbezeichnung"], "Schneider Blau")
+        self.assertEqual(row["Kunde"], "Schneider Kunde 2")
+
+        rejected = self.manager.rename_overview_color("Schneider Blau", "Schneider Blau Neu", "Schneider Kunde 2")
+        self.assertEqual(rejected["status"], 409)
+
     def test_prepress_colors_survive_install_folder_change(self):
         old_install = Path(self.temp.name) / "old-install"
         new_install = Path(self.temp.name) / "new-install"

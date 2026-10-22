@@ -44,7 +44,7 @@ from update_service import (
 
 
 APP_NAME = "MJET-X Helper"
-APP_VERSION = "1.1.7"
+APP_VERSION = "1.1.8"
 APP_AUTHOR = "AE / Marvin Schöffel"
 APP_CONTACT = "ms@graphic-druck.de"
 CONFIG_NAME = "helper_config.json"
@@ -1180,6 +1180,7 @@ class ColorTableManager:
         generated_fields = [
             "color_id",
             "Farbbezeichnung",
+            "Kunde",
             "Status",
             "Angelegt am",
             "Gedruckt am",
@@ -1326,6 +1327,7 @@ class ColorTableManager:
                 {
                     "color_id": color_id,
                     "Farbbezeichnung": name,
+                    "Kunde": existing.get("Kunde", "").strip(),
                     "Status": status,
                     "Angelegt am": created_at,
                     "Gedruckt am": last_printed_at,
@@ -1401,6 +1403,7 @@ class ColorTableManager:
                 fields.append("Quelle")
             for field in (
                 "color_id",
+                "Kunde",
                 "created_at",
                 "last_printed_at",
                 "last_synced_at",
@@ -1434,6 +1437,7 @@ class ColorTableManager:
                     {
                         "color_id": color_id,
                         "Farbbezeichnung": cleaned,
+                        "Kunde": "",
                         "Quelle": "Vorstufe",
                         "created_at": created_at,
                         "last_printed_at": "",
@@ -1674,15 +1678,24 @@ class ColorTableManager:
         self.refresh_color_overview()
         return f"Farbe ausgeblendet: {cleaned}"
 
-    def rename_overview_color(self, old_name: str, new_name: str) -> dict:
+    def rename_overview_color(self, old_name: str, new_name: str, customer_name: str | None = None) -> dict:
         old_name = self._clean_color_name(old_name)
         new_name = self._clean_color_name(new_name)
-        if not old_name or not new_name:
-            return self._api_result(False, "Bitte alten und neuen Farbnamen eintragen.", 400)
+        if not old_name or (customer_name is None and not new_name):
+            return self._api_result(False, "Bitte einen Farbnamen eintragen.", 400)
+        if customer_name is None:
+            new_name = new_name or old_name
+        else:
+            customer_name = self._clean_color_name(customer_name)
+        if not new_name:
+            return self._api_result(False, "Bitte einen Farbnamen eintragen.", 400)
         if len(new_name) > 160:
             return self._api_result(False, "Die Farbbezeichnung ist zu lang.", 400)
-        if self._normalized_color_key(old_name) == self._normalized_color_key(new_name):
-            return self._api_result(False, "Bitte einen anderen Farbnamen eintragen.", 400)
+        if customer_name is not None and len(customer_name) > 160:
+            return self._api_result(False, "Der Kundenname ist zu lang.", 400)
+        rename_requested = self._normalized_color_key(old_name) != self._normalized_color_key(new_name)
+        if not rename_requested:
+            new_name = old_name
 
         csv_path = self._overview_csv_path()
         with self.overview_lock:
@@ -1694,12 +1707,12 @@ class ColorTableManager:
             )
             if target is None:
                 return self._api_result(False, f"Kundenfarbe nicht gefunden: {old_name}", 404)
-            if any(
+            if rename_requested and any(
                 self._normalized_color_key(row.get(name_column, "")) == self._normalized_color_key(new_name)
                 for row in rows
             ):
                 return self._api_result(False, f"Kundenfarbe ist bereits vorhanden: {new_name}", 409)
-            if (
+            if rename_requested and (
                 self._technical_color_source(target.get("source", "") or target.get("Quelle", "")) != "PREPRESS"
                 or self._truthy(target.get("Einzelfarbe vorhanden", ""))
                 or self._truthy(target.get("In Masterdatei", ""))
@@ -1713,10 +1726,15 @@ class ColorTableManager:
             backup_dir = csv_path.parent / "Backup"
             backup_dir.mkdir(parents=True, exist_ok=True)
             if csv_path.exists():
-                backup_path = backup_dir / f"{csv_path.stem}_vor_umbenennung_{dt.datetime.now():%Y%m%d_%H%M%S_%f}{csv_path.suffix}"
+                backup_path = backup_dir / f"{csv_path.stem}_vor_bearbeitung_{dt.datetime.now():%Y%m%d_%H%M%S_%f}{csv_path.suffix}"
                 shutil.copy2(csv_path, backup_path)
-            target[name_column] = new_name
-            target["Farbbezeichnung"] = new_name
+            if rename_requested:
+                target[name_column] = new_name
+                target["Farbbezeichnung"] = new_name
+            if customer_name is not None:
+                target["Kunde"] = customer_name
+                if "Kunde" not in fields:
+                    fields.append("Kunde")
             if "Farbbezeichnung" not in fields:
                 fields.append("Farbbezeichnung")
             csv_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1726,10 +1744,19 @@ class ColorTableManager:
                 writer.writeheader()
                 writer.writerows({field: row.get(field, "") for field in fields} for row in rows)
             self._replace_color_overview(temp_csv, csv_path)
-            self.logger.log(f"Vorstufenfarbe umbenannt: {old_name} -> {new_name}")
+            if rename_requested and customer_name is not None:
+                self.logger.log(f"Vorstufenfarbe bearbeitet: {old_name} -> {new_name}; Kunde: {customer_name or '(entfernt)'}")
+            elif rename_requested:
+                self.logger.log(f"Vorstufenfarbe umbenannt: {old_name} -> {new_name}")
+            else:
+                self.logger.log(f"Kundenzuordnung geändert: {old_name} -> {customer_name or '(entfernt)'}")
 
         self.refresh_color_overview()
-        result = self._api_result(True, f"Farbname korrigiert: {new_name}")
+        if rename_requested:
+            message = f"Farbname korrigiert: {new_name}"
+        else:
+            message = f"Kundenzuordnung gespeichert: {customer_name or 'entfernt'}"
+        result = self._api_result(True, message)
         result["old_name"] = old_name
         result["new_name"] = new_name
         return result
@@ -3342,7 +3369,10 @@ class ColorTableManager:
             escaped_not_printable_by = html.escape(not_printable_by or "nicht erfasst")
             button_name = html.escape(name, quote=True)
             button_cmyk = html.escape(cmyk, quote=True)
-            search_parts = [name, cmyk]
+            customer_name = str(row.get("Kunde") or "").strip()
+            escaped_customer = html.escape(customer_name)
+            button_customer = html.escape(customer_name, quote=True)
+            search_parts = [name, cmyk, customer_name]
             sk_state = []
             for assignment in assignments:
                 search_parts.append(str(assignment.get("sk_number") or ""))
@@ -3503,7 +3533,7 @@ class ColorTableManager:
             body_rows.append(
                 f"<tr class=\"{css}\" style=\"--machine-order:{machine_sort.get(row_index, row_index + 1)}\" data-color-search=\"{search_attr}\">"
                 f"<td><span class=\"dot\" aria-hidden=\"true\"></span></td>"
-                f"<td class=\"name\"><span class=\"customerGlow\" data-cmyk=\"{button_cmyk}\" title=\"{button_name} · {button_cmyk}\" aria-hidden=\"true\"></span><span class=\"colorNameText\" title=\"{button_name}\">{escaped_name}</span><span class=\"machineCmyk\" title=\"{button_cmyk}\">{escaped_cmyk}</span>{not_printable_banner}</td>"
+                f"<td class=\"name\"><span class=\"customerGlow\" data-cmyk=\"{button_cmyk}\" title=\"{button_name} · {button_cmyk}\" aria-hidden=\"true\"></span><span class=\"colorNameText\" title=\"{button_name}\">{escaped_name}</span><span class=\"customerLabel\">{('Kunde: ' + escaped_customer) if escaped_customer else ''}</span><span class=\"machineCmyk\" title=\"{button_cmyk}\">{escaped_cmyk}</span>{not_printable_banner}</td>"
                 f"<td><button type=\"button\" class=\"copy\" data-name=\"{button_name}\" title=\"Farbnamen kopieren\" aria-label=\"Farbnamen kopieren\">⧉</button></td>"
                 f"<td class=\"cmykCell\">{escaped_cmyk}</td>"
                 f"<td class=\"printCell\">{print_summary}</td>"
@@ -3511,7 +3541,7 @@ class ColorTableManager:
                 f"<td class=\"approvalCell\">{approval_summary}</td>"
                 f"<td class=\"transferCell\">{template_summary}</td>"
                 f"<td class=\"history\">{history_html}{clear_not_printable_button}</td>"
-                f"<td class=\"adminOnly adminActions\"><button type=\"button\" class=\"renameColor\" data-name=\"{button_name}\" title=\"Farbname bearbeiten\" aria-label=\"Farbname bearbeiten\">✎</button><button type=\"button\" class=\"hideColor\" data-name=\"{button_name}\">Ausblenden</button></td>"
+                f"<td class=\"adminOnly adminActions\"><button type=\"button\" class=\"renameColor\" data-name=\"{button_name}\" data-customer=\"{button_customer}\" title=\"Farbname und Kunde bearbeiten\" aria-label=\"Farbname und Kunde bearbeiten\">✎</button><button type=\"button\" class=\"hideColor\" data-name=\"{button_name}\">Ausblenden</button></td>"
                 f"</tr>"
             )
 
@@ -3621,6 +3651,8 @@ class ColorTableManager:
     .workflow.danger {{ background: #e5c0c0; color: #3e1f1f; }}
     .muted {{ color: #8c939b; }}
     .history {{ font-size: 12px; }}
+    .customerLabel {{ display: none; }}
+    body.detailMode .customerLabel:not(:empty) {{ display: block; margin-top: 3px; color: #7a828a; font-size: 12px; line-height: 1.2; font-weight: 500; }}
     .historyDetails {{ max-width: 330px; }}
     .historyDetails summary {{ display: inline-flex; align-items: center; gap: 6px; padding: 3px 0; color: #4f5964; font-weight: 800; cursor: pointer; }}
     .historyList {{ margin-top: 6px; line-height: 1.35; white-space: normal; overflow-wrap: anywhere; }}
@@ -4034,7 +4066,15 @@ class ColorTableManager:
         ok.textContent = options.okText || 'OK';
         cancel.style.display = options.hideCancel ? 'none' : '';
         backdrop.classList.add('open');
-        var input = options.returnInput ? body.querySelector('input') : null;
+        var input = (options.returnInput || options.returnInputs) ? body.querySelector('input') : null;
+        function dialogValue() {{
+          if (options.returnInputs) {{
+            var values = {{}};
+            body.querySelectorAll('input').forEach(function(field) {{ values[field.id] = field.value; }});
+            return values;
+          }}
+          return input ? input.value : true;
+        }}
         function cleanup(value) {{
           backdrop.classList.remove('open');
           cancel.style.display = '';
@@ -4047,13 +4087,13 @@ class ColorTableManager:
           if (event.key === 'Escape') {{
             event.preventDefault();
             cleanup(null);
-          }} else if (event.key === 'Enter' && options.returnInput) {{
+          }} else if (event.key === 'Enter' && (options.returnInput || options.returnInputs)) {{
             event.preventDefault();
-	            cleanup(input ? input.value : true);
+	            cleanup(dialogValue());
           }}
         }}
         cancel.onclick = function() {{ cleanup(null); }};
-        ok.onclick = function() {{ cleanup(input ? input.value : true); }};
+        ok.onclick = function() {{ cleanup(dialogValue()); }};
         document.addEventListener('keydown', onKey);
         window.setTimeout(function() {{ (input || ok).focus(); }}, 0);
       }});
@@ -4244,22 +4284,24 @@ class ColorTableManager:
     document.querySelectorAll('.renameColor').forEach(function(button) {{
       button.addEventListener('click', function() {{
         var oldName = button.getAttribute('data-name') || '';
+        var oldCustomer = button.getAttribute('data-customer') || '';
         var status = document.getElementById('entryStatus');
         var row = button.closest('tr');
         showDialog({{
-          title: 'Farbnamen korrigieren',
-          body: '<label>Neuer Farbname<input id="renamedColor" value="' + escapeHtml(oldName) + '" maxlength="160" autocomplete="off"></label>',
+          title: 'Farbe bearbeiten',
+          body: '<label>Farbname<input id="renamedColor" value="' + escapeHtml(oldName) + '" maxlength="160" autocomplete="off"></label><label>Kunde optional<input id="renamedCustomer" value="' + escapeHtml(oldCustomer) + '" maxlength="160" placeholder="z. B. Schneider"></label>',
           okText: 'Speichern',
-          returnInput: true
-        }}).then(function(newName) {{
-          if (newName === null) return;
-          newName = String(newName).trim();
+          returnInputs: true
+        }}).then(function(values) {{
+          if (values === null) return;
+          var newName = String(values.renamedColor || '').trim();
+          var customerName = String(values.renamedCustomer || '').trim();
           if (!newName) {{
             status.textContent = 'Bitte einen Farbnamen eintragen.';
             return;
           }}
-          status.textContent = 'Farbname wird korrigiert...';
-          postHelper({rename_url_json}, {{ farbe: oldName, neuer_name: newName }})
+          status.textContent = 'Änderungen werden gespeichert...';
+          postHelper({rename_url_json}, {{ farbe: oldName, neuer_name: newName, kunde: customerName }})
             .then(function(payload) {{
               status.textContent = payloadMessage(payload, 'Farbname korrigiert.');
               if (!row) return;
@@ -4267,10 +4309,14 @@ class ColorTableManager:
               row.querySelectorAll('[data-name]').forEach(function(item) {{ item.setAttribute('data-name', newName); }});
               row.querySelectorAll('[data-color]').forEach(function(item) {{ item.setAttribute('data-color', newName); }});
               row.querySelector('.colorNameText').title = newName;
+              var customerLabel = row.querySelector('.customerLabel');
+              if (customerLabel) customerLabel.textContent = customerName ? 'Kunde: ' + customerName : '';
+              var renameButton = row.querySelector('.renameColor');
+              if (renameButton) renameButton.setAttribute('data-customer', customerName);
               var swatch = row.querySelector('.customerGlow');
               if (swatch) swatch.title = newName + ' · ' + (swatch.getAttribute('data-cmyk') || '');
               var skNames = Array.from(row.querySelectorAll('.skItem strong')).map(function(item) {{ return item.textContent; }}).join(' ');
-              row.setAttribute('data-color-search', newName + ' ' + (row.querySelector('.cmykCell') || {{ textContent: '' }}).textContent + ' ' + skNames);
+              row.setAttribute('data-color-search', newName + ' ' + customerName + ' ' + (row.querySelector('.cmykCell') || {{ textContent: '' }}).textContent + ' ' + skNames);
               refreshRowSearchText(row);
               applyColorSearch();
             }})
@@ -5029,6 +5075,7 @@ class ColorRequestServer:
                         result = color_manager.rename_overview_color(
                             color_name,
                             values.get("neuer_name", [""])[0],
+                            values.get("kunde", [""])[0],
                         )
                         self._send_json(result, status=int(result.get("status", 200)))
                         return
