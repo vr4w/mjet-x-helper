@@ -143,6 +143,13 @@ class ColorOverviewChangesTest(unittest.TestCase):
         self.assertTrue(cleared["ok"])
         self.assertEqual(self.overview_rows()[0]["Kunde"], "")
 
+    def test_total_color_count_is_shown_in_shared_overview_header(self):
+        self.manager.add_requested_color("Schneider Blau")
+        self.manager.add_requested_color("Schneider Rot")
+
+        html = Path(self.config["color_overview_html"]).read_text(encoding="utf-8")
+        self.assertIn('<span class="colorCount">· Farben gesamt: 2</span>', html)
+
     def test_machine_color_allows_customer_assignment_but_not_renaming(self):
         self.color_file("Schneider Blau.cct", "Schneider Blau", True)
         self.manager.rebuild_master(write_master=True)

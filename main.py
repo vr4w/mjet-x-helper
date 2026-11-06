@@ -44,7 +44,7 @@ from update_service import (
 
 
 APP_NAME = "MJET-X Helper"
-APP_VERSION = "1.1.8"
+APP_VERSION = "1.1.9"
 APP_AUTHOR = "AE / Marvin Schöffel"
 APP_CONTACT = "ms@graphic-druck.de"
 CONFIG_NAME = "helper_config.json"
@@ -3551,6 +3551,7 @@ class ColorTableManager:
             f"<button type=\"button\" class=\"summaryPill\" data-filter=\"template\"><strong>{open_template_updates}</strong><span>Vorlagen offen</span></button>"
         )
 
+        color_count_label = f"Farben gesamt: {len(body_rows)}"
         document = f"""<!doctype html>
 <html lang="de">
 <head>
@@ -3560,6 +3561,7 @@ class ColorTableManager:
     body {{ font-family: Segoe UI, Arial, sans-serif; margin: 22px 24px; color: #20242a; background: #dfe4e8; }}
     h1 {{ margin: 0 0 6px; font-size: 25px; }}
     .meta {{ margin: 0 0 12px; color: #626b75; font-size: 13px; }}
+    .colorCount {{ margin-left: 8px; color: #7a828a; font-size: 12px; white-space: nowrap; }}
     .machineHeader {{ display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; margin: 0 0 14px; }}
     .titleBlock {{ display: flex; align-items: center; gap: 18px; min-width: 0; }}
     .brandLogo {{ width: 144px; height: auto; flex: none; }}
@@ -3816,7 +3818,7 @@ class ColorTableManager:
       {logo_html}
       <div>
         <h1 id="title">Farbübersicht</h1>
-        <p class="meta">Automatisch aktualisiert: {html.escape(now_stamp())}</p>
+        <p class="meta">Automatisch aktualisiert: {html.escape(now_stamp())}<span class="colorCount">· {html.escape(color_count_label)}</span></p>
       </div>
     </div>
     <div class="headerActions">
