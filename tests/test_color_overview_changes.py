@@ -107,7 +107,7 @@ class ColorOverviewChangesTest(unittest.TestCase):
         self.assertEqual(self.overview_rows()[0]["Status"], "Originalfarbe ohne Ersatzfarbe")
         self.assertTrue(self.master_path.exists())
 
-    def test_prepress_rename_preserves_id_and_blocks_machine_colors(self):
+    def test_prepress_and_machine_rename_preserve_identity_and_track_alias(self):
         self.manager.add_requested_color("Farbteh ler")
         before = self.overview_rows()[0]
         result = self.manager.rename_overview_color("Farbteh ler", "Farbfehler")
@@ -117,11 +117,62 @@ class ColorOverviewChangesTest(unittest.TestCase):
         self.assertEqual(after["Farbbezeichnung"], "Farbfehler")
         self.assertTrue(list((Path(self.config["color_overview_csv"]).parent / "Backup").glob("*.csv")))
         self.manager.add_requested_color("Anderer Name")
-        self.assertEqual(self.manager.rename_overview_color("Farbfehler", "Anderer Name")["status"], 409)
+        merged = self.manager.rename_overview_color("Farbfehler", "Anderer Name")
+        self.assertTrue(merged["ok"])
+        self.assertEqual(merged["merged_duplicates"], 1)
         self.color_file("Normal Blau.cct", "Normal Blau", True)
         self.manager.rebuild_master(write_master=True)
-        self.assertEqual(self.manager.rename_overview_color("Normal Blau", "Neu Blau")["status"], 409)
+        cct_bytes = (self.single_dir / "Normal Blau.cct").read_bytes()
+        master_bytes = self.master_path.read_bytes()
+        renamed = self.manager.rename_overview_color("Normal Blau", "Normal Blau Korrigiert")
+        self.assertTrue(renamed["ok"])
+        row = next(row for row in self.overview_rows() if row["Farbbezeichnung"] == "Normal Blau Korrigiert")
+        self.assertEqual(row["machine_color_name"], "Normal Blau")
+        self.assertIn("Normal Blau", json.loads(row["color_aliases"]))
+        self.assertEqual((self.single_dir / "Normal Blau.cct").read_bytes(), cct_bytes)
+        self.assertEqual(self.master_path.read_bytes(), master_bytes)
+        self.manager.refresh_color_overview()
+        rows = self.overview_rows()
+        self.assertEqual(sum(row["Farbbezeichnung"] == "Normal Blau Korrigiert" for row in rows), 1)
+        self.assertFalse(any(row["Farbbezeichnung"] == "Normal Blau" for row in rows))
         self.assertTrue(Path(self.config["color_overview_html"]).read_text(encoding="utf-8").count("data:image/svg+xml;base64,"))
+
+    def test_machine_alias_merges_numbered_newer_cct_into_single_overview_row(self):
+        self.color_file("Crusius grau.cct", "Crusius grau", True)
+        self.manager.rebuild_master(write_master=True)
+        renamed = self.manager.rename_overview_color("Crusius grau", "Crusius grau korrigiert")
+        self.assertTrue(renamed["ok"])
+        self.color_file("Crusius grau korrigiert 2.cct", "Crusius grau korrigiert 2", True)
+
+        self.manager.refresh_color_overview()
+
+        rows = self.overview_rows()
+        matches = [row for row in rows if row["Farbbezeichnung"] == "Crusius grau korrigiert"]
+        self.assertEqual(len(matches), 1)
+        self.assertEqual(matches[0]["machine_color_name"], "Crusius grau korrigiert 2")
+        self.assertIn("Crusius grau", json.loads(matches[0]["color_aliases"]))
+        self.assertTrue((self.single_dir / "Crusius grau.cct").is_file())
+        self.assertTrue((self.single_dir / "Crusius grau korrigiert 2.cct").is_file())
+
+    def test_edit_dialog_can_merge_duplicate_rows_without_losing_sk_or_history(self):
+        self.manager.add_requested_color("Crusius grau")
+        self.manager.add_sk_assignment("Crusius grau", "SK 123")
+        self.manager.mark_sk_printed("Crusius grau", "")
+        self.manager.add_requested_color("Crusius grau Korrigiert")
+        result = self.manager.rename_overview_color(
+            "Crusius grau", "Crusius grau Korrigiert", aliases="Crusius grau Korrigiert"
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["merged_duplicates"], 1)
+        rows = self.overview_rows()
+        self.assertEqual(len(rows), 1)
+        merged = rows[0]
+        self.assertEqual(merged["Farbbezeichnung"], "Crusius grau Korrigiert")
+        self.assertTrue(self.manager._truthy(merged["printed"]))
+        self.assertEqual([item["sk_number"] for item in json.loads(merged["sk_assignments"])], ["SK 123"])
+        self.assertTrue(any(event["event"] == "color_alias_merged" for event in json.loads(merged["history_events"])))
+        self.assertTrue(list((Path(self.config["color_overview_csv"]).parent / "Backup").glob("*.csv")))
 
     def test_customer_assignment_survives_refresh_and_is_rendered_in_prepress_view(self):
         self.manager.add_requested_color("Schneider Blau")
@@ -149,8 +200,44 @@ class ColorOverviewChangesTest(unittest.TestCase):
 
         html = Path(self.config["color_overview_html"]).read_text(encoding="utf-8")
         self.assertIn('<span class="colorCount">· Farben gesamt: 2</span>', html)
+        self.assertIn('<span class="versionTag">Version 1.1.10</span>', html)
+        self.assertIn("Weitere Namen / Dubletten", html)
 
-    def test_machine_color_allows_customer_assignment_but_not_renaming(self):
+    def test_machine_cards_follow_production_state_and_completed_colors_sort_first(self):
+        names = ["A Offen", "B Gedruckt", "C Übernommen", "D Nicht druckbar"]
+        for name in names:
+            self.manager.add_requested_color(name)
+
+        self.manager.mark_sk_printed("B Gedruckt", "")
+        self.manager.add_sk_assignment("C Übernommen", "SK 123")
+        self.manager.mark_sk_printed("C Übernommen", "")
+        self.manager.mark_template_updated("C Übernommen", "SK 123", template_updated=True)
+        self.manager.set_color_not_printable("D Nicht druckbar", "Teststatus")
+
+        html = Path(self.config["color_overview_html"]).read_text(encoding="utf-8")
+        self.assertIn('class="new machine-transferred" style="--machine-order:1"', html)
+        self.assertIn('class="new machine-printed" style="--machine-order:2"', html)
+        self.assertIn('class="new machine-pending" style="--machine-order:3"', html)
+        self.assertIn('class="blocked machine-blocked" style="--machine-order:4"', html)
+        self.assertIn('<span class="colorCount">· Farben gesamt: 4</span>', html)
+
+    def test_marking_printable_enables_template_transfer_without_review_status(self):
+        self.manager.add_requested_color("Schneider Druckbar")
+        self.manager.add_sk_assignment("Schneider Druckbar", "SK 456")
+        result = self.manager.mark_sk_printed("Schneider Druckbar", "")
+
+        self.assertTrue(result["ok"])
+        transfer = self.manager.mark_template_updated(
+            "Schneider Druckbar", "SK 456", template_updated=True
+        )
+        self.assertTrue(transfer["ok"])
+        html = Path(self.config["color_overview_html"]).read_text(encoding="utf-8")
+        self.assertNotIn('data-action="approve"', html)
+        self.assertNotIn("Prüfungen offen", html)
+        self.assertNotIn("Prüfung abschließen", html)
+        self.assertIn("Übernahmen verwalten", html)
+
+    def test_machine_color_allows_customer_assignment_and_renaming(self):
         self.color_file("Schneider Blau.cct", "Schneider Blau", True)
         self.manager.rebuild_master(write_master=True)
 
@@ -160,8 +247,10 @@ class ColorOverviewChangesTest(unittest.TestCase):
         self.assertEqual(row["Farbbezeichnung"], "Schneider Blau")
         self.assertEqual(row["Kunde"], "Schneider Kunde 2")
 
-        rejected = self.manager.rename_overview_color("Schneider Blau", "Schneider Blau Neu", "Schneider Kunde 2")
-        self.assertEqual(rejected["status"], 409)
+        renamed = self.manager.rename_overview_color("Schneider Blau", "Schneider Blau Neu", "Schneider Kunde 2")
+        self.assertTrue(renamed["ok"])
+        row = next(row for row in self.overview_rows() if row["Farbbezeichnung"] == "Schneider Blau Neu")
+        self.assertEqual(row["machine_color_name"], "Schneider Blau")
 
     def test_prepress_colors_survive_install_folder_change(self):
         old_install = Path(self.temp.name) / "old-install"

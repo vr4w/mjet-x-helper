@@ -44,7 +44,7 @@ from update_service import (
 
 
 APP_NAME = "MJET-X Helper"
-APP_VERSION = "1.1.9"
+APP_VERSION = "1.1.10"
 APP_AUTHOR = "AE / Marvin Schöffel"
 APP_CONTACT = "ms@graphic-druck.de"
 CONFIG_NAME = "helper_config.json"
@@ -1013,6 +1013,22 @@ class ColorTableManager:
         normalized = unicodedata.normalize("NFC", self._clean_color_name(value))
         return normalized.casefold()
 
+    def _color_alias_names(self, row: dict[str, str]) -> list[str]:
+        raw = str(row.get("color_aliases", "") or "").strip()
+        try:
+            values = json.loads(raw) if raw else []
+        except (TypeError, ValueError):
+            values = []
+        return [str(value).strip() for value in values if str(value).strip()] if isinstance(values, list) else []
+
+    def _machine_color_base_key(self, value: str) -> str:
+        base = re.sub(r"[\s_-]+\d+$", "", self._clean_color_name(value)).strip()
+        return self._normalized_color_key(base)
+
+    def _machine_color_version(self, value: str) -> int:
+        match = re.search(r"[\s_-]+(\d+)$", self._clean_color_name(value))
+        return int(match.group(1)) if match else -1
+
     def _mtime_text(self, value: float) -> str:
         if not value:
             return "Datum nicht lesbar"
@@ -1181,6 +1197,8 @@ class ColorTableManager:
             "color_id",
             "Farbbezeichnung",
             "Kunde",
+            "machine_color_name",
+            "color_aliases",
             "Status",
             "Angelegt am",
             "Gedruckt am",
@@ -1218,33 +1236,82 @@ class ColorTableManager:
         ]
         fieldnames = generated_fields + extra_fields
 
-        single_lookup = {name.casefold(): name for name in single_names}
-        master_lookup = {name.casefold(): name for name in master_names}
+        single_lookup = {self._normalized_color_key(name): name for name in single_names}
+        master_lookup = {self._normalized_color_key(name): name for name in master_names}
         row_lookup: dict[str, dict[str, str]] = {}
+        machine_alias_lookup: dict[str, dict[str, str]] = {}
+        alias_base_candidates: dict[str, list[dict[str, str]]] = {}
+        machine_sources_by_display: dict[str, set[str]] = {}
         display_names: dict[str, str] = {}
 
         for row in existing_rows:
             raw_name = (row.get(name_column) or row.get("Farbbezeichnung") or "").strip()
             if not raw_name:
                 continue
-            key = raw_name.casefold()
+            key = self._normalized_color_key(raw_name)
             row_lookup.setdefault(key, row)
             display_names.setdefault(key, raw_name)
+            machine_name = self._clean_color_name(row.get("machine_color_name", ""))
+            aliases = self._color_alias_names(row)
+            for alias in aliases:
+                machine_alias_lookup.setdefault(self._normalized_color_key(alias), row)
+            if machine_name:
+                machine_alias_lookup.setdefault(self._normalized_color_key(machine_name), row)
+            if (machine_name and self._normalized_color_key(raw_name) != self._normalized_color_key(machine_name)) or aliases:
+                machine_alias_lookup.setdefault(key, row)
+                base_key = self._machine_color_base_key(raw_name)
+                if base_key:
+                    alias_base_candidates.setdefault(base_key, []).append(row)
+        for base_key, candidates in alias_base_candidates.items():
+            unique_candidates = {id(candidate): candidate for candidate in candidates}
+            if len(unique_candidates) == 1:
+                machine_alias_lookup.setdefault(base_key, next(iter(unique_candidates.values())))
 
         id_lookup = self._existing_color_ids(existing_rows, name_column)
         next_color_number = self._next_color_id_number_from_values(id_lookup.values())
         for name in single_names + master_names + [info["name"] for info in single_info.values()]:
-            key = name.casefold()
-            display_names[key] = name
+            key = self._normalized_color_key(name)
+            alias_row = machine_alias_lookup.get(key) or machine_alias_lookup.get(self._machine_color_base_key(name))
+            if alias_row:
+                alias_name = self._clean_color_name(alias_row.get("Farbbezeichnung", ""))
+                display_key = self._normalized_color_key(alias_name)
+                display_names[display_key] = alias_name
+                machine_sources_by_display.setdefault(display_key, set()).add(name)
+            else:
+                display_names[key] = name
 
         now_text = now_stamp()
         rows: list[dict[str, str]] = []
         for key in sorted(display_names, key=lambda item: display_names[item].casefold()):
             name = display_names[key]
             existing = row_lookup.get(key, {})
-            info = single_info.get(key, {})
-            in_single = key in single_lookup or bool(info.get("passthrough"))
-            in_master = key in master_lookup
+            source_names = machine_sources_by_display.get(key, set())
+            if existing:
+                source_names.update(
+                    alias for alias in self._color_alias_names(existing)
+                    if self._normalized_color_key(alias) in single_lookup or self._normalized_color_key(alias) in master_lookup
+                )
+                primary_source = self._clean_color_name(existing.get("machine_color_name", ""))
+                if primary_source and (self._normalized_color_key(primary_source) in single_lookup or self._normalized_color_key(primary_source) in master_lookup):
+                    source_names.add(primary_source)
+            source_candidates = [candidate for candidate in source_names if
+                self._normalized_color_key(candidate) in single_lookup or self._normalized_color_key(candidate) in master_lookup]
+            effective_source = max(
+                source_candidates,
+                key=lambda candidate: (
+                    self._machine_color_version(candidate),
+                    float(single_info.get(self._normalized_color_key(candidate), {}).get("mtime", "0") or 0),
+                    candidate.casefold(),
+                ),
+                default="",
+            )
+            source_key = self._normalized_color_key(effective_source) or key
+            if not effective_source and key in single_lookup | master_lookup:
+                effective_source = (single_lookup | master_lookup)[key]
+                source_key = key
+            info = single_info.get(source_key, {})
+            in_single = source_key in single_lookup or bool(info.get("passthrough"))
+            in_master = source_key in master_lookup
             if info.get("passthrough"):
                 status = "Originalfarbe ohne Ersatzfarbe"
             elif in_single and in_master:
@@ -1323,11 +1390,22 @@ class ColorTableManager:
             )
 
             output_row = {field: existing.get(field, "") for field in extra_fields}
+            machine_color_name = effective_source or self._clean_color_name(existing.get("machine_color_name", ""))
+            color_aliases = self._color_alias_names(existing)
+            is_alias_family = bool(color_aliases) or (
+                bool(machine_color_name)
+                and self._normalized_color_key(machine_color_name) != self._normalized_color_key(name)
+            ) or len(source_names) > 1
+            for alias in (source_names if is_alias_family else ()):
+                if all(self._normalized_color_key(alias) != self._normalized_color_key(item) for item in color_aliases):
+                    color_aliases.append(alias)
             output_row.update(
                 {
                     "color_id": color_id,
                     "Farbbezeichnung": name,
                     "Kunde": existing.get("Kunde", "").strip(),
+                    "machine_color_name": machine_color_name,
+                    "color_aliases": json.dumps(color_aliases, ensure_ascii=False, separators=(",", ":")),
                     "Status": status,
                     "Angelegt am": created_at,
                     "Gedruckt am": last_printed_at,
@@ -1518,15 +1596,6 @@ class ColorTableManager:
             lambda row, assignments: self._set_color_printed(row, assignments),
         )
 
-    def approve_sk_assignment(self, color_name: str, sk_number: str) -> dict:
-        cleaned_color = self._clean_color_name(color_name)
-        if not cleaned_color:
-            return self._api_result(False, "Keine Kundenfarbe übergeben.", 400)
-        return self._update_color_workflow(
-            cleaned_color,
-            lambda row, assignments: self._set_color_approved(row, assignments),
-        )
-
     def mark_template_updated(
         self,
         color_name: str,
@@ -1678,7 +1747,13 @@ class ColorTableManager:
         self.refresh_color_overview()
         return f"Farbe ausgeblendet: {cleaned}"
 
-    def rename_overview_color(self, old_name: str, new_name: str, customer_name: str | None = None) -> dict:
+    def rename_overview_color(
+        self,
+        old_name: str,
+        new_name: str,
+        customer_name: str | None = None,
+        aliases: list[str] | str | None = None,
+    ) -> dict:
         old_name = self._clean_color_name(old_name)
         new_name = self._clean_color_name(new_name)
         if not old_name or (customer_name is None and not new_name):
@@ -1693,6 +1768,16 @@ class ColorTableManager:
             return self._api_result(False, "Die Farbbezeichnung ist zu lang.", 400)
         if customer_name is not None and len(customer_name) > 160:
             return self._api_result(False, "Der Kundenname ist zu lang.", 400)
+        if isinstance(aliases, str):
+            aliases = re.split(r"[\r\n;]+", aliases)
+        cleaned_aliases: list[str] = []
+        for alias in aliases or []:
+            cleaned_alias = self._clean_color_name(str(alias))
+            if cleaned_alias and len(cleaned_alias) <= 160 and all(
+                self._normalized_color_key(cleaned_alias) != self._normalized_color_key(item)
+                for item in cleaned_aliases
+            ):
+                cleaned_aliases.append(cleaned_alias)
         rename_requested = self._normalized_color_key(old_name) != self._normalized_color_key(new_name)
         if not rename_requested:
             new_name = old_name
@@ -1707,30 +1792,61 @@ class ColorTableManager:
             )
             if target is None:
                 return self._api_result(False, f"Kundenfarbe nicht gefunden: {old_name}", 404)
-            if rename_requested and any(
-                self._normalized_color_key(row.get(name_column, "")) == self._normalized_color_key(new_name)
-                for row in rows
-            ):
-                return self._api_result(False, f"Kundenfarbe ist bereits vorhanden: {new_name}", 409)
-            if rename_requested and (
-                self._technical_color_source(target.get("source", "") or target.get("Quelle", "")) != "PREPRESS"
-                or self._truthy(target.get("Einzelfarbe vorhanden", ""))
-                or self._truthy(target.get("In Masterdatei", ""))
-            ):
-                return self._api_result(
-                    False,
-                    "Diese Maschinenfarbe kommt aus einer CCT-Datei. Bitte den Namen dort korrigieren und danach Farbabgleich starten.",
-                    409,
-                )
+            alias_keys = {
+                self._normalized_color_key(item)
+                for item in [old_name, *cleaned_aliases]
+            }
+            duplicate_rows = [
+                row for row in rows
+                if row is not target and self._normalized_color_key(row.get(name_column, "")) in alias_keys
+            ]
+            name_collisions = [
+                row for row in rows
+                if row is not target and self._normalized_color_key(row.get(name_column, "")) == self._normalized_color_key(new_name)
+            ]
+            for collision in name_collisions:
+                if collision not in duplicate_rows:
+                    duplicate_rows.append(collision)
+                    collision_name = self._clean_color_name(collision.get(name_column, ""))
+                    if collision_name:
+                        cleaned_aliases.append(collision_name)
 
             backup_dir = csv_path.parent / "Backup"
             backup_dir.mkdir(parents=True, exist_ok=True)
             if csv_path.exists():
                 backup_path = backup_dir / f"{csv_path.stem}_vor_bearbeitung_{dt.datetime.now():%Y%m%d_%H%M%S_%f}{csv_path.suffix}"
                 shutil.copy2(csv_path, backup_path)
+            is_machine_color = (
+                self._technical_color_source(target.get("source", "") or target.get("Quelle", "")) != "PREPRESS"
+                or self._truthy(target.get("Einzelfarbe vorhanden", ""))
+                or self._truthy(target.get("In Masterdatei", ""))
+                or bool(self._clean_color_name(target.get("machine_color_name", "")))
+            )
+            merged_aliases = self._color_alias_names(target)
+            for alias in [old_name, self._clean_color_name(target.get("machine_color_name", "")), *cleaned_aliases]:
+                if all(self._normalized_color_key(alias) != self._normalized_color_key(item) for item in merged_aliases):
+                    merged_aliases.append(alias)
+            if is_machine_color and not self._clean_color_name(target.get("machine_color_name", "")):
+                target["machine_color_name"] = old_name
+            for duplicate in duplicate_rows:
+                duplicate_name = self._clean_color_name(duplicate.get(name_column, "") or duplicate.get("Farbbezeichnung", ""))
+                for alias in [
+                    duplicate_name,
+                    self._clean_color_name(duplicate.get("machine_color_name", "")),
+                    *self._color_alias_names(duplicate),
+                ]:
+                    if alias and all(self._normalized_color_key(alias) != self._normalized_color_key(item) for item in merged_aliases):
+                        merged_aliases.append(alias)
+                self._merge_duplicate_color_data(target, duplicate)
+                rows.remove(duplicate)
             if rename_requested:
                 target[name_column] = new_name
                 target["Farbbezeichnung"] = new_name
+            target["color_aliases"] = json.dumps(merged_aliases, ensure_ascii=False, separators=(",", ":"))
+            if "color_aliases" not in fields:
+                fields.append("color_aliases")
+            if "machine_color_name" not in fields:
+                fields.append("machine_color_name")
             if customer_name is not None:
                 target["Kunde"] = customer_name
                 if "Kunde" not in fields:
@@ -1756,10 +1872,65 @@ class ColorTableManager:
             message = f"Farbname korrigiert: {new_name}"
         else:
             message = f"Kundenzuordnung gespeichert: {customer_name or 'entfernt'}"
+        if duplicate_rows:
+            message += f" ({len(duplicate_rows)} Dublette(n) zusammengeführt)"
         result = self._api_result(True, message)
         result["old_name"] = old_name
         result["new_name"] = new_name
+        result["merged_duplicates"] = len(duplicate_rows)
+        result["aliases"] = merged_aliases
         return result
+
+    def _merge_duplicate_color_data(self, target: dict[str, str], duplicate: dict[str, str]) -> None:
+        for field in ("printed", "approved", "not_printable"):
+            if self._truthy(duplicate.get(field, "")):
+                target[field] = "ja"
+        for field in (
+            "printed_at", "approved_at", "last_printed_at", "Gedruckt am",
+            "not_printable_at", "not_printable_by", "not_printable_reason",
+        ):
+            if not str(target.get(field, "") or "").strip() and str(duplicate.get(field, "") or "").strip():
+                target[field] = duplicate[field]
+        if not str(target.get("Kunde", "") or "").strip():
+            target["Kunde"] = str(duplicate.get("Kunde", "") or "").strip()
+
+        assignments = self._parse_sk_assignments(target)
+        assignment_lookup = {
+            self._normalized_color_key(str(item.get("sk_number", ""))): item
+            for item in assignments
+        }
+        for incoming in self._parse_sk_assignments(duplicate):
+            sk_key = self._normalized_color_key(str(incoming.get("sk_number", "")))
+            current = assignment_lookup.get(sk_key)
+            if current is None:
+                copied = dict(incoming)
+                assignments.append(copied)
+                assignment_lookup[sk_key] = copied
+                continue
+            for field in ("printed", "approved", "template_updated", "portal_informed", "transfer_completed"):
+                current[field] = bool(current.get(field)) or bool(incoming.get(field))
+            for field in (
+                "printed_at", "approved_at", "template_updated_at", "transfer_completed_at",
+                "transfer_completed_by", "transfer_note",
+            ):
+                if not str(current.get(field, "") or "").strip() and str(incoming.get(field, "") or "").strip():
+                    current[field] = incoming[field]
+        target["sk_assignments"] = self._dump_sk_assignments(assignments)
+
+        events = self._parse_history_events(target.get("history_events", ""))
+        events.extend(self._parse_history_events(duplicate.get("history_events", "")))
+        duplicate_name = self._clean_color_name(duplicate.get("Farbbezeichnung", ""))
+        if duplicate_name:
+            events.append({"event": "color_alias_merged", "timestamp": now_stamp(), "user": "", "details": duplicate_name})
+        target["history_events"] = self._dump_history_events(self._dedupe_history_events(events))
+        transfer = self._aggregate_assignment_transfer(assignments, self._parse_transfer(target.get("transfer", "")))
+        target["transfer"] = self._dump_transfer(transfer)
+
+        machine_values = self._parse_machine_values(target.get("machine_values", ""))
+        for item in self._parse_machine_values(duplicate.get("machine_values", "")):
+            if item not in machine_values:
+                machine_values.append(item)
+        target["machine_values"] = self._dump_machine_values(machine_values)
 
     def _update_sk_assignment(self, color_name: str, sk_number: str | None, update: callable) -> dict:
         csv_path = self._overview_csv_path()
@@ -1873,7 +2044,7 @@ class ColorTableManager:
         row: dict[str, str],
         assignments: list[dict[str, object]],
     ) -> tuple[bool, str]:
-        printed, printed_at, approved, approved_at, transfer = self._color_workflow_from_row(row, assignments)
+        printed, printed_at, _approved, _approved_at, transfer = self._color_workflow_from_row(row, assignments)
         if printed:
             return True, "Farbe ist bereits als gedruckt markiert."
         printed_at = now_stamp()
@@ -1881,40 +2052,8 @@ class ColorTableManager:
         row["printed_at"] = printed_at
         row["last_printed_at"] = printed_at
         row["Gedruckt am"] = printed_at
-        row["approved"] = "ja" if approved else "nein"
-        row["approved_at"] = approved_at
         row["transfer"] = self._dump_transfer(transfer)
         return True, "Farbe wurde als gedruckt markiert."
-
-    def _set_color_approved(
-        self,
-        row: dict[str, str],
-        assignments: list[dict[str, object]],
-    ) -> tuple[bool, str]:
-        printed, printed_at, approved, approved_at, transfer = self._color_workflow_from_row(row, assignments)
-        if not printed:
-            return False, "Die Farbe muss zuerst als gedruckt markiert werden."
-        if approved:
-            return True, "Farbe ist bereits freigegeben."
-        row["printed"] = "ja"
-        row["printed_at"] = printed_at or now_stamp()
-        row["approved"] = "ja"
-        row["approved_at"] = now_stamp()
-        row["transfer"] = self._dump_transfer(transfer)
-        notification = self._approval_notification_payload(row, assignments)
-        row["approval_notification_json"] = json.dumps(notification, ensure_ascii=False, separators=(",", ":"))
-        row["approval_mail_preview"] = self._approval_mail_preview(notification)
-        events = self._parse_history_events(row.get("history_events", ""))
-        events.append(
-            {
-                "event": "approval",
-                "timestamp": self._event_timestamp(str(row.get("approved_at") or "")),
-                "user": "Andreas",
-                "details": "Benachrichtigung vorbereitet",
-            }
-        )
-        row["history_events"] = self._dump_history_events(events)
-        return True, "Farbe wurde freigegeben."
 
     def _set_sk_transfer(
         self,
@@ -1926,9 +2065,9 @@ class ColorTableManager:
         completed_by: str,
         note: str,
     ) -> tuple[bool, str]:
-        printed, printed_at, approved, approved_at, transfer = self._color_workflow_from_row(row, assignments)
-        if not approved:
-            return False, "Die Farbe muss zuerst freigegeben werden."
+        printed, printed_at, _approved, _approved_at, transfer = self._color_workflow_from_row(row, assignments)
+        if not printed:
+            return False, "Die Farbe muss zuerst als druckbar markiert werden."
         assignment = self._find_sk_assignment(assignments, sk_number)
         if assignment is None:
             return False, f"SK nicht gefunden: {sk_number}"
@@ -1942,8 +2081,6 @@ class ColorTableManager:
         assignment["transfer_note"] = note
         row["printed"] = "ja" if printed else "nein"
         row["printed_at"] = printed_at
-        row["approved"] = "ja"
-        row["approved_at"] = approved_at or now_stamp()
         row["sk_assignments"] = self._dump_sk_assignments(assignments)
         row["transfer"] = self._dump_transfer(self._aggregate_assignment_transfer(assignments, transfer))
         return True, f"Übernahme für SK {sk_number} wurde gespeichert."
@@ -2143,43 +2280,6 @@ class ColorTableManager:
         completed = sum(1 for item in assignments if self._assignment_transfer(item).get("completed"))
         return completed, total
 
-    def _approval_notification_payload(
-        self,
-        row: dict[str, str],
-        assignments: list[dict[str, object]],
-    ) -> dict[str, object]:
-        done_count, total_count = self._transfer_counts(assignments)
-        return {
-            "color_id": str(row.get("color_id") or "").strip(),
-            "color_name": str(row.get("Farbbezeichnung") or "").strip(),
-            "cmyk": str(row.get("CMYK") or "").strip(),
-            "sk_numbers": [
-                str(item.get("sk_number") or "")
-                for item in assignments
-                if str(item.get("sk_number") or "").strip()
-            ],
-            "approved_at": str(row.get("approved_at") or "").strip(),
-            "approved_by": "Andreas",
-            "open_templates": max(0, total_count - done_count),
-            "prepress_status": "offen" if total_count != done_count else "übernommen",
-            "mail_subject": f"MJET Farbfreigabe - {str(row.get('Farbbezeichnung') or '').strip()}",
-        }
-
-    def _approval_mail_preview(self, payload: dict[str, object]) -> str:
-        sk_numbers = payload.get("sk_numbers") if isinstance(payload.get("sk_numbers"), list) else []
-        sk_text = "\n".join(f"- {item}" for item in sk_numbers) if sk_numbers else "- keine SK hinterlegt"
-        return (
-            f"Betreff: {payload.get('mail_subject', '')}\n\n"
-            f"Kundenfarbe:\n{payload.get('color_name', '')}\n\n"
-            f"CMYK:\n{payload.get('cmyk', '') or 'nicht erfasst'}\n\n"
-            f"Betroffene Eindruckvorlagen:\n{sk_text}\n\n"
-            f"Freigegeben:\n{payload.get('approved_at', '') or 'nicht erfasst'}\n\n"
-            f"Freigabe:\n{payload.get('approved_by', 'Andreas')}\n\n"
-            "Hinweis:\n"
-            "Die Farbe wurde an der MJET freigegeben.\n"
-            "Bitte betroffene Eindruckvorlagen beziehungsweise Portal-Daten prüfen und aktualisieren."
-        )
-
     def _workflow_history(
         self,
         printed: bool,
@@ -2191,8 +2291,6 @@ class ColorTableManager:
         entries: list[str] = []
         if printed:
             entries.append(f"{printed_at or 'Datum nicht erfasst'} - Gedruckt")
-        if approved:
-            entries.append(f"{approved_at or 'Datum nicht erfasst'} - Prüfung abgeschlossen - Andreas")
         for assignment in assignments or []:
             transfer = self._assignment_transfer(assignment)
             if not transfer.get("completed"):
@@ -2209,7 +2307,8 @@ class ColorTableManager:
             "not_printable_cleared": "Nicht-druckbar-Status aufgehoben",
             "prepress_note_created": "Vorstufen-Hinweis angelegt",
             "prepress_note_completed": "Vorstufen-Hinweis übernommen",
-            "approval": "Prüfung abgeschlossen",
+            "color_alias_merged": "Farbbezeichnung zusammengeführt",
+            "approval": "Frühere Freigabe",
         }
         lines: list[str] = []
         for event in self._parse_history_events(raw):
@@ -2292,9 +2391,7 @@ class ColorTableManager:
         values = self._parse_cmyk_values(cmyk)
         if source != "MPRINT" or values is None:
             return []
-        if approved:
-            status = "approved"
-        elif printed:
+        if printed:
             status = "printed"
         elif transfer.get("completed"):
             status = "transfer_completed"
@@ -2746,11 +2843,21 @@ class ColorTableManager:
             self._normalized_color_key(row.get("Farbbezeichnung", "")): row
             for row in new_rows
         }
+        new_by_id = {
+            str(row.get("color_id", "")).strip().casefold(): row
+            for row in new_rows
+            if str(row.get("color_id", "")).strip()
+        }
+        for row in new_rows:
+            for alias in self._color_alias_names(row):
+                new_by_name.setdefault(self._normalized_color_key(alias), row)
         for old_row in old_rows:
             if not self._row_has_saved_workflow_state(old_row):
                 continue
             name = str(old_row.get(old_name_column) or old_row.get("Farbbezeichnung") or "")
             new_row = new_by_name.get(self._normalized_color_key(name))
+            if new_row is None:
+                new_row = new_by_id.get(str(old_row.get("color_id", "")).strip().casefold())
             if new_row is None:
                 return f"Farbübersicht geschützt: Farbe '{name}' mit gespeicherten Statusdaten würde entfernt."
             regression = self._workflow_state_regression(old_row, new_row)
@@ -3029,6 +3136,7 @@ class ColorTableManager:
                 {
                     "color_id": str(row.get("color_id", "")).strip(),
                     "name": str(row.get("Farbbezeichnung", "")).strip(),
+                    "aliases": self._color_alias_names(row),
                     "source": source,
                     "cmyk": cmyk or {"c": None, "m": None, "y": None, "k": None},
                     "status": {
@@ -3269,7 +3377,6 @@ class ColorTableManager:
         status_url = submit_url.rsplit("/", 1)[0] + "/status"
         sk_add_url = submit_url.rsplit("/", 1)[0] + "/sk-hinzufuegen"
         sk_printed_url = submit_url.rsplit("/", 1)[0] + "/sk-gedruckt"
-        sk_approved_url = submit_url.rsplit("/", 1)[0] + "/sk-freigeben"
         sk_template_url = submit_url.rsplit("/", 1)[0] + "/sk-uebernommen"
         not_printable_url = submit_url.rsplit("/", 1)[0] + "/farbe-nicht-druckbar"
         prepress_note_url = submit_url.rsplit("/", 1)[0] + "/vorstufen-hinweis"
@@ -3280,14 +3387,12 @@ class ColorTableManager:
         status_url_json = json.dumps(status_url)
         sk_add_url_json = json.dumps(sk_add_url)
         sk_printed_url_json = json.dumps(sk_printed_url)
-        sk_approved_url_json = json.dumps(sk_approved_url)
         sk_template_url_json = json.dumps(sk_template_url)
         not_printable_url_json = json.dumps(not_printable_url)
         prepress_note_url_json = json.dumps(prepress_note_url)
         prepress_note_done_url_json = json.dumps(prepress_note_done_url)
         body_rows = []
         open_print_tests = 0
-        open_approvals = 0
         open_template_updates = 0
         prepress_notes = self._read_prepress_notes()
         prepress_note_html = self._prepress_notes_html(prepress_notes)
@@ -3314,11 +3419,11 @@ class ColorTableManager:
             transfer_done_count, transfer_total_count = self._transfer_counts(assignments)
             transfer_done = transfer_total_count > 0 and transfer_done_count == transfer_total_count
             if not_printable:
-                group = 4
-            elif not printed:
-                group = 1
-            elif transfer_done:
                 group = 3
+            elif transfer_done:
+                group = 0
+            elif printed:
+                group = 1
             else:
                 group = 2
             sort_items.append((group, name.casefold(), index))
@@ -3339,11 +3444,17 @@ class ColorTableManager:
             not_printable_by = str(row.get("not_printable_by", "") or "").strip()
             transfer_done_count, transfer_total_count = self._transfer_counts(assignments)
             transfer_done = transfer_total_count > 0 and transfer_done_count == transfer_total_count
+            if not_printable:
+                machine_state = "blocked"
+            elif transfer_done:
+                machine_state = "transferred"
+            elif printed:
+                machine_state = "printed"
+            else:
+                machine_state = "pending"
             if not printed and not not_printable:
                 open_print_tests += 1
-            if printed and not approved and not not_printable:
-                open_approvals += 1
-            if approved and not not_printable:
+            if printed and not not_printable:
                 open_template_updates += max(0, transfer_total_count - transfer_done_count)
             if not_printable:
                 css = "blocked"
@@ -3372,6 +3483,7 @@ class ColorTableManager:
             customer_name = str(row.get("Kunde") or "").strip()
             escaped_customer = html.escape(customer_name)
             button_customer = html.escape(customer_name, quote=True)
+            button_aliases = html.escape(json.dumps(self._color_alias_names(row), ensure_ascii=False), quote=True)
             search_parts = [name, cmyk, customer_name]
             sk_state = []
             for assignment in assignments:
@@ -3415,25 +3527,6 @@ class ColorTableManager:
                     "</div>"
                 )
             if not_printable:
-                approval_summary = "<span class=\"statusLine idle\">○ zurückgestellt</span>"
-            elif approved:
-                approval_summary = (
-                    "<span class=\"statusLine done\" title=\"Prüfung abgeschlossen\">"
-                    "<span class=\"machineApproval\">✓ Geprüft</span>"
-                    "<span class=\"detailApproval\">✓ geprüft</span>"
-                    "</span>"
-                )
-            elif printed:
-                approval_summary = (
-                    "<span class=\"statusLine idle\" title=\"Prüfung offen\">"
-                    "<span class=\"machineApproval\">○ Prüfung</span>"
-                    f"<button type=\"button\" class=\"workflow warn detailApproval\" data-action=\"approve\" "
-                    f"data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\">Prüfung abschließen</button>"
-                    "</span>"
-                )
-            else:
-                approval_summary = "<span class=\"statusLine idle\" title=\"Prüfung offen\"><span class=\"machineApproval\">○ Prüfung</span><span class=\"detailApproval\">○ offen</span></span>"
-            if not_printable:
                 template_summary = "<div class=\"machineTransferSummary idle\" title=\"Übernahme zurückgestellt\">–</div><div class=\"transferSummary idle\">Workflow zurückgestellt</div>"
             else:
                 open_transfer_count = max(0, transfer_total_count - transfer_done_count)
@@ -3459,7 +3552,7 @@ class ColorTableManager:
                     f"<div class=\"transferSummary {transfer_class}\">{html.escape(transfer_text)}</div>"
                     f"<div class=\"machineTransferSummary {transfer_class}\" title=\"{html.escape(machine_transfer_title, quote=True)}\">{html.escape(machine_transfer_text)}</div>"
                 )
-                if approved:
+                if printed:
                     template_summary += (
                         f"<button type=\"button\" class=\"workflow danger\" data-action=\"template\" "
                         f"data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\" "
@@ -3531,23 +3624,21 @@ class ColorTableManager:
                     f"data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\">Status aufheben</button>"
                 )
             body_rows.append(
-                f"<tr class=\"{css}\" style=\"--machine-order:{machine_sort.get(row_index, row_index + 1)}\" data-color-search=\"{search_attr}\">"
+                f"<tr class=\"{css} machine-{machine_state}\" style=\"--machine-order:{machine_sort.get(row_index, row_index + 1)}\" data-color-search=\"{search_attr}\">"
                 f"<td><span class=\"dot\" aria-hidden=\"true\"></span></td>"
                 f"<td class=\"name\"><span class=\"customerGlow\" data-cmyk=\"{button_cmyk}\" title=\"{button_name} · {button_cmyk}\" aria-hidden=\"true\"></span><span class=\"colorNameText\" title=\"{button_name}\">{escaped_name}</span><span class=\"customerLabel\">{('Kunde: ' + escaped_customer) if escaped_customer else ''}</span><span class=\"machineCmyk\" title=\"{button_cmyk}\">{escaped_cmyk}</span>{not_printable_banner}</td>"
                 f"<td><button type=\"button\" class=\"copy\" data-name=\"{button_name}\" title=\"Farbnamen kopieren\" aria-label=\"Farbnamen kopieren\">⧉</button></td>"
                 f"<td class=\"cmykCell\">{escaped_cmyk}</td>"
                 f"<td class=\"printCell\">{print_summary}</td>"
                 f"<td class=\"skCell\">{sk_html}{sk_button}</td>"
-                f"<td class=\"approvalCell\">{approval_summary}</td>"
                 f"<td class=\"transferCell\">{template_summary}</td>"
                 f"<td class=\"history\">{history_html}{clear_not_printable_button}</td>"
-                f"<td class=\"adminOnly adminActions\"><button type=\"button\" class=\"renameColor\" data-name=\"{button_name}\" data-customer=\"{button_customer}\" title=\"Farbname und Kunde bearbeiten\" aria-label=\"Farbname und Kunde bearbeiten\">✎</button><button type=\"button\" class=\"hideColor\" data-name=\"{button_name}\">Ausblenden</button></td>"
+                f"<td class=\"adminOnly adminActions\"><button type=\"button\" class=\"renameColor\" data-name=\"{button_name}\" data-customer=\"{button_customer}\" data-aliases=\"{button_aliases}\" title=\"Farbname, Kunde und Aliase bearbeiten\" aria-label=\"Farbname, Kunde und Aliase bearbeiten\">✎</button><button type=\"button\" class=\"hideColor\" data-name=\"{button_name}\">Ausblenden</button></td>"
                 f"</tr>"
             )
 
         summary_html = (
             f"<button type=\"button\" class=\"summaryPill\" data-filter=\"print\"><strong>{open_print_tests}</strong><span>Drucke offen</span></button>"
-            f"<button type=\"button\" class=\"summaryPill\" data-filter=\"approval\"><strong>{open_approvals}</strong><span>Prüfungen offen</span></button>"
             f"<button type=\"button\" class=\"summaryPill\" data-filter=\"template\"><strong>{open_template_updates}</strong><span>Vorlagen offen</span></button>"
         )
 
@@ -3566,6 +3657,7 @@ class ColorTableManager:
     .titleBlock {{ display: flex; align-items: center; gap: 18px; min-width: 0; }}
     .brandLogo {{ width: 144px; height: auto; flex: none; }}
     .headerActions {{ display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }}
+    .versionTag {{ color: #747d86; font-size: 11px; white-space: nowrap; }}
     .previewBanner {{ display: inline-flex; margin: 0 0 10px; padding: 7px 10px; background: #fff4cc; color: #6b4d00; border: 1px solid #e5ca72; font-weight: 800; font-size: 13px; }}
     .topBar {{ display: grid; grid-template-columns: minmax(280px, 640px) minmax(240px, 420px); gap: 14px; align-items: end; margin: 0 0 14px; }}
     .searchBar {{ display: flex; flex-direction: column; gap: 6px; }}
@@ -3645,7 +3737,7 @@ class ColorTableManager:
     .notPrintableReasonDetails div {{ margin-top: 5px; line-height: 1.35; white-space: normal; overflow-wrap: anywhere; }}
     .customerGlow {{ display: none; }}
     .cornerCmyk {{ display: none; }}
-    .machineCmyk, .machineApproval {{ display: none; }}
+    .machineCmyk {{ display: none; }}
     .badge {{ display: inline-block; padding: 5px 8px; border: 1px solid #c8cdd3; background: #eef1f4; font-size: 12px; font-weight: 700; }}
     .badge.done {{ border-color: #2f8f4e; background: #e3f0e7; color: #1f5c35; }}
     .badge.idle {{ color: #626b75; }}
@@ -3691,11 +3783,15 @@ class ColorTableManager:
     body:not(.detailMode) tr.warn,
     body:not(.detailMode) tr.passthrough {{ background: #f8fafb; border-color: #cbd3d9; border-left-color: #aeb8c0; color: #5c6770; box-shadow: 0 2px 8px rgba(32,36,42,0.06); }}
     body:not(.detailMode) tr.blocked {{ background: #fbf7f6; border-color: #dccdca; border-left-color: #a76560; box-shadow: 0 2px 8px rgba(32,36,42,0.04); color: #695c5b; }}
+    body:not(.detailMode) tr.machine-pending {{ background: #f1f3f4; border-color: #d1d6da; border-left-color: #b2bac0; box-shadow: 0 1px 4px rgba(32,36,42,0.04); color: #626b73; }}
+    body:not(.detailMode) tr.machine-printed {{ background: #f8fbf8; border-color: #c8d7cb; border-left-color: #87a98d; box-shadow: 0 2px 7px rgba(32,36,42,0.06); color: #252c28; }}
+    body:not(.detailMode) tr.machine-transferred {{ background: #f2f8f3; border-color: #9db9a2; border-left-color: #4d8959; box-shadow: 0 2px 8px rgba(45,95,57,0.09); color: #1d2820; }}
+    body:not(.detailMode) tr.machine-blocked {{ background: #f3f1f1; border-color: #d7c9c8; border-left-color: #a76560; box-shadow: 0 1px 4px rgba(32,36,42,0.04); color: #716665; }}
     body:not(.detailMode) td {{ display: block; border: 0; padding: 0; white-space: normal; }}
     body:not(.detailMode) td:first-child,
     body:not(.detailMode) td:nth-child(3),
-    body:not(.detailMode) td:nth-child(9),
-    body:not(.detailMode) td:nth-child(10) {{ display: none; }}
+    body:not(.detailMode) td:nth-child(8),
+    body:not(.detailMode) td:nth-child(9) {{ display: none; }}
     body:not(.detailMode) td.name {{ grid-column: 1 / -1; grid-row: 1; min-height: 0; padding-right: 48px; font-size: 18px; line-height: 1.15; color: inherit; font-weight: 800; z-index: 1; }}
     body:not(.detailMode) .colorNameText {{ display: -webkit-box; max-width: 100%; overflow: hidden; overflow-wrap: anywhere; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }}
     body:not(.detailMode) .machineCmyk {{ display: block; max-width: calc(100% - 4px); margin-top: 5px; color: #626b75; font-size: 12px; line-height: 1.1; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
@@ -3709,18 +3805,13 @@ class ColorTableManager:
     body:not(.detailMode) .printCell {{ grid-column: 1; grid-row: 2; align-self: stretch; min-width: 0; padding-top: 0; z-index: 1; }}
     body:not(.detailMode) .printCell::before {{ content: none; }}
     body:not(.detailMode) td:nth-child(6) {{ grid-column: 1; grid-row: 3; padding: 0; z-index: 1; }}
-    body:not(.detailMode) .approvalCell {{ grid-column: 2; grid-row: 2; }}
     body:not(.detailMode) .transferCell {{ grid-column: 2; grid-row: 3; }}
     body:not(.detailMode) .skCell {{ display: grid; align-content: start; justify-items: start; gap: 7px; min-width: 0; }}
-    body:not(.detailMode) .approvalCell,
     body:not(.detailMode) .transferCell {{ display: grid; align-content: start; justify-items: end; gap: 7px; min-width: 0; padding: 0; background: transparent; border: 0; box-sizing: border-box; z-index: 1; }}
-    body:not(.detailMode) .approvalCell {{ display: grid; align-content: center; justify-items: end; min-width: 76px; padding: 0; background: transparent; border: 0; box-sizing: border-box; z-index: 1; }}
-    body:not(.detailMode) .approvalCell::before {{ content: none; }}
     body:not(.detailMode) .skCell::before,
     body:not(.detailMode) .transferCell::before {{ color: #777f88; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0; }}
     body:not(.detailMode) .skCell::before {{ content: "SK"; }}
     body:not(.detailMode) .transferCell::before {{ content: "Übernahme"; }}
-    body:not(.detailMode) tr.ok .approvalCell,
     body:not(.detailMode) tr.ok .transferCell {{ background: transparent; border-color: transparent; }}
     body:not(.detailMode) .printDecision {{ display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; min-width: 0; height: 100%; }}
     body:not(.detailMode) .printChoice {{ flex: 0 0 auto; padding: 6px 8px; font-size: 12px; white-space: nowrap; }}
@@ -3740,11 +3831,8 @@ class ColorTableManager:
     body:not(.detailMode) .statusLine {{ min-width: 0; font-size: 16px; line-height: 1; font-weight: 900; white-space: nowrap; overflow: visible; }}
     body:not(.detailMode) .statusLine.done {{ color: #3f6248; }}
     body:not(.detailMode) .statusLine.idle {{ color: #8c939b; }}
-    body:not(.detailMode) .machineApproval {{ display: inline; }}
-    body:not(.detailMode) .detailApproval {{ display: none; }}
     body:not(.detailMode) .skMeta {{ display: none; }}
     body:not(.detailMode) tr.blocked .printCell,
-    body:not(.detailMode) tr.blocked .approvalCell,
     body:not(.detailMode) tr.blocked .transferCell {{ display: none; }}
     body:not(.detailMode) tr.blocked td.name {{ grid-row: 1 / 3; min-height: 0; }}
     body:not(.detailMode) tr.blocked .notPrintableBanner {{ display: flex; width: fit-content; margin-top: 6px; padding: 0; font-size: 12px; }}
@@ -3763,13 +3851,11 @@ class ColorTableManager:
     body.detailMode .notPrintableCardReason {{ display: none; }}
     body.detailMode .notPrintableReasonDetails {{ display: block; }}
     body.detailMode tr.blocked .printCell,
-    body.detailMode tr.blocked .approvalCell,
     body.detailMode tr.blocked .transferCell {{ visibility: hidden; }}
     body.detailMode tr.blocked .historyMeta {{ display: none; }}
     body.detailMode tr.blocked .notPrintableBanner {{ display: block; margin-top: 5px; font-size: 12px; }}
     body.detailMode tr.blocked .notPrintableReasonDetails {{ margin-top: 4px; }}
     body.detailMode tr.blocked .clearNotPrintable {{ margin-top: 4px; }}
-    body.detailMode .detailApproval {{ display: inline; }}
     body.detailMode .machineTransferSummary {{ display: none; }}
     body.detailMode .detailStatusChange {{ display: inline-block; margin-left: 8px; }}
     body.detailMode .adminOnly {{ display: table-cell; }}
@@ -3824,6 +3910,7 @@ class ColorTableManager:
     <div class="headerActions">
       <div id="connectionStatus" class="connection checking">Verbindung wird geprüft</div>
       <button type="button" id="detailToggle" class="viewToggle">Vorstufenansicht</button>
+      <span class="versionTag">Version {html.escape(APP_VERSION)}</span>
     </div>
   </header>
   {preview_banner}
@@ -3861,7 +3948,7 @@ class ColorTableManager:
     <div class="summary">{summary_html}</div>
   </section>
   <div class="tableWrap"><table>
-    <thead><tr><th class="indicator"></th><th>Kundenfarbe</th><th></th><th>CMYK</th><th>Druck</th><th>Betroffene Eindruckvorlagen</th><th>Prüfung</th><th>Übernahme</th><th>Historie</th><th class="adminOnly"></th></tr></thead>
+    <thead><tr><th class="indicator"></th><th>Kundenfarbe</th><th></th><th>CMYK</th><th>Druck</th><th>Betroffene Eindruckvorlagen</th><th>Übernahme</th><th>Historie</th><th class="adminOnly"></th></tr></thead>
     <tbody>{''.join(body_rows)}</tbody>
   </table></div>
   <div id="noSearchResults" class="noResults">Keine passenden Farben gefunden</div>
@@ -4109,9 +4196,25 @@ class ColorTableManager:
       }}
       return null;
     }}
+    function sortMachineCards() {{
+      var rows = Array.from(document.querySelectorAll('tbody tr'));
+      rows.sort(function(a, b) {{
+        function rank(row) {{
+          if (row.classList.contains('machine-blocked')) return 3;
+          if (row.classList.contains('machine-transferred')) return 0;
+          if (row.classList.contains('machine-printed')) return 1;
+          return 2;
+        }}
+        var stateDifference = rank(a) - rank(b);
+        if (stateDifference) return stateDifference;
+        var aName = (a.querySelector('.colorNameText') || {{ textContent: '' }}).textContent.toLocaleLowerCase();
+        var bName = (b.querySelector('.colorNameText') || {{ textContent: '' }}).textContent.toLocaleLowerCase();
+        return aName.localeCompare(bName);
+      }});
+      rows.forEach(function(row, index) {{ row.style.setProperty('--machine-order', String(index + 1)); }});
+    }}
     function updateSummaries() {{
       var printOpen = document.querySelectorAll('.workflow[data-action="printed"]').length;
-      var approvalOpen = document.querySelectorAll('.workflow[data-action="approve"]').length;
       var templateOpen = 0;
       document.querySelectorAll('.workflow[data-action="template"]').forEach(function(button) {{
         templateOpen += parseInt(button.getAttribute('data-open-count') || '0', 10) || 0;
@@ -4121,8 +4224,7 @@ class ColorTableManager:
         if (pill) pill.innerHTML = '<strong>' + String(count) + '</strong><span>' + escapeHtml(label) + '</span>';
       }}
       setPill(pills[0], printOpen, 'Drucke offen');
-      setPill(pills[1], approvalOpen, 'Prüfungen offen');
-      setPill(pills[2], templateOpen, 'Vorlagen offen');
+      setPill(pills[1], templateOpen, 'Vorlagen offen');
     }}
     function updateSkSummary(row) {{
       if (!row) return;
@@ -4287,23 +4389,26 @@ class ColorTableManager:
       button.addEventListener('click', function() {{
         var oldName = button.getAttribute('data-name') || '';
         var oldCustomer = button.getAttribute('data-customer') || '';
+        var oldAliases = [];
+        try {{ oldAliases = JSON.parse(button.getAttribute('data-aliases') || '[]'); }} catch (_error) {{ oldAliases = []; }}
         var status = document.getElementById('entryStatus');
         var row = button.closest('tr');
         showDialog({{
           title: 'Farbe bearbeiten',
-          body: '<label>Farbname<input id="renamedColor" value="' + escapeHtml(oldName) + '" maxlength="160" autocomplete="off"></label><label>Kunde optional<input id="renamedCustomer" value="' + escapeHtml(oldCustomer) + '" maxlength="160" placeholder="z. B. Schneider"></label>',
+          body: '<label>Farbname<input id="renamedColor" value="' + escapeHtml(oldName) + '" maxlength="160" autocomplete="off"></label><label>Kunde optional<input id="renamedCustomer" value="' + escapeHtml(oldCustomer) + '" maxlength="160" placeholder="z. B. Schneider"></label><label>Weitere Namen / Dubletten<textarea id="renamedAliases" rows="3" placeholder="Je Zeile ein weiterer Name">' + escapeHtml(oldAliases.join("\\n")) + '</textarea></label><p>Einträge mit diesen Namen werden in der Übersicht zusammengeführt. Die CCT-Dateien bleiben unverändert.</p>',
           okText: 'Speichern',
           returnInputs: true
         }}).then(function(values) {{
           if (values === null) return;
           var newName = String(values.renamedColor || '').trim();
           var customerName = String(values.renamedCustomer || '').trim();
+          var aliasText = String(values.renamedAliases || '').trim();
           if (!newName) {{
             status.textContent = 'Bitte einen Farbnamen eintragen.';
             return;
           }}
           status.textContent = 'Änderungen werden gespeichert...';
-          postHelper({rename_url_json}, {{ farbe: oldName, neuer_name: newName, kunde: customerName }})
+          postHelper({rename_url_json}, {{ farbe: oldName, neuer_name: newName, kunde: customerName, aliase: aliasText }})
             .then(function(payload) {{
               status.textContent = payloadMessage(payload, 'Farbname korrigiert.');
               if (!row) return;
@@ -4314,13 +4419,29 @@ class ColorTableManager:
               var customerLabel = row.querySelector('.customerLabel');
               if (customerLabel) customerLabel.textContent = customerName ? 'Kunde: ' + customerName : '';
               var renameButton = row.querySelector('.renameColor');
-              if (renameButton) renameButton.setAttribute('data-customer', customerName);
+              if (renameButton) {{
+                renameButton.setAttribute('data-customer', customerName);
+                renameButton.setAttribute('data-aliases', JSON.stringify(payload.aliases || []));
+              }}
+              var mergedNames = aliasText.split(/[\\r\\n;]+/).concat([newName]).map(function(value) {{ return String(value || '').replace(/\\s+/g, ' ').trim().toLocaleLowerCase(); }});
+              document.querySelectorAll('tbody tr').forEach(function(otherRow) {{
+                if (otherRow === row) return;
+                var otherName = (otherRow.querySelector('.colorNameText') || {{ textContent: '' }}).textContent.replace(/\\s+/g, ' ').trim().toLocaleLowerCase();
+                if (mergedNames.indexOf(otherName) >= 0) otherRow.remove();
+              }});
+              var countLabel = document.querySelector('.colorCount');
+              var mergedCount = parseInt(payload.merged_duplicates || '0', 10) || 0;
+              if (countLabel && mergedCount) {{
+                var colorCountMatch = countLabel.textContent.match(/(\\d+)/);
+                if (colorCountMatch) countLabel.textContent = '· Farben gesamt: ' + Math.max(0, parseInt(colorCountMatch[1], 10) - mergedCount);
+              }}
               var swatch = row.querySelector('.customerGlow');
               if (swatch) swatch.title = newName + ' · ' + (swatch.getAttribute('data-cmyk') || '');
               var skNames = Array.from(row.querySelectorAll('.skItem strong')).map(function(item) {{ return item.textContent; }}).join(' ');
               row.setAttribute('data-color-search', newName + ' ' + customerName + ' ' + (row.querySelector('.cmykCell') || {{ textContent: '' }}).textContent + ' ' + skNames);
               refreshRowSearchText(row);
               applyColorSearch();
+              sortMachineCards();
             }})
             .catch(function(error) {{ status.textContent = 'Farbname nicht korrigiert: ' + friendlyFetchError(error); }});
         }});
@@ -4369,18 +4490,6 @@ class ColorTableManager:
         var dialog = null;
         if (action === 'printed') {{
           url = {sk_printed_url_json};
-          dialog = {{
-            title: 'Druck erfolgreich?',
-            body: '<p><strong>Farbe:</strong><br>' + escapeHtml(color) + '</p><p><strong>CMYK:</strong><br>' + escapeHtml(cmyk) + '</p><p>Wurde diese Farbe erfolgreich auf der MJET gedruckt?</p>',
-            okText: 'Ja, gedruckt'
-          }};
-        }} else if (action === 'approve') {{
-          url = {sk_approved_url_json};
-          dialog = {{
-            title: 'Druck freigeben?',
-            body: '<p><strong>Farbe:</strong><br>' + escapeHtml(color) + '</p><p><strong>CMYK:</strong><br>' + escapeHtml(cmyk) + '</p><p>Andreas hat das Druckergebnis geprüft und die Farbrezeptur freigegeben?</p>',
-            okText: 'Ja, freigeben'
-          }};
         }} else if (action === 'template') {{
           url = {sk_template_url_json};
           var skState = parseSkState(button);
@@ -4407,7 +4516,8 @@ class ColorTableManager:
         }} else {{
           return;
         }}
-        showDialog(dialog).then(function(confirmed) {{
+        var confirmation = action === 'printed' ? Promise.resolve(true) : showDialog(dialog);
+        confirmation.then(function(confirmed) {{
           if (!confirmed) {{
             return;
           }}
@@ -4467,17 +4577,17 @@ class ColorTableManager:
                   notPrintableButton.setAttribute('data-sk-state', skButtonForBlock.getAttribute('data-sk-state') || '[]');
                 }}
                 row.cells[4].querySelector('.printDecision').appendChild(notPrintableButton);
-                row.cells[6].innerHTML = '';
-                row.cells[6].innerHTML = '<span class="statusLine idle" title="Prüfung offen"><span class="machineApproval">○ Prüfung</span></span>';
-                row.cells[6].querySelector('.statusLine').appendChild(createWorkflowButton('approve', color, '', cmyk, 'Prüfung abschließen', 'workflow warn detailApproval'));
-              }} else if (action === 'approve') {{
-                row.cells[6].innerHTML = '<span class="statusLine done" title="Prüfung abgeschlossen"><span class="machineApproval">✓ Geprüft</span><span class="detailApproval">✓ geprüft</span></span>';
-                row.cells[7].innerHTML = '';
-                row.cells[7].innerHTML = '<div class="transferSummary idle">Keine SK hinterlegt</div><div class="machineTransferSummary idle" title="Keine SK hinterlegt">–</div>';
-                var templateButton = createWorkflowButton('template', color, '', cmyk, 'Übernahmen verwalten', 'workflow danger');
-                templateButton.setAttribute('data-open-count', '0');
-                row.cells[7].appendChild(templateButton);
-                window.setTimeout(function() {{ window.location.reload(); }}, 700);
+                var transferCell = row.cells[6];
+                var skState = skButtonForBlock ? parseSkState(skButtonForBlock) : [];
+                var doneCount = skState.filter(function(item) {{ return !!item.completed; }}).length;
+                var openCount = Math.max(0, skState.length - doneCount);
+                var transferButton = createWorkflowButton('template', color, '', cmyk, 'Übernahmen verwalten', 'workflow danger');
+                transferButton.setAttribute('data-open-count', String(openCount));
+                transferButton.setAttribute('data-sk-state', JSON.stringify(skState));
+                transferCell.appendChild(transferButton);
+                row.classList.remove('machine-pending');
+                row.classList.add(skState.length && doneCount === skState.length ? 'machine-transferred' : 'machine-printed');
+                sortMachineCards();
               }} else if (action === 'notPrintable' || action === 'clearNotPrintable') {{
                 window.setTimeout(function() {{ window.location.reload(); }}, 500);
               }}
@@ -5033,7 +5143,6 @@ class ColorRequestServer:
                     "/farbe-umbenennen",
                     "/sk-hinzufuegen",
                     "/sk-gedruckt",
-                    "/sk-freigeben",
                     "/sk-uebernommen",
                     "/farbe-nicht-druckbar",
                     "/vorstufen-hinweis",
@@ -5078,6 +5187,7 @@ class ColorRequestServer:
                             color_name,
                             values.get("neuer_name", [""])[0],
                             values.get("kunde", [""])[0],
+                            aliases=values.get("aliase", [""])[0],
                         )
                         self._send_json(result, status=int(result.get("status", 200)))
                         return
@@ -5110,8 +5220,6 @@ class ColorRequestServer:
                         result = color_manager.add_sk_assignment(color_name, sk_number)
                     elif path == "/sk-gedruckt":
                         result = color_manager.mark_sk_printed(color_name, sk_number)
-                    elif path == "/sk-freigeben":
-                        result = color_manager.approve_sk_assignment(color_name, sk_number)
                     else:
                         result = color_manager.mark_template_updated(
                             color_name,
