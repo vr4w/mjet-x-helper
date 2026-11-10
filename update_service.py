@@ -16,7 +16,7 @@ RELEASE_API_URL = "https://api.github.com/repos/vr4w/mjet-x-helper/releases/late
 LEGACY_UPDATE_URL = "https://raw.githubusercontent.com/vr4w/mjet-x-helper/main/update_info.json"
 RELEASE_DOWNLOAD_ROOT = "https://github.com/vr4w/mjet-x-helper/releases/download"
 MAX_INSTALLER_BYTES = 512 * 1024 * 1024
-VERSION_RE = re.compile(r"\d+\.\d+\.\d+")
+VERSION_RE = re.compile(r"\d+\.\d+(?:\.\d+)?")
 SHA256_RE = re.compile(r"[0-9a-fA-F]{64}")
 
 

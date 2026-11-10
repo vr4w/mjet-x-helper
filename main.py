@@ -44,7 +44,7 @@ from update_service import (
 
 
 APP_NAME = "MJET-X Helper"
-APP_VERSION = "1.1.10"
+APP_VERSION = "1.2"
 APP_AUTHOR = "AE / Marvin Schöffel"
 APP_CONTACT = "ms@graphic-druck.de"
 CONFIG_NAME = "helper_config.json"
@@ -3653,11 +3653,11 @@ class ColorTableManager:
     h1 {{ margin: 0 0 6px; font-size: 25px; }}
     .meta {{ margin: 0 0 12px; color: #626b75; font-size: 13px; }}
     .colorCount {{ margin-left: 8px; color: #7a828a; font-size: 12px; white-space: nowrap; }}
-    .machineHeader {{ display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; margin: 0 0 14px; }}
+    .machineHeader {{ position: relative; display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; margin: 0 0 14px; }}
     .titleBlock {{ display: flex; align-items: center; gap: 18px; min-width: 0; }}
     .brandLogo {{ width: 144px; height: auto; flex: none; }}
-    .headerActions {{ display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }}
-    .versionTag {{ color: #747d86; font-size: 11px; white-space: nowrap; }}
+    .headerActions {{ display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; padding-top: 22px; }}
+    .versionTag {{ position: absolute; top: 0; right: 0; padding: 4px 7px; border: 1px solid #c8cdd3; border-radius: 3px; background: #f5f6f7; color: #59636d; font-size: 11px; font-weight: 700; white-space: nowrap; }}
     .previewBanner {{ display: inline-flex; margin: 0 0 10px; padding: 7px 10px; background: #fff4cc; color: #6b4d00; border: 1px solid #e5ca72; font-weight: 800; font-size: 13px; }}
     .topBar {{ display: grid; grid-template-columns: minmax(280px, 640px) minmax(240px, 420px); gap: 14px; align-items: end; margin: 0 0 14px; }}
     .searchBar {{ display: flex; flex-direction: column; gap: 6px; }}
@@ -3783,10 +3783,11 @@ class ColorTableManager:
     body:not(.detailMode) tr.warn,
     body:not(.detailMode) tr.passthrough {{ background: #f8fafb; border-color: #cbd3d9; border-left-color: #aeb8c0; color: #5c6770; box-shadow: 0 2px 8px rgba(32,36,42,0.06); }}
     body:not(.detailMode) tr.blocked {{ background: #fbf7f6; border-color: #dccdca; border-left-color: #a76560; box-shadow: 0 2px 8px rgba(32,36,42,0.04); color: #695c5b; }}
-    body:not(.detailMode) tr.machine-pending {{ background: #f1f3f4; border-color: #d1d6da; border-left-color: #b2bac0; box-shadow: 0 1px 4px rgba(32,36,42,0.04); color: #626b73; }}
-    body:not(.detailMode) tr.machine-printed {{ background: #f8fbf8; border-color: #c8d7cb; border-left-color: #87a98d; box-shadow: 0 2px 7px rgba(32,36,42,0.06); color: #252c28; }}
-    body:not(.detailMode) tr.machine-transferred {{ background: #f2f8f3; border-color: #9db9a2; border-left-color: #4d8959; box-shadow: 0 2px 8px rgba(45,95,57,0.09); color: #1d2820; }}
-    body:not(.detailMode) tr.machine-blocked {{ background: #f3f1f1; border-color: #d7c9c8; border-left-color: #a76560; box-shadow: 0 1px 4px rgba(32,36,42,0.04); color: #716665; }}
+    body:not(.detailMode) tr.machine-pending {{ background: #e9ecef; border-color: #d5dade; border-left: 5px solid #aab2b9; box-shadow: none; color: #6c757e; }}
+    body:not(.detailMode) tr.machine-pending .machineCmyk {{ color: #737c84; }}
+    body:not(.detailMode) tr.machine-printed {{ background: #ffffff; border: 1px solid #91ad98; border-left: 5px solid #6e9578; box-shadow: 0 2px 8px rgba(48,88,58,0.10); color: #202922; }}
+    body:not(.detailMode) tr.machine-transferred {{ background: #f1f8f2; border: 2px solid #438052; border-left: 6px solid #347448; box-shadow: 0 0 0 1px rgba(52,116,72,0.16), 0 3px 10px rgba(45,95,57,0.12); color: #17271b; }}
+    body:not(.detailMode) tr.machine-blocked {{ background: #f0eeee; border: 1px solid #d4cecd; border-left: 5px solid #a76560; box-shadow: none; color: #716665; }}
     body:not(.detailMode) td {{ display: block; border: 0; padding: 0; white-space: normal; }}
     body:not(.detailMode) td:first-child,
     body:not(.detailMode) td:nth-child(3),
@@ -3864,7 +3865,7 @@ class ColorTableManager:
       .machineHeader {{ display: grid; gap: 10px; }}
       .titleBlock {{ gap: 10px; }}
       .brandLogo {{ width: 108px; }}
-      .headerActions {{ justify-content: stretch; }}
+      .headerActions {{ justify-content: stretch; padding-top: 24px; }}
       .headerActions .connection {{ flex: 1; }}
       .topBar, .summary {{ grid-template-columns: 1fr; }}
       .searchBar {{ grid-column: 1; }}

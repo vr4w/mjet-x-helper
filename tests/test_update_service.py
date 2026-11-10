@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from main import is_newer_version
 from update_service import (
     LEGACY_UPDATE_URL,
     RELEASE_API_URL,
@@ -47,6 +48,21 @@ class UpdateServiceTest(unittest.TestCase):
         info = parse_github_release(self.release())
         self.assertEqual(info["version"], "1.1.3")
         self.assertTrue(is_installable_release(info))
+
+    def test_two_component_release_version_is_installable(self):
+        release = self.release()
+        release["tag_name"] = "v1.2"
+        release["assets"][0]["name"] = "MJETXHelper_Setup_v1.2.exe"
+        release["assets"][0]["browser_download_url"] = (
+            "https://github.com/vr4w/mjet-x-helper/releases/download/v1.2/"
+            "MJETXHelper_Setup_v1.2.exe"
+        )
+
+        info = parse_github_release(release)
+
+        self.assertEqual(info["version"], "1.2")
+        self.assertTrue(is_installable_release(info))
+        self.assertTrue(is_newer_version(info["version"], "1.1.11"))
 
     def test_missing_digest_or_foreign_asset_is_rejected(self):
         release = self.release()

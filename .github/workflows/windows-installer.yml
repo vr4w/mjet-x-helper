@@ -37,7 +37,7 @@ jobs:
         shell: pwsh
         run: |
           $version = python -c "from main import APP_VERSION; print(APP_VERSION)"
-          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Ungültige APP_VERSION: $version" }
+          if ($version -notmatch '^\d+\.\d+(\.\d+)?$') { throw "Ungültige APP_VERSION: $version" }
           $line = Select-String -Path installer.iss -Pattern '^#define MyAppVersion "([^"]+)"$'
           if (-not $line -or $line.Matches[0].Groups[1].Value -ne $version) {
             throw "APP_VERSION und installer.iss stimmen nicht überein."

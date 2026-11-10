@@ -200,7 +200,8 @@ class ColorOverviewChangesTest(unittest.TestCase):
 
         html = Path(self.config["color_overview_html"]).read_text(encoding="utf-8")
         self.assertIn('<span class="colorCount">· Farben gesamt: 2</span>', html)
-        self.assertIn('<span class="versionTag">Version 1.1.10</span>', html)
+        self.assertIn('<span class="versionTag">Version 1.2</span>', html)
+        self.assertIn("position: absolute; top: 0; right: 0", html)
         self.assertIn("Weitere Namen / Dubletten", html)
 
     def test_machine_cards_follow_production_state_and_completed_colors_sort_first(self):
@@ -219,6 +220,10 @@ class ColorOverviewChangesTest(unittest.TestCase):
         self.assertIn('class="new machine-printed" style="--machine-order:2"', html)
         self.assertIn('class="new machine-pending" style="--machine-order:3"', html)
         self.assertIn('class="blocked machine-blocked" style="--machine-order:4"', html)
+        self.assertIn("tr.machine-pending { background: #e9ecef", html)
+        self.assertIn("tr.machine-printed { background: #ffffff; border: 1px solid #91ad98", html)
+        self.assertIn("tr.machine-transferred { background: #f1f8f2; border: 2px solid #438052", html)
+        self.assertIn("tr.machine-blocked { background: #f0eeee", html)
         self.assertIn('<span class="colorCount">· Farben gesamt: 4</span>', html)
 
     def test_marking_printable_enables_template_transfer_without_review_status(self):
