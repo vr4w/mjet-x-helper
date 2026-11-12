@@ -1,5 +1,5 @@
 #define MyAppName "MJET-X Helper"
-#define MyAppVersion "1.2"
+#define MyAppVersion "1.3"
 #define MyAppPublisher "AE / Marvin Schoeffel"
 #define MyAppExeName "MJETXHelper.exe"
 

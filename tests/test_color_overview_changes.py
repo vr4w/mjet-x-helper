@@ -29,6 +29,7 @@ class ColorOverviewChangesTest(unittest.TestCase):
                 "color_export_json": str(root / "export" / "colors.json"),
                 "hidden_colors_json": str(root / "config" / "hidden.json"),
                 "prepress_notes_json": str(root / "work" / "notes.json"),
+                "cmyk_orders_json": str(root / "work" / "cmyk_orders.json"),
                 "legacy_color_overview_csv": "",
             }
         )
@@ -200,7 +201,7 @@ class ColorOverviewChangesTest(unittest.TestCase):
 
         html = Path(self.config["color_overview_html"]).read_text(encoding="utf-8")
         self.assertIn('<span class="colorCount">· Farben gesamt: 2</span>', html)
-        self.assertIn('<span class="versionTag">Version 1.2</span>', html)
+        self.assertIn('<span class="versionTag">Version 1.3</span>', html)
         self.assertIn("position: absolute; top: 0; right: 0", html)
         self.assertIn("Weitere Namen / Dubletten", html)
 
@@ -471,6 +472,51 @@ class ColorOverviewChangesTest(unittest.TestCase):
 
         self.assertEqual(current_csv.read_bytes(), before)
         self.assertFalse(temp_csv.exists())
+
+    def test_cmyk_order_persists_separately_from_spot_colors_and_workflow_state(self):
+        self.manager.add_requested_color("VOGT Blau")
+        added = self.manager.add_cmyk_order(
+            "VOGT", "SK 123456", machine_info="Grau 44 % K, Tiefschwarz angepasst", created_by="Marvin"
+        )
+        self.assertTrue(added["ok"])
+        order_id = added["order"]["id"]
+
+        duplicate = self.manager.add_cmyk_order("vogt", "SK 123456")
+        self.assertFalse(duplicate["ok"])
+        self.assertEqual(duplicate["status"], 409)
+
+        changed = self.manager.update_cmyk_order(order_id, status="druckbar", changed_by="Thao")
+        self.assertTrue(changed["ok"])
+        self.manager.refresh_color_overview()
+
+        reloaded = ColorTableManager(self.config, HelperLogger(self.config))
+        orders = reloaded._read_cmyk_orders()
+        self.assertEqual(len(orders), 1)
+        self.assertEqual(orders[0]["status"], "druckbar")
+        self.assertEqual(orders[0]["machine_info"], "Grau 44 % K, Tiefschwarz angepasst")
+        self.assertEqual(orders[0]["created_by"], "Marvin")
+        self.assertEqual(orders[0]["history"][-1]["user"], "Thao")
+
+        rows = self.overview_rows()
+        spot = next(row for row in rows if row["Farbbezeichnung"] == "VOGT Blau")
+        self.assertEqual(spot["printed"], "nein")
+        self.assertEqual(len(orders), 1)
+
+        html = Path(self.config["color_overview_html"]).read_text(encoding="utf-8")
+        self.assertIn("Aufträge ohne Volltonfarbe", html)
+        self.assertIn("VOGT Blau", html)
+        self.assertIn("/api/cmyk-orders", html)
+
+    def test_corrupt_cmyk_order_file_is_never_overwritten(self):
+        path = Path(self.config["cmyk_orders_json"])
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("{ kaputt", encoding="utf-8")
+        before = path.read_bytes()
+
+        with self.assertRaisesRegex(ValueError, "beschädigt"):
+            self.manager.add_cmyk_order("Eberle Runkel", "SK 999")
+
+        self.assertEqual(path.read_bytes(), before)
 
 
 if __name__ == "__main__":

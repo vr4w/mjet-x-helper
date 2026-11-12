@@ -25,6 +25,7 @@ import threading
 import time
 import tkinter as tk
 import unicodedata
+import uuid
 import webbrowser
 import xml.etree.ElementTree as ET
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -44,7 +45,7 @@ from update_service import (
 
 
 APP_NAME = "MJET-X Helper"
-APP_VERSION = "1.2"
+APP_VERSION = "1.3"
 APP_AUTHOR = "AE / Marvin Schöffel"
 APP_CONTACT = "ms@graphic-druck.de"
 CONFIG_NAME = "helper_config.json"
@@ -1729,6 +1730,147 @@ class ColorTableManager:
             return result
         return self._api_result(False, "Vorstufen-Hinweis nicht gefunden.", 404)
 
+    def _cmyk_orders_path(self) -> Path:
+        return self._persistent_data_path("cmyk_orders_json", "work/cmyk_orders.json")
+
+    def _read_cmyk_orders(self) -> list[dict[str, object]]:
+        path = self._cmyk_orders_path()
+        if not path.exists():
+            return []
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            self.logger.log(f"CMYK-Aufträge konnten nicht gelesen werden: {exc}", "ERROR")
+            raise ValueError("Die gespeicherten CMYK-Aufträge sind beschädigt. Die Datei wurde nicht verändert.") from exc
+        if not isinstance(payload, list):
+            raise ValueError("Die gespeicherten CMYK-Aufträge haben ein ungültiges Format. Die Datei wurde nicht verändert.")
+        orders = []
+        for item in payload:
+            if not isinstance(item, dict):
+                continue
+            order = {
+                "id": str(item.get("id") or ""),
+                "customer": self._clean_color_name(str(item.get("customer") or "")),
+                "sk_number": self._clean_sk_number(str(item.get("sk_number") or "")),
+                "machine_info": str(item.get("machine_info") or "").strip(),
+                "status": str(item.get("status") or "offen"),
+                "created_at": str(item.get("created_at") or ""),
+                "created_by": str(item.get("created_by") or ""),
+                "updated_at": str(item.get("updated_at") or ""),
+                "history": item.get("history") if isinstance(item.get("history"), list) else [],
+            }
+            if order["id"] and order["customer"] and order["sk_number"]:
+                if order["status"] not in {"offen", "druckbar", "nicht_druckbar"}:
+                    order["status"] = "offen"
+                orders.append(order)
+        return orders
+
+    def _write_cmyk_orders(self, orders: list[dict[str, object]]) -> None:
+        path = self._cmyk_orders_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if path.exists():
+            try:
+                existing = json.loads(path.read_text(encoding="utf-8"))
+            except Exception as exc:
+                raise ValueError("Die vorhandenen CMYK-Aufträge sind beschädigt. Bitte Datei prüfen; es wurde nichts überschrieben.") from exc
+            if not isinstance(existing, list):
+                raise ValueError("Die vorhandenen CMYK-Aufträge haben ein ungültiges Format. Es wurde nichts überschrieben.")
+        temp_path = path.with_suffix(path.suffix + ".tmp")
+        temp_path.write_text(json.dumps(orders, ensure_ascii=False, indent=2), encoding="utf-8")
+        os.replace(temp_path, path)
+
+    def add_cmyk_order(
+        self,
+        customer: str,
+        sk_number: str,
+        machine_info: str = "",
+        created_by: str = "",
+    ) -> dict:
+        customer = self._clean_color_name(customer)
+        sk_number = self._clean_sk_number(sk_number)
+        machine_info = str(machine_info or "").strip()
+        created_by = self._clean_color_name(created_by)
+        if not customer:
+            return self._api_result(False, "Bitte einen Kundennamen eintragen.", 400)
+        if not sk_number:
+            return self._api_result(False, "Bitte eine SK-Nummer eintragen.", 400)
+        if len(customer) > 120 or len(sk_number) > 80 or len(machine_info) > 500 or len(created_by) > 80:
+            return self._api_result(False, "Eine Eingabe ist zu lang.", 400)
+        now = now_stamp()
+        with self.overview_lock:
+            orders = self._read_cmyk_orders()
+            duplicate = next(
+                (
+                    order for order in orders
+                    if str(order.get("customer", "")).casefold() == customer.casefold()
+                    and str(order.get("sk_number", "")).casefold() == sk_number.casefold()
+                ),
+                None,
+            )
+            if duplicate:
+                result = self._api_result(False, f"Diese SK ist bei {customer} bereits eingetragen.", 409)
+                result["order"] = duplicate
+                return result
+            order = {
+                "id": uuid.uuid4().hex,
+                "customer": customer,
+                "sk_number": sk_number,
+                "machine_info": machine_info,
+                "status": "offen",
+                "created_at": now,
+                "created_by": created_by,
+                "updated_at": now,
+                "history": [{"event": "created", "timestamp": now, "user": created_by}],
+            }
+            orders.append(order)
+            self._write_cmyk_orders(orders)
+        self.refresh_color_overview()
+        result = self._api_result(True, "CMYK-Auftrag wurde eingetragen.")
+        result["order"] = order
+        return result
+
+    def update_cmyk_order(
+        self,
+        order_id: str,
+        status: str | None = None,
+        machine_info: str | None = None,
+        changed_by: str = "",
+    ) -> dict:
+        order_id = str(order_id or "").strip()
+        changed_by = self._clean_color_name(changed_by)
+        if status is not None and status not in {"offen", "druckbar", "nicht_druckbar"}:
+            return self._api_result(False, "Ungültiger Druckstatus.", 400)
+        if machine_info is not None:
+            machine_info = str(machine_info or "").strip()
+            if len(machine_info) > 500:
+                return self._api_result(False, "Die Maschineninfo ist zu lang.", 400)
+        with self.overview_lock:
+            orders = self._read_cmyk_orders()
+            order = next((item for item in orders if str(item.get("id")) == order_id), None)
+            if order is None:
+                return self._api_result(False, "CMYK-Auftrag wurde nicht gefunden.", 404)
+            events = []
+            if status is not None and status != order.get("status"):
+                order["status"] = status
+                events.append("status_" + status)
+            if machine_info is not None and machine_info != order.get("machine_info"):
+                order["machine_info"] = machine_info
+                events.append("machine_info_updated")
+            if not events:
+                result = self._api_result(True, "Es gab keine Änderung.")
+                result["order"] = order
+                return result
+            now = now_stamp()
+            order["updated_at"] = now
+            history = order.get("history") if isinstance(order.get("history"), list) else []
+            history.extend({"event": event, "timestamp": now, "user": changed_by} for event in events)
+            order["history"] = history
+            self._write_cmyk_orders(orders)
+        self.refresh_color_overview()
+        result = self._api_result(True, "CMYK-Auftrag wurde aktualisiert.")
+        result["order"] = order
+        return result
+
     def hide_overview_color(self, color_name: str) -> str:
         cleaned = re.sub(r"\s+", " ", color_name).strip()
         if not cleaned:
@@ -3381,6 +3523,9 @@ class ColorTableManager:
         not_printable_url = submit_url.rsplit("/", 1)[0] + "/farbe-nicht-druckbar"
         prepress_note_url = submit_url.rsplit("/", 1)[0] + "/vorstufen-hinweis"
         prepress_note_done_url = submit_url.rsplit("/", 1)[0] + "/vorstufen-hinweis-erledigt"
+        cmyk_order_url = submit_url.rsplit("/", 1)[0] + "/cmyk-auftrag"
+        cmyk_status_url = submit_url.rsplit("/", 1)[0] + "/cmyk-status"
+        cmyk_info_url = submit_url.rsplit("/", 1)[0] + "/cmyk-info"
         submit_url_json = json.dumps(submit_url)
         hide_url_json = json.dumps(hide_url)
         rename_url_json = json.dumps(rename_url)
@@ -3391,6 +3536,9 @@ class ColorTableManager:
         not_printable_url_json = json.dumps(not_printable_url)
         prepress_note_url_json = json.dumps(prepress_note_url)
         prepress_note_done_url_json = json.dumps(prepress_note_done_url)
+        cmyk_order_url_json = json.dumps(cmyk_order_url)
+        cmyk_status_url_json = json.dumps(cmyk_status_url)
+        cmyk_info_url_json = json.dumps(cmyk_info_url)
         body_rows = []
         open_print_tests = 0
         open_template_updates = 0
@@ -3624,7 +3772,7 @@ class ColorTableManager:
                     f"data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\">Status aufheben</button>"
                 )
             body_rows.append(
-                f"<tr class=\"{css} machine-{machine_state}\" style=\"--machine-order:{machine_sort.get(row_index, row_index + 1)}\" data-color-search=\"{search_attr}\">"
+                f"<tr class=\"{css} machine-{machine_state}\" style=\"--machine-order:{machine_sort.get(row_index, row_index + 1)}\" data-customer=\"{html.escape(customer_name.casefold(), quote=True)}\" data-color-search=\"{search_attr}\">"
                 f"<td><span class=\"dot\" aria-hidden=\"true\"></span></td>"
                 f"<td class=\"name\"><span class=\"customerGlow\" data-cmyk=\"{button_cmyk}\" title=\"{button_name} · {button_cmyk}\" aria-hidden=\"true\"></span><span class=\"colorNameText\" title=\"{button_name}\">{escaped_name}</span><span class=\"customerLabel\">{('Kunde: ' + escaped_customer) if escaped_customer else ''}</span><span class=\"machineCmyk\" title=\"{button_cmyk}\">{escaped_cmyk}</span>{not_printable_banner}</td>"
                 f"<td><button type=\"button\" class=\"copy\" data-name=\"{button_name}\" title=\"Farbnamen kopieren\" aria-label=\"Farbnamen kopieren\">⧉</button></td>"
@@ -3711,6 +3859,7 @@ class ColorTableManager:
     th {{ background: #e7e9ec; }}
     tr[hidden] {{ display: none !important; }}
     [data-prepress-only][hidden] {{ display: none !important; }}
+    [data-machine-only][hidden], .cmykOrderForm[hidden] {{ display: none !important; }}
     th.indicator, td:first-child {{ width: 34px; text-align: center; }}
     .name {{ font-weight: 600; }}
     .copy, .addSk, .workflow {{ padding: 6px 9px; font-size: 12px; }}
@@ -3771,6 +3920,41 @@ class ColorTableManager:
     .prepressNote p {{ margin: 6px 0; }}
     .prepressNoteStatus {{ margin: 6px 0; font-weight: 800; color: #c9901a; }}
     .prepressNote.done .prepressNoteStatus {{ color: #2f8f4e; }}
+    .cmykOrdersPanel {{ margin: 18px 0 30px; border: 1px solid #cbd3d9; background: #fff; }}
+    .cmykOrdersHead {{ display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 13px 15px; border-bottom: 1px solid #dfe3e7; }}
+    .cmykOrdersHead h2 {{ margin: 0; font-size: 17px; }}
+    .cmykOrdersHead span {{ color: #68727c; font-size: 12px; }}
+    .cmykOrderForm {{ display: grid; grid-template-columns: minmax(150px, 1fr) minmax(120px, .7fr) minmax(180px, 1.2fr) minmax(120px, .7fr) auto; gap: 8px; padding: 12px 15px; border-bottom: 1px solid #dfe3e7; background: #f7f8f9; }}
+    .cmykOrderForm input {{ min-width: 0; width: 100%; padding: 9px 10px; border: 1px solid #c8cdd3; }}
+    .cmykOrderForm button {{ background: #286a48; border-color: #286a48; color: #fff; }}
+    #cmykOrderMessage {{ grid-column: 1 / -1; min-height: 16px; color: #626b75; font-size: 12px; }}
+    .cmykCustomer {{ border-bottom: 1px solid #e3e7ea; }}
+    .cmykCustomer:last-child {{ border-bottom: 0; }}
+    .cmykCustomer > summary {{ display: flex; align-items: center; gap: 9px; padding: 11px 15px; list-style: none; cursor: pointer; }}
+    .cmykCustomer > summary::-webkit-details-marker {{ display: none; }}
+    .cmykCustomerName {{ font-weight: 800; }}
+    .cmykCustomerCount {{ margin-left: auto; color: #68727c; font-size: 12px; }}
+    .cmykTableHead, .cmykOrderRow {{ display: grid; grid-template-columns: minmax(205px, .9fr) minmax(110px, .55fr) minmax(180px, 1fr) minmax(190px, .9fr) minmax(75px, auto); gap: 12px; align-items: center; }}
+    .cmykTableHead {{ padding: 7px 15px; background: #eef1f3; color: #626b75; font-size: 10px; font-weight: 800; text-transform: uppercase; }}
+    .cmykOrderRow {{ min-height: 58px; padding: 9px 15px; border-top: 1px solid #edf0f2; }}
+    .cmykOrderKind {{ display: flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 700; }}
+    .cmykOrderIcon {{ display: inline-grid; place-items: center; flex: 0 0 30px; width: 30px; height: 30px; border: 1px solid #b8c2ca; border-radius: 50%; background: #f1f3f5; color: #34424f; font-size: 9px; font-weight: 900; }}
+    .cmykOrderSk {{ color: #34414d; font-size: 12px; font-weight: 800; }}
+    .cmykOrderInfo {{ color: #56616c; font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }}
+    .cmykOrderActions {{ display: flex; flex-wrap: wrap; gap: 5px; }}
+    .cmykOrderStatus {{ border-radius: 16px; padding: 6px 8px; font-size: 11px; white-space: nowrap; }}
+    .cmykOrderStatus.selected.printable {{ border-color: #83ad8e; background: #f1f8f2; color: #315d3c; }}
+    .cmykOrderStatus.selected.blocked {{ border-color: #c99999; background: #fbf3f3; color: #864343; }}
+    .cmykInfoEdit {{ padding: 5px 7px; font-size: 11px; white-space: nowrap; }}
+    .cmykHistory {{ grid-column: 1 / -1; color: #68727c; font-size: 11px; line-height: 1.4; }}
+    .cmykHistory summary {{ width: fit-content; cursor: pointer; font-weight: 700; }}
+    .cmykHistoryList {{ padding: 5px 0 0 16px; }}
+    .cmykNoOrders {{ padding: 14px 15px; color: #68727c; font-size: 13px; }}
+    .cmykCustomer[hidden], .cmykOrderRow[hidden] {{ display: none !important; }}
+    body:not(.detailMode) .cmykOrdersPanel {{ margin-top: 24px; }}
+    body:not(.detailMode) .cmykOrdersHead span {{ display: none; }}
+    body:not(.detailMode) .cmykTableHead {{ display: none; }}
+    body:not(.detailMode) .cmykOrderRow {{ padding: 9px 12px; }}
     body:not(.detailMode) thead {{ display: none; }}
     body:not(.detailMode) table {{ display: block; background: transparent; box-shadow: none; }}
     body:not(.detailMode) #entryStatus {{ margin-top: 0; }}
@@ -3871,7 +4055,12 @@ class ColorTableManager:
       .searchBar {{ grid-column: 1; }}
       .prepressEntry {{ grid-template-columns: 1fr; }}
       .prepressEntry textarea {{ grid-column: auto; }}
+      .cmykOrderForm {{ grid-template-columns: 1fr; }}
+      .cmykOrderForm input {{ width: 100%; }}
       .viewToggle {{ width: 100%; }}
+      .cmykTableHead {{ display: none; }}
+      .cmykOrderRow {{ grid-template-columns: minmax(130px, 1fr) minmax(90px, .65fr); gap: 8px; padding: 10px; }}
+      .cmykOrderInfo, .cmykOrderActions {{ grid-column: 1 / -1; }}
       body:not(.detailMode) tr {{ grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }}
     }}
     .dot {{ display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: #8c939b; }}
@@ -3917,8 +4106,8 @@ class ColorTableManager:
   {preview_banner}
   <div class="topBar">
     <div class="searchBar">
-      <label for="colorSearch">Farbname suchen</label>
-      <input type="search" id="colorSearch" autocomplete="off" placeholder="Farbname suchen...">
+      <label for="colorSearch">Farbe, Kunde oder SK suchen</label>
+      <input type="search" id="colorSearch" autocomplete="off" placeholder="Farbname, Kunde oder SK suchen...">
     </div>
   </div>
   <details class="prepressNotes" aria-label="Vorstufen-Hinweise" data-prepress-only hidden>
@@ -3953,6 +4142,18 @@ class ColorTableManager:
     <tbody>{''.join(body_rows)}</tbody>
   </table></div>
   <div id="noSearchResults" class="noResults">Keine passenden Farben gefunden</div>
+  <section class="cmykOrdersPanel" id="cmykOrdersPanel" aria-label="Aufträge ohne Volltonfarbe">
+    <div class="cmykOrdersHead"><h2>Aufträge ohne Volltonfarbe <span id="cmykOrderCount">· 0</span></h2><span>CMYK-Druck · ohne angelegte Kunden-Volltonfarbe</span></div>
+    <form id="cmykOrderForm" class="cmykOrderForm" data-machine-only hidden>
+      <input name="customer" maxlength="120" autocomplete="off" placeholder="Kunde" aria-label="Kunde" required>
+      <input name="sk" maxlength="80" autocomplete="off" placeholder="SK-Nummer" aria-label="SK-Nummer" required>
+      <input name="machine_info" maxlength="500" autocomplete="off" placeholder="Maschineninfo optional" aria-label="Maschineninfo optional">
+      <input name="created_by" maxlength="80" autocomplete="off" placeholder="Eingetragen von optional" aria-label="Eingetragen von optional">
+      <button type="submit">CMYK-Auftrag eintragen</button>
+      <div id="cmykOrderMessage" role="status"></div>
+    </form>
+    <div id="cmykOrderList"><div class="cmykNoOrders">CMYK-Aufträge werden geladen …</div></div>
+  </section>
   <div id="dialogBackdrop" class="dialogBackdrop" role="dialog" aria-modal="true">
     <div class="dialogBox">
       <h2 id="dialogTitle"></h2>
@@ -4040,6 +4241,138 @@ class ColorTableManager:
     function payloadMessage(payload, fallback) {{
       return payload && payload.message ? payload.message : fallback;
     }}
+    function cmykApiMessage(text) {{
+      var node = document.getElementById('cmykOrderMessage');
+      if (node) node.textContent = text || '';
+    }}
+    function cmykElement(tag, className, text) {{
+      var node = document.createElement(tag);
+      if (className) node.className = className;
+      if (text) node.textContent = text;
+      return node;
+    }}
+    function cmykStatusButton(order, state, label) {{
+      var button = cmykElement('button', 'cmykOrderStatus', label);
+      button.type = 'button';
+      button.classList.toggle('selected', order.status === state);
+      button.classList.add(state === 'druckbar' ? 'printable' : 'blocked');
+      button.addEventListener('click', function() {{
+        if (order.status === state) return;
+        cmykApiMessage('Druckstatus wird gespeichert …');
+        postHelper({cmyk_status_url_json}, {{
+          order_id: order.id,
+          status: state,
+          changed_by: ''
+        }}).then(function(payload) {{
+          cmykApiMessage(payloadMessage(payload, 'Druckstatus gespeichert.'));
+          loadCmykOrders();
+        }}).catch(function(error) {{
+          cmykApiMessage('Druckstatus konnte nicht gespeichert werden: ' + friendlyFetchError(error));
+        }});
+      }});
+      return button;
+    }}
+    function renderCmykOrders(orders) {{
+      window.mjetCmykOrders = Array.isArray(orders) ? orders : [];
+      var list = document.getElementById('cmykOrderList');
+      var count = document.getElementById('cmykOrderCount');
+      if (!list) return;
+      list.replaceChildren();
+      var grouped = new Map();
+      window.mjetCmykOrders.forEach(function(order) {{
+        var customer = String(order.customer || 'Ohne Kundenangabe');
+        if (!grouped.has(customer)) grouped.set(customer, []);
+        grouped.get(customer).push(order);
+      }});
+      var customers = Array.from(grouped.keys()).sort(function(a, b) {{ return a.localeCompare(b, 'de'); }});
+      if (count) count.textContent = '· ' + window.mjetCmykOrders.length;
+      if (!customers.length) {{
+        list.append(cmykElement('div', 'cmykNoOrders', 'Noch keine CMYK-Aufträge eingetragen.'));
+        applyColorSearch();
+        return;
+      }}
+      customers.forEach(function(customer) {{
+        var customerOrders = grouped.get(customer);
+        var group = cmykElement('details', 'cmykCustomer');
+        group.open = true;
+        group.dataset.customer = normalizeSearchText(customer);
+        var summary = cmykElement('summary');
+        summary.append(cmykElement('span', 'muted', '▸'));
+        summary.append(cmykElement('span', 'cmykCustomerName', customer));
+        summary.append(cmykElement('span', 'cmykCustomerCount', customerOrders.length + (customerOrders.length === 1 ? ' Auftrag' : ' Aufträge')));
+        group.append(summary);
+        var headings = cmykElement('div', 'cmykTableHead');
+        ['Auftragsart', 'SK-Nummer', 'Maschineninfo', 'Druckstatus', ''].forEach(function(label) {{ headings.append(cmykElement('span', '', label)); }});
+        group.append(headings);
+        customerOrders.forEach(function(order) {{
+          var row = cmykElement('article', 'cmykOrderRow');
+          row.dataset.search = normalizeSearchText([customer, order.sk_number, order.machine_info, 'CMYK ohne Volltonfarbe'].join(' '));
+          row.dataset.customer = normalizeSearchText(customer);
+          var kind = cmykElement('div', 'cmykOrderKind');
+          kind.append(cmykElement('span', 'cmykOrderIcon', 'CMYK'));
+          kind.append(document.createTextNode('Ohne Volltonfarbe'));
+          row.append(kind);
+          row.append(cmykElement('div', 'cmykOrderSk', 'SK ' + order.sk_number));
+          var info = cmykElement('div', 'cmykOrderInfo', order.machine_info || '');
+          row.append(info);
+          var status = cmykElement('div', 'cmykOrderActions');
+          status.append(cmykStatusButton(order, 'druckbar', 'Druckbar'));
+          status.append(cmykStatusButton(order, 'nicht_druckbar', 'Nicht druckbar'));
+          row.append(status);
+          var controls = cmykElement('div', 'cmykOrderActions');
+          var edit = cmykElement('button', 'cmykInfoEdit', 'Info ändern');
+          edit.type = 'button';
+          edit.addEventListener('click', function() {{
+            if (controls.querySelector('input')) return;
+            var input = document.createElement('input');
+            input.maxLength = 500;
+            input.value = order.machine_info || '';
+            input.placeholder = 'Maschineninfo';
+            input.setAttribute('aria-label', 'Maschineninfo');
+            controls.insertBefore(input, edit);
+            var save = cmykElement('button', 'cmykInfoEdit', 'Speichern');
+            save.type = 'button';
+            controls.insertBefore(save, edit);
+            save.addEventListener('click', function() {{
+              cmykApiMessage('Maschineninfo wird gespeichert …');
+              postHelper({cmyk_info_url_json}, {{ order_id: order.id, machine_info: input.value, changed_by: '' }})
+                .then(function(payload) {{
+                  cmykApiMessage(payloadMessage(payload, 'Maschineninfo gespeichert.'));
+                  loadCmykOrders();
+                }}).catch(function(error) {{ cmykApiMessage('Maschineninfo konnte nicht gespeichert werden: ' + friendlyFetchError(error)); }});
+            }});
+          }});
+          controls.append(edit);
+          row.append(controls);
+          var history = Array.isArray(order.history) ? order.history : [];
+          if (history.length) {{
+            var historyDetails = cmykElement('details', 'cmykHistory');
+            var historySummary = cmykElement('summary', '', 'Verlauf · ' + history.length);
+            historyDetails.append(historySummary);
+            var historyList = cmykElement('div', 'cmykHistoryList');
+            history.slice().reverse().forEach(function(event) {{
+              var eventName = event.event === 'created' ? 'Auftrag eingetragen' : event.event === 'machine_info_updated' ? 'Maschineninfo geändert' : event.event === 'status_druckbar' ? 'Als druckbar markiert' : event.event === 'status_nicht_druckbar' ? 'Als nicht druckbar markiert' : 'Status geändert';
+              var line = cmykElement('div', '', (event.timestamp || '') + ' · ' + eventName + (event.user ? ' · ' + event.user : ''));
+              historyList.append(line);
+            }});
+            historyDetails.append(historyList);
+            row.append(historyDetails);
+          }}
+          group.append(row);
+        }});
+        list.append(group);
+      }});
+      applyColorSearch();
+    }}
+    function loadCmykOrders() {{
+      fetchWithTimeout({json.dumps(cmyk_order_url.rsplit('/', 1)[0] + '/api/cmyk-orders')}, {{ method: 'GET', cache: 'no-store' }}, 8000)
+        .then(responseTextOrError)
+        .then(function(payload) {{ renderCmykOrders(payload.orders || []); }})
+        .catch(function(error) {{
+          var list = document.getElementById('cmykOrderList');
+          if (list) list.textContent = 'CMYK-Aufträge sind aktuell nicht erreichbar: ' + friendlyFetchError(error);
+        }});
+    }}
     function escapeHtml(value) {{
       return String(value || '').replace(/[&<>"']/g, function(char) {{
         return {{ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }}[char];
@@ -4114,14 +4447,51 @@ class ColorTableManager:
           visible += 1;
         }}
       }});
+      var cmykVisible = 0;
+      document.querySelectorAll('.cmykCustomer').forEach(function(group) {{
+        var customer = group.dataset.customer || '';
+        var relatedColorMatch = false;
+        if (query) {{
+          document.querySelectorAll('tbody tr').forEach(function(colorRow) {{
+            if (colorRow.dataset.customer === customer && colorRow.dataset.searchText && colorRow.dataset.searchText.indexOf(query) !== -1) relatedColorMatch = true;
+          }});
+        }}
+        var groupMatch = !query || customer.indexOf(query) !== -1 || relatedColorMatch;
+        var groupHits = 0;
+        group.querySelectorAll('.cmykOrderRow').forEach(function(row) {{
+          var matches = groupMatch || (row.dataset.search || '').indexOf(query) !== -1;
+          row.hidden = !matches;
+          if (matches) groupHits += 1;
+        }});
+        group.hidden = groupHits === 0;
+        if (query && groupHits) group.open = true;
+        cmykVisible += groupHits;
+      }});
       if (message) {{
-        message.classList.toggle('visible', visible === 0);
+        message.textContent = 'Keine passenden Farben oder Aufträge gefunden';
+        message.classList.toggle('visible', visible + cmykVisible === 0);
       }}
     }}
     document.querySelectorAll('tbody tr').forEach(refreshRowSearchText);
     var colorSearch = document.getElementById('colorSearch');
     if (colorSearch) {{
       colorSearch.addEventListener('input', applyColorSearch);
+    }}
+    loadCmykOrders();
+    var cmykOrderForm = document.getElementById('cmykOrderForm');
+    if (cmykOrderForm) {{
+      cmykOrderForm.addEventListener('submit', function(event) {{
+        event.preventDefault();
+        var data = Object.fromEntries(new FormData(cmykOrderForm).entries());
+        cmykApiMessage('CMYK-Auftrag wird gespeichert …');
+        postHelper({cmyk_order_url_json}, data).then(function(payload) {{
+          cmykOrderForm.reset();
+          cmykApiMessage(payloadMessage(payload, 'CMYK-Auftrag eingetragen.'));
+          loadCmykOrders();
+        }}).catch(function(error) {{
+          cmykApiMessage('CMYK-Auftrag konnte nicht gespeichert werden: ' + friendlyFetchError(error));
+        }});
+      }});
     }}
     var detailToggle = document.getElementById('detailToggle');
     try {{
@@ -4132,6 +4502,9 @@ class ColorTableManager:
       try {{ window.sessionStorage.setItem('mjetDetailMode', detailMode ? '1' : '0'); }} catch (_error) {{}}
       document.querySelectorAll('[data-prepress-only]').forEach(function(node) {{
         node.hidden = !detailMode;
+      }});
+      document.querySelectorAll('[data-machine-only]').forEach(function(node) {{
+        node.hidden = detailMode;
       }});
       if (detailToggle) {{
         detailToggle.textContent = detailMode ? 'Maschinenansicht' : 'Vorstufenansicht';
@@ -5148,6 +5521,9 @@ class ColorRequestServer:
                     "/farbe-nicht-druckbar",
                     "/vorstufen-hinweis",
                     "/vorstufen-hinweis-erledigt",
+                    "/cmyk-auftrag",
+                    "/cmyk-status",
+                    "/cmyk-info",
                 }:
                     self.send_error(404)
                     return
@@ -5163,6 +5539,31 @@ class ColorRequestServer:
                     note = values.get("note", [""])[0]
                     reason = values.get("reason", [""])[0]
                     clear_flag = bool(values.get("clear", [""])[0].strip())
+                    if path == "/cmyk-auftrag":
+                        result = color_manager.add_cmyk_order(
+                            values.get("customer", [""])[0],
+                            values.get("sk", [""])[0],
+                            machine_info=values.get("machine_info", [""])[0],
+                            created_by=values.get("created_by", [""])[0],
+                        )
+                        self._send_json(result, status=int(result.get("status", 200)))
+                        return
+                    if path == "/cmyk-status":
+                        result = color_manager.update_cmyk_order(
+                            values.get("order_id", [""])[0],
+                            status=values.get("status", [""])[0],
+                            changed_by=values.get("changed_by", [""])[0],
+                        )
+                        self._send_json(result, status=int(result.get("status", 200)))
+                        return
+                    if path == "/cmyk-info":
+                        result = color_manager.update_cmyk_order(
+                            values.get("order_id", [""])[0],
+                            machine_info=values.get("machine_info", [""])[0],
+                            changed_by=values.get("changed_by", [""])[0],
+                        )
+                        self._send_json(result, status=int(result.get("status", 200)))
+                        return
                     if path in {"/farbe-loeschen", "/farbe-ausblenden"}:
                         if not color_name.strip():
                             self._send_json({"ok": False, "message": "Keine Farbbezeichnung übergeben."}, status=400)
@@ -5253,6 +5654,13 @@ class ColorRequestServer:
                     except Exception as exc:
                         logger.log(f"Farb-API konnte nicht gelesen werden: {exc}", "ERROR")
                         self._send_json({"ok": False, "message": f"Fehler: {exc}"}, status=500)
+                    return
+                if path == "/api/cmyk-orders":
+                    try:
+                        self._send_json({"orders": color_manager._read_cmyk_orders()})
+                    except Exception as exc:
+                        logger.log(f"CMYK-Aufträge konnten nicht gelesen werden: {exc}", "ERROR")
+                        self._send_json({"ok": False, "message": "CMYK-Aufträge konnten nicht gelesen werden."}, status=500)
                     return
                 self.send_error(404)
 
