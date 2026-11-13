@@ -201,7 +201,7 @@ class ColorOverviewChangesTest(unittest.TestCase):
 
         html = Path(self.config["color_overview_html"]).read_text(encoding="utf-8")
         self.assertIn('<span class="colorCount">· Farben gesamt: 2</span>', html)
-        self.assertIn('<span class="versionTag">Version 1.3</span>', html)
+        self.assertIn('<span class="versionTag">Version 1.4</span>', html)
         self.assertIn("position: absolute; top: 0; right: 0", html)
         self.assertIn("Weitere Namen / Dubletten", html)
 
@@ -217,10 +217,10 @@ class ColorOverviewChangesTest(unittest.TestCase):
         self.manager.set_color_not_printable("D Nicht druckbar", "Teststatus")
 
         html = Path(self.config["color_overview_html"]).read_text(encoding="utf-8")
-        self.assertIn('class="new machine-transferred" style="--machine-order:1"', html)
-        self.assertIn('class="new machine-printed" style="--machine-order:2"', html)
-        self.assertIn('class="new machine-pending" style="--machine-order:3"', html)
-        self.assertIn('class="blocked machine-blocked" style="--machine-order:4"', html)
+        self.assertIn('class="colorRow new machine-transferred" style="--machine-order:1"', html)
+        self.assertIn('class="colorRow new machine-printed" style="--machine-order:2"', html)
+        self.assertIn('class="colorRow new machine-pending" style="--machine-order:3"', html)
+        self.assertIn('class="colorRow blocked machine-blocked" style="--machine-order:4"', html)
         self.assertIn("tr.machine-pending { background: #e9ecef", html)
         self.assertIn("tr.machine-printed { background: #ffffff; border: 1px solid #91ad98", html)
         self.assertIn("tr.machine-transferred { background: #f1f8f2; border: 2px solid #438052", html)
@@ -473,7 +473,7 @@ class ColorOverviewChangesTest(unittest.TestCase):
         self.assertEqual(current_csv.read_bytes(), before)
         self.assertFalse(temp_csv.exists())
 
-    def test_cmyk_order_persists_separately_from_spot_colors_and_workflow_state(self):
+    def test_cmyk_order_persists_and_joins_customer_color_table(self):
         self.manager.add_requested_color("VOGT Blau")
         added = self.manager.add_cmyk_order(
             "VOGT", "SK 123456", machine_info="Grau 44 % K, Tiefschwarz angepasst", created_by="Marvin"
@@ -503,7 +503,13 @@ class ColorOverviewChangesTest(unittest.TestCase):
         self.assertEqual(len(orders), 1)
 
         html = Path(self.config["color_overview_html"]).read_text(encoding="utf-8")
-        self.assertIn("Aufträge ohne Volltonfarbe", html)
+        self.assertIn('id="cmykOrderForm" class="cmykOrderForm"', html)
+        self.assertNotIn('id="cmykOrderForm" class="cmykOrderForm" data-machine-only hidden', html)
+        self.assertIn('id="overviewRows"', html)
+        self.assertIn("function renderCmykOrders(orders)", html)
+        self.assertIn("customerGroupHeader", html)
+        self.assertIn("groupFor(customer, customer)", html)
+        self.assertNotIn('id="cmykOrderList"', html)
         self.assertIn("VOGT Blau", html)
         self.assertIn("/api/cmyk-orders", html)
 

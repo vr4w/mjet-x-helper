@@ -45,7 +45,7 @@ from update_service import (
 
 
 APP_NAME = "MJET-X Helper"
-APP_VERSION = "1.3"
+APP_VERSION = "1.4"
 APP_AUTHOR = "AE / Marvin Schöffel"
 APP_CONTACT = "ms@graphic-druck.de"
 CONFIG_NAME = "helper_config.json"
@@ -3772,7 +3772,7 @@ class ColorTableManager:
                     f"data-color=\"{button_name}\" data-cmyk=\"{button_cmyk}\">Status aufheben</button>"
                 )
             body_rows.append(
-                f"<tr class=\"{css} machine-{machine_state}\" style=\"--machine-order:{machine_sort.get(row_index, row_index + 1)}\" data-customer=\"{html.escape(customer_name.casefold(), quote=True)}\" data-color-search=\"{search_attr}\">"
+                f"<tr class=\"colorRow {css} machine-{machine_state}\" style=\"--machine-order:{machine_sort.get(row_index, row_index + 1)}\" data-customer=\"{html.escape(customer_name, quote=True)}\" data-customer-label=\"{html.escape(customer_name, quote=True)}\" data-color-search=\"{search_attr}\">"
                 f"<td><span class=\"dot\" aria-hidden=\"true\"></span></td>"
                 f"<td class=\"name\"><span class=\"customerGlow\" data-cmyk=\"{button_cmyk}\" title=\"{button_name} · {button_cmyk}\" aria-hidden=\"true\"></span><span class=\"colorNameText\" title=\"{button_name}\">{escaped_name}</span><span class=\"customerLabel\">{('Kunde: ' + escaped_customer) if escaped_customer else ''}</span><span class=\"machineCmyk\" title=\"{button_cmyk}\">{escaped_cmyk}</span>{not_printable_banner}</td>"
                 f"<td><button type=\"button\" class=\"copy\" data-name=\"{button_name}\" title=\"Farbnamen kopieren\" aria-label=\"Farbnamen kopieren\">⧉</button></td>"
@@ -3859,7 +3859,7 @@ class ColorTableManager:
     th {{ background: #e7e9ec; }}
     tr[hidden] {{ display: none !important; }}
     [data-prepress-only][hidden] {{ display: none !important; }}
-    [data-machine-only][hidden], .cmykOrderForm[hidden] {{ display: none !important; }}
+    [data-machine-only][hidden] {{ display: none !important; }}
     th.indicator, td:first-child {{ width: 34px; text-align: center; }}
     .name {{ font-weight: 600; }}
     .copy, .addSk, .workflow {{ padding: 6px 9px; font-size: 12px; }}
@@ -3920,41 +3920,30 @@ class ColorTableManager:
     .prepressNote p {{ margin: 6px 0; }}
     .prepressNoteStatus {{ margin: 6px 0; font-weight: 800; color: #c9901a; }}
     .prepressNote.done .prepressNoteStatus {{ color: #2f8f4e; }}
-    .cmykOrdersPanel {{ margin: 18px 0 30px; border: 1px solid #cbd3d9; background: #fff; }}
-    .cmykOrdersHead {{ display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 13px 15px; border-bottom: 1px solid #dfe3e7; }}
-    .cmykOrdersHead h2 {{ margin: 0; font-size: 17px; }}
-    .cmykOrdersHead span {{ color: #68727c; font-size: 12px; }}
-    .cmykOrderForm {{ display: grid; grid-template-columns: minmax(150px, 1fr) minmax(120px, .7fr) minmax(180px, 1.2fr) minmax(120px, .7fr) auto; gap: 8px; padding: 12px 15px; border-bottom: 1px solid #dfe3e7; background: #f7f8f9; }}
+    .cmykOrderForm {{ display: grid; grid-template-columns: minmax(150px, 1fr) minmax(120px, .7fr) minmax(180px, 1.2fr) minmax(120px, .7fr) auto; gap: 8px; max-width: 1200px; margin: 0 0 14px; padding: 12px 14px; border: 1px solid #cbd3d9; border-left: 4px solid #286a48; background: #f7f8f9; }}
+    .cmykOrderFormHead {{ grid-column: 1 / -1; display: flex; align-items: baseline; gap: 12px; }}
+    .cmykOrderFormHead strong {{ color: #1d3348; }}
+    .cmykOrderFormHead span {{ color: #68727c; font-size: 12px; }}
     .cmykOrderForm input {{ min-width: 0; width: 100%; padding: 9px 10px; border: 1px solid #c8cdd3; }}
     .cmykOrderForm button {{ background: #286a48; border-color: #286a48; color: #fff; }}
     #cmykOrderMessage {{ grid-column: 1 / -1; min-height: 16px; color: #626b75; font-size: 12px; }}
-    .cmykCustomer {{ border-bottom: 1px solid #e3e7ea; }}
-    .cmykCustomer:last-child {{ border-bottom: 0; }}
-    .cmykCustomer > summary {{ display: flex; align-items: center; gap: 9px; padding: 11px 15px; list-style: none; cursor: pointer; }}
-    .cmykCustomer > summary::-webkit-details-marker {{ display: none; }}
-    .cmykCustomerName {{ font-weight: 800; }}
-    .cmykCustomerCount {{ margin-left: auto; color: #68727c; font-size: 12px; }}
-    .cmykTableHead, .cmykOrderRow {{ display: grid; grid-template-columns: minmax(205px, .9fr) minmax(110px, .55fr) minmax(180px, 1fr) minmax(190px, .9fr) minmax(75px, auto); gap: 12px; align-items: center; }}
-    .cmykTableHead {{ padding: 7px 15px; background: #eef1f3; color: #626b75; font-size: 10px; font-weight: 800; text-transform: uppercase; }}
-    .cmykOrderRow {{ min-height: 58px; padding: 9px 15px; border-top: 1px solid #edf0f2; }}
-    .cmykOrderKind {{ display: flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 700; }}
-    .cmykOrderIcon {{ display: inline-grid; place-items: center; flex: 0 0 30px; width: 30px; height: 30px; border: 1px solid #b8c2ca; border-radius: 50%; background: #f1f3f5; color: #34424f; font-size: 9px; font-weight: 900; }}
-    .cmykOrderSk {{ color: #34414d; font-size: 12px; font-weight: 800; }}
-    .cmykOrderInfo {{ color: #56616c; font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }}
+    .cmykOrderIcon {{ display: inline-grid; place-items: center; min-width: 38px; height: 24px; margin-right: 7px; padding: 0 5px; border: 1px solid #aeb8c0; background: #eef1f4; color: #38444f; font-size: 10px; font-weight: 900; vertical-align: middle; }}
+    .cmykOrderInfo {{ display: block; margin-top: 4px; color: #56616c; font-size: 12px; line-height: 1.3; overflow-wrap: anywhere; white-space: normal; }}
     .cmykOrderActions {{ display: flex; flex-wrap: wrap; gap: 5px; }}
     .cmykOrderStatus {{ border-radius: 16px; padding: 6px 8px; font-size: 11px; white-space: nowrap; }}
     .cmykOrderStatus.selected.printable {{ border-color: #83ad8e; background: #f1f8f2; color: #315d3c; }}
     .cmykOrderStatus.selected.blocked {{ border-color: #c99999; background: #fbf3f3; color: #864343; }}
     .cmykInfoEdit {{ padding: 5px 7px; font-size: 11px; white-space: nowrap; }}
-    .cmykHistory {{ grid-column: 1 / -1; color: #68727c; font-size: 11px; line-height: 1.4; }}
-    .cmykHistory summary {{ width: fit-content; cursor: pointer; font-weight: 700; }}
-    .cmykHistoryList {{ padding: 5px 0 0 16px; }}
-    .cmykNoOrders {{ padding: 14px 15px; color: #68727c; font-size: 13px; }}
-    .cmykCustomer[hidden], .cmykOrderRow[hidden] {{ display: none !important; }}
-    body:not(.detailMode) .cmykOrdersPanel {{ margin-top: 24px; }}
-    body:not(.detailMode) .cmykOrdersHead span {{ display: none; }}
-    body:not(.detailMode) .cmykTableHead {{ display: none; }}
-    body:not(.detailMode) .cmykOrderRow {{ padding: 9px 12px; }}
+    .customerGroupHeader td {{ padding: 9px 12px; background: #f0f2f4; color: #263645; font-weight: 800; border-top: 2px solid #c6cdd3; }}
+    .customerGroupHeader span {{ margin-left: 10px; color: #717b84; font-size: 11px; font-weight: 600; }}
+    .customerGroupHeader[hidden] {{ display: none !important; }}
+    body:not(.detailMode) tr.customerGroupHeader {{ grid-column: 1 / -1; display: block; height: auto; min-height: 0; padding: 0; overflow: visible; background: transparent; border: 0; box-shadow: none; color: #263645; }}
+    body:not(.detailMode) tr.customerGroupHeader td {{ display: block; padding: 8px 10px; background: #e9edf0; border: 0; }}
+    .cmykOrderRow td {{ vertical-align: top; }}
+    .cmykOrderRow .cmykOrderIcon {{ margin: 0 0 5px; }}
+    .cmykOrderRow .cmykOrderInfo {{ white-space: normal; }}
+    .cmykInfoInline {{ display: none; margin-top: 5px; font-size: 12px; line-height: 1.25; color: #59636d; font-weight: 600; }}
+    .cmykOrderRow[hidden], .colorRow[hidden] {{ display: none !important; }}
     body:not(.detailMode) thead {{ display: none; }}
     body:not(.detailMode) table {{ display: block; background: transparent; box-shadow: none; }}
     body:not(.detailMode) #entryStatus {{ margin-top: 0; }}
@@ -3977,8 +3966,10 @@ class ColorTableManager:
     body:not(.detailMode) td:nth-child(3),
     body:not(.detailMode) td:nth-child(8),
     body:not(.detailMode) td:nth-child(9) {{ display: none; }}
+    body:not(.detailMode) .cmykOrderRow td:nth-child(4) {{ display: none; }}
     body:not(.detailMode) td.name {{ grid-column: 1 / -1; grid-row: 1; min-height: 0; padding-right: 48px; font-size: 18px; line-height: 1.15; color: inherit; font-weight: 800; z-index: 1; }}
     body:not(.detailMode) .colorNameText {{ display: -webkit-box; max-width: 100%; overflow: hidden; overflow-wrap: anywhere; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }}
+    body:not(.detailMode) .cmykInfoInline {{ display: block; max-height: 30px; overflow: hidden; }}
     body:not(.detailMode) .machineCmyk {{ display: block; max-width: calc(100% - 4px); margin-top: 5px; color: #626b75; font-size: 12px; line-height: 1.1; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
     body:not(.detailMode) .customerGlow {{ display: block; position: absolute; top: 14px; right: 14px; width: 34px; height: 34px; z-index: 0; pointer-events: none; border: 1px solid rgba(32,36,42,0.16); border-radius: 4px; background: rgb(var(--customer-rgb, 210,216,222)); }}
     body:not(.detailMode) tr.wait .customerGlow,
@@ -3997,6 +3988,7 @@ class ColorTableManager:
     body:not(.detailMode) .transferCell::before {{ color: #777f88; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0; }}
     body:not(.detailMode) .skCell::before {{ content: "SK"; }}
     body:not(.detailMode) .transferCell::before {{ content: "Übernahme"; }}
+    body:not(.detailMode) .cmykOrderRow .transferCell::before {{ content: "Art"; }}
     body:not(.detailMode) tr.ok .transferCell {{ background: transparent; border-color: transparent; }}
     body:not(.detailMode) .printDecision {{ display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; min-width: 0; height: 100%; }}
     body:not(.detailMode) .printChoice {{ flex: 0 0 auto; padding: 6px 8px; font-size: 12px; white-space: nowrap; }}
@@ -4056,11 +4048,9 @@ class ColorTableManager:
       .prepressEntry {{ grid-template-columns: 1fr; }}
       .prepressEntry textarea {{ grid-column: auto; }}
       .cmykOrderForm {{ grid-template-columns: 1fr; }}
+      .cmykOrderFormHead {{ flex-direction: column; gap: 3px; }}
       .cmykOrderForm input {{ width: 100%; }}
       .viewToggle {{ width: 100%; }}
-      .cmykTableHead {{ display: none; }}
-      .cmykOrderRow {{ grid-template-columns: minmax(130px, 1fr) minmax(90px, .65fr); gap: 8px; padding: 10px; }}
-      .cmykOrderInfo, .cmykOrderActions {{ grid-column: 1 / -1; }}
       body:not(.detailMode) tr {{ grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }}
     }}
     .dot {{ display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: #8c939b; }}
@@ -4137,23 +4127,20 @@ class ColorTableManager:
   <section id="prepressControls" class="prepressControls" data-prepress-only hidden>
     <div class="summary">{summary_html}</div>
   </section>
-  <div class="tableWrap"><table>
-    <thead><tr><th class="indicator"></th><th>Kundenfarbe</th><th></th><th>CMYK</th><th>Druck</th><th>Betroffene Eindruckvorlagen</th><th>Übernahme</th><th>Historie</th><th class="adminOnly"></th></tr></thead>
-    <tbody>{''.join(body_rows)}</tbody>
-  </table></div>
-  <div id="noSearchResults" class="noResults">Keine passenden Farben gefunden</div>
-  <section class="cmykOrdersPanel" id="cmykOrdersPanel" aria-label="Aufträge ohne Volltonfarbe">
-    <div class="cmykOrdersHead"><h2>Aufträge ohne Volltonfarbe <span id="cmykOrderCount">· 0</span></h2><span>CMYK-Druck · ohne angelegte Kunden-Volltonfarbe</span></div>
-    <form id="cmykOrderForm" class="cmykOrderForm" data-machine-only hidden>
+  <form id="cmykOrderForm" class="cmykOrderForm">
+      <div class="cmykOrderFormHead"><strong>CMYK-Auftrag eintragen</strong><span>Für Aufträge ohne Kunden-Volltonfarbe</span></div>
       <input name="customer" maxlength="120" autocomplete="off" placeholder="Kunde" aria-label="Kunde" required>
       <input name="sk" maxlength="80" autocomplete="off" placeholder="SK-Nummer" aria-label="SK-Nummer" required>
       <input name="machine_info" maxlength="500" autocomplete="off" placeholder="Maschineninfo optional" aria-label="Maschineninfo optional">
       <input name="created_by" maxlength="80" autocomplete="off" placeholder="Eingetragen von optional" aria-label="Eingetragen von optional">
-      <button type="submit">CMYK-Auftrag eintragen</button>
+      <button type="submit">Eintragen</button>
       <div id="cmykOrderMessage" role="status"></div>
-    </form>
-    <div id="cmykOrderList"><div class="cmykNoOrders">CMYK-Aufträge werden geladen …</div></div>
-  </section>
+  </form>
+  <div class="tableWrap"><table>
+    <thead><tr><th class="indicator"></th><th>Kundenfarbe / Auftrag</th><th></th><th>CMYK / Maschineninfo</th><th>Druck</th><th>SK / Eindruckvorlagen</th><th>Übernahme</th><th>Historie</th><th class="adminOnly"></th></tr></thead>
+    <tbody id="overviewRows">{''.join(body_rows)}</tbody>
+  </table></div>
+  <div id="noSearchResults" class="noResults">Keine passenden Farben oder Aufträge gefunden</div>
   <div id="dialogBackdrop" class="dialogBackdrop" role="dialog" aria-modal="true">
     <div class="dialogBox">
       <h2 id="dialogTitle"></h2>
@@ -4256,6 +4243,7 @@ class ColorTableManager:
       button.type = 'button';
       button.classList.toggle('selected', order.status === state);
       button.classList.add(state === 'druckbar' ? 'printable' : 'blocked');
+      if (order.status === state) button.textContent = '✓ ' + label;
       button.addEventListener('click', function() {{
         if (order.status === state) return;
         cmykApiMessage('Druckstatus wird gespeichert …');
@@ -4274,103 +4262,110 @@ class ColorTableManager:
     }}
     function renderCmykOrders(orders) {{
       window.mjetCmykOrders = Array.isArray(orders) ? orders : [];
-      var list = document.getElementById('cmykOrderList');
-      var count = document.getElementById('cmykOrderCount');
-      if (!list) return;
-      list.replaceChildren();
-      var grouped = new Map();
-      window.mjetCmykOrders.forEach(function(order) {{
-        var customer = String(order.customer || 'Ohne Kundenangabe');
-        if (!grouped.has(customer)) grouped.set(customer, []);
-        grouped.get(customer).push(order);
-      }});
-      var customers = Array.from(grouped.keys()).sort(function(a, b) {{ return a.localeCompare(b, 'de'); }});
-      if (count) count.textContent = '· ' + window.mjetCmykOrders.length;
-      if (!customers.length) {{
-        list.append(cmykElement('div', 'cmykNoOrders', 'Noch keine CMYK-Aufträge eingetragen.'));
-        applyColorSearch();
-        return;
+      var tbody = document.getElementById('overviewRows');
+      if (!tbody) return;
+      if (!window.mjetSpotColorRows) window.mjetSpotColorRows = Array.from(tbody.querySelectorAll('tr.colorRow'));
+      var colorCountLabel = document.querySelector('.colorCount');
+      if (colorCountLabel) colorCountLabel.textContent = '· Farben gesamt: ' + (window.mjetSpotColorRows.length + window.mjetCmykOrders.length);
+      var groups = new Map();
+      function groupFor(customer, label) {{
+        var key = normalizeSearchText(customer) || '__ohne_kunde__';
+        if (!groups.has(key)) groups.set(key, {{ label: label || customer || 'Kunde nicht zugeordnet', rows: [], spot: 0, cmyk: 0, rank: 9 }});
+        return groups.get(key);
       }}
-      customers.forEach(function(customer) {{
-        var customerOrders = grouped.get(customer);
-        var group = cmykElement('details', 'cmykCustomer');
-        group.open = true;
-        group.dataset.customer = normalizeSearchText(customer);
-        var summary = cmykElement('summary');
-        summary.append(cmykElement('span', 'muted', '▸'));
-        summary.append(cmykElement('span', 'cmykCustomerName', customer));
-        summary.append(cmykElement('span', 'cmykCustomerCount', customerOrders.length + (customerOrders.length === 1 ? ' Auftrag' : ' Aufträge')));
-        group.append(summary);
-        var headings = cmykElement('div', 'cmykTableHead');
-        ['Auftragsart', 'SK-Nummer', 'Maschineninfo', 'Druckstatus', ''].forEach(function(label) {{ headings.append(cmykElement('span', '', label)); }});
-        group.append(headings);
-        customerOrders.forEach(function(order) {{
-          var row = cmykElement('article', 'cmykOrderRow');
-          row.dataset.search = normalizeSearchText([customer, order.sk_number, order.machine_info, 'CMYK ohne Volltonfarbe'].join(' '));
-          row.dataset.customer = normalizeSearchText(customer);
-          var kind = cmykElement('div', 'cmykOrderKind');
-          kind.append(cmykElement('span', 'cmykOrderIcon', 'CMYK'));
-          kind.append(document.createTextNode('Ohne Volltonfarbe'));
-          row.append(kind);
-          row.append(cmykElement('div', 'cmykOrderSk', 'SK ' + order.sk_number));
-          var info = cmykElement('div', 'cmykOrderInfo', order.machine_info || '');
-          row.append(info);
-          var status = cmykElement('div', 'cmykOrderActions');
-          status.append(cmykStatusButton(order, 'druckbar', 'Druckbar'));
-          status.append(cmykStatusButton(order, 'nicht_druckbar', 'Nicht druckbar'));
-          row.append(status);
-          var controls = cmykElement('div', 'cmykOrderActions');
-          var edit = cmykElement('button', 'cmykInfoEdit', 'Info ändern');
-          edit.type = 'button';
-          edit.addEventListener('click', function() {{
-            if (controls.querySelector('input')) return;
-            var input = document.createElement('input');
-            input.maxLength = 500;
-            input.value = order.machine_info || '';
-            input.placeholder = 'Maschineninfo';
-            input.setAttribute('aria-label', 'Maschineninfo');
-            controls.insertBefore(input, edit);
-            var save = cmykElement('button', 'cmykInfoEdit', 'Speichern');
-            save.type = 'button';
-            controls.insertBefore(save, edit);
-            save.addEventListener('click', function() {{
-              cmykApiMessage('Maschineninfo wird gespeichert …');
-              postHelper({cmyk_info_url_json}, {{ order_id: order.id, machine_info: input.value, changed_by: '' }})
-                .then(function(payload) {{
-                  cmykApiMessage(payloadMessage(payload, 'Maschineninfo gespeichert.'));
-                  loadCmykOrders();
-                }}).catch(function(error) {{ cmykApiMessage('Maschineninfo konnte nicht gespeichert werden: ' + friendlyFetchError(error)); }});
-            }});
+      function stateRank(row) {{
+        if (row.classList.contains('machine-blocked')) return 3;
+        if (row.classList.contains('machine-transferred')) return 0;
+        if (row.classList.contains('machine-printed')) return 1;
+        return 2;
+      }}
+      window.mjetSpotColorRows.forEach(function(row) {{
+        var customer = row.getAttribute('data-customer') || '';
+        var group = groupFor(customer, row.getAttribute('data-customer-label') || customer);
+        group.rows.push(row);
+        group.spot += 1;
+        group.rank = Math.min(group.rank, stateRank(row));
+      }});
+      window.mjetCmykOrders.forEach(function(order) {{
+        var customer = String(order.customer || '').trim();
+        var group = groupFor(customer, customer);
+        var row = cmykElement('tr', 'cmykOrderRow ' + (order.status === 'nicht_druckbar' ? 'machine-blocked' : order.status === 'druckbar' ? 'machine-printed' : 'machine-pending'));
+        row.dataset.customer = customer;
+        row.dataset.searchText = normalizeSearchText([customer, order.sk_number, order.machine_info, 'CMYK ohne Volltonfarbe'].join(' '));
+        var indicator = cmykElement('td', 'indicator');
+        var name = cmykElement('td', 'name');
+        var icon = cmykElement('span', 'cmykOrderIcon', 'CMYK');
+        name.append(icon, cmykElement('span', 'colorNameText', 'Ohne Volltonfarbe'));
+        if (order.machine_info) name.append(cmykElement('span', 'cmykInfoInline', order.machine_info));
+        var copy = cmykElement('td');
+        var cmyk = cmykElement('td', 'cmykOrderInfo machineCmyk', order.machine_info || 'Maschineninfo nicht eingetragen');
+        var print = cmykElement('td', 'printCell');
+        var statusActions = cmykElement('div', 'printDecision');
+        statusActions.append(cmykStatusButton(order, 'druckbar', 'Druckbar'));
+        statusActions.append(cmykStatusButton(order, 'nicht_druckbar', 'Nicht druckbar'));
+        print.append(statusActions);
+        var sk = cmykElement('td', 'skCell', 'SK ' + order.sk_number);
+        var transfer = cmykElement('td', 'transferCell', 'CMYK');
+        var historyCell = cmykElement('td');
+        var history = Array.isArray(order.history) ? order.history : [];
+        if (history.length) {{
+          var historyDetails = cmykElement('details', 'historyDetails');
+          historyDetails.append(cmykElement('summary', '', 'Historie · ' + history.length));
+          var historyList = cmykElement('div', 'historyList');
+          history.slice().reverse().forEach(function(event) {{
+            var label = event.event === 'created' ? 'Auftrag eingetragen' : event.event === 'machine_info_updated' ? 'Maschineninfo geändert' : event.event === 'status_druckbar' ? 'Als druckbar markiert' : event.event === 'status_nicht_druckbar' ? 'Als nicht druckbar markiert' : 'Status geändert';
+            historyList.append(cmykElement('div', '', (event.timestamp || '') + ' · ' + label + (event.user ? ' · ' + event.user : '')));
           }});
-          controls.append(edit);
-          row.append(controls);
-          var history = Array.isArray(order.history) ? order.history : [];
-          if (history.length) {{
-            var historyDetails = cmykElement('details', 'cmykHistory');
-            var historySummary = cmykElement('summary', '', 'Verlauf · ' + history.length);
-            historyDetails.append(historySummary);
-            var historyList = cmykElement('div', 'cmykHistoryList');
-            history.slice().reverse().forEach(function(event) {{
-              var eventName = event.event === 'created' ? 'Auftrag eingetragen' : event.event === 'machine_info_updated' ? 'Maschineninfo geändert' : event.event === 'status_druckbar' ? 'Als druckbar markiert' : event.event === 'status_nicht_druckbar' ? 'Als nicht druckbar markiert' : 'Status geändert';
-              var line = cmykElement('div', '', (event.timestamp || '') + ' · ' + eventName + (event.user ? ' · ' + event.user : ''));
-              historyList.append(line);
+          historyDetails.append(historyList);
+          historyCell.append(historyDetails);
+        }} else historyCell.textContent = 'keine Historie';
+        var actions = cmykElement('td', 'adminOnly adminActions');
+        var edit = cmykElement('button', 'cmykInfoEdit', 'Info ändern');
+        edit.type = 'button';
+        edit.addEventListener('click', function() {{
+          showDialog({{ title: 'Maschineninfo ändern', body: '<p>' + escapeHtml(customer) + ' · SK ' + escapeHtml(order.sk_number) + '</p><input type="text" maxlength="500" aria-label="Maschineninfo">', okText: 'Speichern', returnInput: true, inputValue: order.machine_info || '' }})
+            .then(function(next) {{
+              if (next === null) return;
+              postHelper({cmyk_info_url_json}, {{ order_id: order.id, machine_info: next, changed_by: '' }})
+                .then(function(payload) {{ cmykApiMessage(payloadMessage(payload, 'Maschineninfo gespeichert.')); loadCmykOrders(); }})
+                .catch(function(error) {{ cmykApiMessage('Maschineninfo konnte nicht gespeichert werden: ' + friendlyFetchError(error)); }});
             }});
-            historyDetails.append(historyList);
-            row.append(historyDetails);
-          }}
-          group.append(row);
         }});
-        list.append(group);
+        actions.append(edit);
+        row.append(indicator, name, copy, cmyk, print, sk, transfer, historyCell, actions);
+        group.rows.push(row);
+        group.cmyk += 1;
+        group.rank = Math.min(group.rank, stateRank(row));
+      }});
+      tbody.replaceChildren();
+      Array.from(groups.values()).sort(function(a, b) {{ return a.rank - b.rank || a.label.localeCompare(b.label, 'de'); }}).forEach(function(group) {{
+        var header = cmykElement('tr', 'customerGroupHeader');
+        var cell = cmykElement('td');
+        cell.colSpan = 9;
+        var title = cmykElement('strong', '', group.label);
+        var counts = [];
+        if (group.spot) counts.push(group.spot + (group.spot === 1 ? ' Volltonfarbe' : ' Volltonfarben'));
+        if (group.cmyk) counts.push(group.cmyk + (group.cmyk === 1 ? ' CMYK-Auftrag' : ' CMYK-Aufträge'));
+        cell.append(title, cmykElement('span', '', counts.join(' · ')));
+        header.append(cell);
+        tbody.append(header);
+        group.rows.sort(function(a, b) {{
+          var rankDifference = stateRank(a) - stateRank(b);
+          if (rankDifference) return rankDifference;
+          var aName = (a.querySelector('.colorNameText') || {{ textContent: a.dataset.searchText || '' }}).textContent;
+          var bName = (b.querySelector('.colorNameText') || {{ textContent: b.dataset.searchText || '' }}).textContent;
+          return aName.localeCompare(bName, 'de');
+        }}).forEach(function(row) {{ tbody.append(row); }});
       }});
       applyColorSearch();
     }}
     function loadCmykOrders() {{
+      if (!window.mjetSpotColorRows) renderCmykOrders([]);
       fetchWithTimeout({json.dumps(cmyk_order_url.rsplit('/', 1)[0] + '/api/cmyk-orders')}, {{ method: 'GET', cache: 'no-store' }}, 8000)
         .then(responseTextOrError)
         .then(function(payload) {{ renderCmykOrders(payload.orders || []); }})
         .catch(function(error) {{
-          var list = document.getElementById('cmykOrderList');
-          if (list) list.textContent = 'CMYK-Aufträge sind aktuell nicht erreichbar: ' + friendlyFetchError(error);
+          cmykApiMessage('CMYK-Aufträge sind aktuell nicht erreichbar: ' + friendlyFetchError(error));
         }});
     }}
     function escapeHtml(value) {{
@@ -4437,42 +4432,35 @@ class ColorTableManager:
       var message = document.getElementById('noSearchResults');
       var query = normalizeSearchText(input ? input.value.trim() : '');
       var visible = 0;
-      document.querySelectorAll('tbody tr').forEach(function(row) {{
-        if (!row.dataset.searchText) {{
-          refreshRowSearchText(row);
-        }}
-        var matches = !query || row.dataset.searchText.indexOf(query) !== -1;
-        row.hidden = !matches;
-        if (matches) {{
-          visible += 1;
-        }}
-      }});
-      var cmykVisible = 0;
-      document.querySelectorAll('.cmykCustomer').forEach(function(group) {{
-        var customer = group.dataset.customer || '';
-        var relatedColorMatch = false;
-        if (query) {{
-          document.querySelectorAll('tbody tr').forEach(function(colorRow) {{
-            if (colorRow.dataset.customer === customer && colorRow.dataset.searchText && colorRow.dataset.searchText.indexOf(query) !== -1) relatedColorMatch = true;
+      document.querySelectorAll('#overviewRows').forEach(function(tbody) {{
+        var header = null;
+        var rows = [];
+        function applyGroup() {{
+          if (!header) return;
+          var customer = normalizeSearchText(header.textContent || '');
+          var matches = !query || customer.indexOf(query) !== -1 || rows.some(function(row) {{
+            if (!row.dataset.searchText) refreshRowSearchText(row);
+            return row.dataset.searchText.indexOf(query) !== -1;
           }});
+          header.hidden = !matches;
+          rows.forEach(function(row) {{
+            row.hidden = !matches;
+            if (matches) visible += 1;
+          }});
+          rows = [];
         }}
-        var groupMatch = !query || customer.indexOf(query) !== -1 || relatedColorMatch;
-        var groupHits = 0;
-        group.querySelectorAll('.cmykOrderRow').forEach(function(row) {{
-          var matches = groupMatch || (row.dataset.search || '').indexOf(query) !== -1;
-          row.hidden = !matches;
-          if (matches) groupHits += 1;
+        Array.from(tbody.children).forEach(function(row) {{
+          if (row.classList.contains('customerGroupHeader')) {{ applyGroup(); header = row; }}
+          else if (row.matches('.colorRow, .cmykOrderRow')) rows.push(row);
         }});
-        group.hidden = groupHits === 0;
-        if (query && groupHits) group.open = true;
-        cmykVisible += groupHits;
+        applyGroup();
       }});
       if (message) {{
         message.textContent = 'Keine passenden Farben oder Aufträge gefunden';
-        message.classList.toggle('visible', visible + cmykVisible === 0);
+        message.classList.toggle('visible', visible === 0);
       }}
     }}
-    document.querySelectorAll('tbody tr').forEach(refreshRowSearchText);
+    document.querySelectorAll('tbody tr.colorRow').forEach(refreshRowSearchText);
     var colorSearch = document.getElementById('colorSearch');
     if (colorSearch) {{
       colorSearch.addEventListener('input', applyColorSearch);
@@ -4530,6 +4518,7 @@ class ColorTableManager:
         cancel.style.display = options.hideCancel ? 'none' : '';
         backdrop.classList.add('open');
         var input = (options.returnInput || options.returnInputs) ? body.querySelector('input') : null;
+        if (input && options.inputValue !== undefined) input.value = options.inputValue;
         function dialogValue() {{
           if (options.returnInputs) {{
             var values = {{}};
@@ -4571,21 +4560,9 @@ class ColorTableManager:
       return null;
     }}
     function sortMachineCards() {{
-      var rows = Array.from(document.querySelectorAll('tbody tr'));
-      rows.sort(function(a, b) {{
-        function rank(row) {{
-          if (row.classList.contains('machine-blocked')) return 3;
-          if (row.classList.contains('machine-transferred')) return 0;
-          if (row.classList.contains('machine-printed')) return 1;
-          return 2;
-        }}
-        var stateDifference = rank(a) - rank(b);
-        if (stateDifference) return stateDifference;
-        var aName = (a.querySelector('.colorNameText') || {{ textContent: '' }}).textContent.toLocaleLowerCase();
-        var bName = (b.querySelector('.colorNameText') || {{ textContent: '' }}).textContent.toLocaleLowerCase();
-        return aName.localeCompare(bName);
+      Array.from(document.querySelectorAll('#overviewRows > tr')).forEach(function(row, index) {{
+        row.style.setProperty('--machine-order', String(index + 1));
       }});
-      rows.forEach(function(row, index) {{ row.style.setProperty('--machine-order', String(index + 1)); }});
     }}
     function updateSummaries() {{
       var printOpen = document.querySelectorAll('.workflow[data-action="printed"]').length;
@@ -4792,16 +4769,21 @@ class ColorTableManager:
               row.querySelector('.colorNameText').title = newName;
               var customerLabel = row.querySelector('.customerLabel');
               if (customerLabel) customerLabel.textContent = customerName ? 'Kunde: ' + customerName : '';
+              row.setAttribute('data-customer', customerName);
+              row.setAttribute('data-customer-label', customerName);
               var renameButton = row.querySelector('.renameColor');
               if (renameButton) {{
                 renameButton.setAttribute('data-customer', customerName);
                 renameButton.setAttribute('data-aliases', JSON.stringify(payload.aliases || []));
               }}
               var mergedNames = aliasText.split(/[\\r\\n;]+/).concat([newName]).map(function(value) {{ return String(value || '').replace(/\\s+/g, ' ').trim().toLocaleLowerCase(); }});
-              document.querySelectorAll('tbody tr').forEach(function(otherRow) {{
+              document.querySelectorAll('#overviewRows tr.colorRow').forEach(function(otherRow) {{
                 if (otherRow === row) return;
                 var otherName = (otherRow.querySelector('.colorNameText') || {{ textContent: '' }}).textContent.replace(/\\s+/g, ' ').trim().toLocaleLowerCase();
-                if (mergedNames.indexOf(otherName) >= 0) otherRow.remove();
+                if (mergedNames.indexOf(otherName) >= 0) {{
+                  otherRow.remove();
+                  window.mjetSpotColorRows = (window.mjetSpotColorRows || []).filter(function(item) {{ return item !== otherRow; }});
+                }}
               }});
               var countLabel = document.querySelector('.colorCount');
               var mergedCount = parseInt(payload.merged_duplicates || '0', 10) || 0;
@@ -4814,6 +4796,7 @@ class ColorTableManager:
               var skNames = Array.from(row.querySelectorAll('.skItem strong')).map(function(item) {{ return item.textContent; }}).join(' ');
               row.setAttribute('data-color-search', newName + ' ' + customerName + ' ' + (row.querySelector('.cmykCell') || {{ textContent: '' }}).textContent + ' ' + skNames);
               refreshRowSearchText(row);
+              renderCmykOrders(window.mjetCmykOrders || []);
               applyColorSearch();
               sortMachineCards();
             }})
