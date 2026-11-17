@@ -188,8 +188,9 @@ class ColorOverviewChangesTest(unittest.TestCase):
         after = self.overview_rows()[0]
         self.assertEqual(after["Kunde"], "Schneider Druck")
         html = Path(self.config["color_overview_html"]).read_text(encoding="utf-8")
-        self.assertIn("Kunde: Schneider Druck", html)
+        self.assertNotIn('class="customerLabel"', html)
         self.assertIn("data-customer=\"Schneider Druck\"", html)
+        self.assertIn("data-customer-label", html)
 
         cleared = self.manager.rename_overview_color("Schneider Blau", "Schneider Blau", "")
         self.assertTrue(cleared["ok"])
@@ -201,7 +202,7 @@ class ColorOverviewChangesTest(unittest.TestCase):
 
         html = Path(self.config["color_overview_html"]).read_text(encoding="utf-8")
         self.assertIn('<span class="colorCount">· Farben gesamt: 2</span>', html)
-        self.assertIn('<span class="versionTag">Version 1.4</span>', html)
+        self.assertIn('<span class="versionTag">Version 1.5</span>', html)
         self.assertIn("position: absolute; top: 0; right: 0", html)
         self.assertIn("Weitere Namen / Dubletten", html)
 
@@ -508,6 +509,8 @@ class ColorOverviewChangesTest(unittest.TestCase):
         self.assertIn('id="overviewRows"', html)
         self.assertIn("function renderCmykOrders(orders)", html)
         self.assertIn("customerGroupHeader", html)
+        self.assertIn("grid-column: 1 / -1 !important", html)
+        self.assertNotIn('class="customerLabel"', html)
         self.assertIn("groupFor(customer, customer)", html)
         self.assertNotIn('id="cmykOrderList"', html)
         self.assertIn("VOGT Blau", html)

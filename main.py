@@ -45,7 +45,7 @@ from update_service import (
 
 
 APP_NAME = "MJET-X Helper"
-APP_VERSION = "1.4"
+APP_VERSION = "1.5"
 APP_AUTHOR = "AE / Marvin Schöffel"
 APP_CONTACT = "ms@graphic-druck.de"
 CONFIG_NAME = "helper_config.json"
@@ -3629,7 +3629,6 @@ class ColorTableManager:
             button_name = html.escape(name, quote=True)
             button_cmyk = html.escape(cmyk, quote=True)
             customer_name = str(row.get("Kunde") or "").strip()
-            escaped_customer = html.escape(customer_name)
             button_customer = html.escape(customer_name, quote=True)
             button_aliases = html.escape(json.dumps(self._color_alias_names(row), ensure_ascii=False), quote=True)
             search_parts = [name, cmyk, customer_name]
@@ -3774,7 +3773,7 @@ class ColorTableManager:
             body_rows.append(
                 f"<tr class=\"colorRow {css} machine-{machine_state}\" style=\"--machine-order:{machine_sort.get(row_index, row_index + 1)}\" data-customer=\"{html.escape(customer_name, quote=True)}\" data-customer-label=\"{html.escape(customer_name, quote=True)}\" data-color-search=\"{search_attr}\">"
                 f"<td><span class=\"dot\" aria-hidden=\"true\"></span></td>"
-                f"<td class=\"name\"><span class=\"customerGlow\" data-cmyk=\"{button_cmyk}\" title=\"{button_name} · {button_cmyk}\" aria-hidden=\"true\"></span><span class=\"colorNameText\" title=\"{button_name}\">{escaped_name}</span><span class=\"customerLabel\">{('Kunde: ' + escaped_customer) if escaped_customer else ''}</span><span class=\"machineCmyk\" title=\"{button_cmyk}\">{escaped_cmyk}</span>{not_printable_banner}</td>"
+                f"<td class=\"name\"><span class=\"customerGlow\" data-cmyk=\"{button_cmyk}\" title=\"{button_name} · {button_cmyk}\" aria-hidden=\"true\"></span><span class=\"colorNameText\" title=\"{button_name}\">{escaped_name}</span><span class=\"machineCmyk\" title=\"{button_cmyk}\">{escaped_cmyk}</span>{not_printable_banner}</td>"
                 f"<td><button type=\"button\" class=\"copy\" data-name=\"{button_name}\" title=\"Farbnamen kopieren\" aria-label=\"Farbnamen kopieren\">⧉</button></td>"
                 f"<td class=\"cmykCell\">{escaped_cmyk}</td>"
                 f"<td class=\"printCell\">{print_summary}</td>"
@@ -3894,8 +3893,6 @@ class ColorTableManager:
     .workflow.danger {{ background: #e5c0c0; color: #3e1f1f; }}
     .muted {{ color: #8c939b; }}
     .history {{ font-size: 12px; }}
-    .customerLabel {{ display: none; }}
-    body.detailMode .customerLabel:not(:empty) {{ display: block; margin-top: 3px; color: #7a828a; font-size: 12px; line-height: 1.2; font-weight: 500; }}
     .historyDetails {{ max-width: 330px; }}
     .historyDetails summary {{ display: inline-flex; align-items: center; gap: 6px; padding: 3px 0; color: #4f5964; font-weight: 800; cursor: pointer; }}
     .historyList {{ margin-top: 6px; line-height: 1.35; white-space: normal; overflow-wrap: anywhere; }}
@@ -3934,11 +3931,12 @@ class ColorTableManager:
     .cmykOrderStatus.selected.printable {{ border-color: #83ad8e; background: #f1f8f2; color: #315d3c; }}
     .cmykOrderStatus.selected.blocked {{ border-color: #c99999; background: #fbf3f3; color: #864343; }}
     .cmykInfoEdit {{ padding: 5px 7px; font-size: 11px; white-space: nowrap; }}
-    .customerGroupHeader td {{ padding: 9px 12px; background: #f0f2f4; color: #263645; font-weight: 800; border-top: 2px solid #c6cdd3; }}
-    .customerGroupHeader span {{ margin-left: 10px; color: #717b84; font-size: 11px; font-weight: 600; }}
+    .customerGroupHeader td {{ display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 12px; background: #f0f2f4; color: #263645; font-weight: 800; border-top: 2px solid #c6cdd3; }}
+    .customerGroupHeader strong {{ min-width: 0; overflow-wrap: anywhere; font-size: 15px; }}
+    .customerGroupHeader span {{ margin-left: auto; color: #65717b; font-size: 12px; font-weight: 600; text-align: right; white-space: nowrap; }}
     .customerGroupHeader[hidden] {{ display: none !important; }}
-    body:not(.detailMode) tr.customerGroupHeader {{ grid-column: 1 / -1; display: block; height: auto; min-height: 0; padding: 0; overflow: visible; background: transparent; border: 0; box-shadow: none; color: #263645; }}
-    body:not(.detailMode) tr.customerGroupHeader td {{ display: block; padding: 8px 10px; background: #e9edf0; border: 0; }}
+    body:not(.detailMode) tr.customerGroupHeader {{ grid-column: 1 / -1 !important; grid-row: auto !important; justify-self: stretch; width: 100%; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); height: auto; min-height: 0; padding: 0; overflow: visible; background: transparent; border: 0; box-shadow: none; color: #263645; }}
+    body:not(.detailMode) tr.customerGroupHeader td {{ display: flex; width: 100%; min-width: 0; min-height: 34px; box-sizing: border-box; padding: 8px 12px; background: #e9edf0; border: 0; }}
     .cmykOrderRow td {{ vertical-align: top; }}
     .cmykOrderRow .cmykOrderIcon {{ margin: 0 0 5px; }}
     .cmykOrderRow .cmykOrderInfo {{ white-space: normal; }}
@@ -4767,8 +4765,6 @@ class ColorTableManager:
               row.querySelectorAll('[data-name]').forEach(function(item) {{ item.setAttribute('data-name', newName); }});
               row.querySelectorAll('[data-color]').forEach(function(item) {{ item.setAttribute('data-color', newName); }});
               row.querySelector('.colorNameText').title = newName;
-              var customerLabel = row.querySelector('.customerLabel');
-              if (customerLabel) customerLabel.textContent = customerName ? 'Kunde: ' + customerName : '';
               row.setAttribute('data-customer', customerName);
               row.setAttribute('data-customer-label', customerName);
               var renameButton = row.querySelector('.renameColor');
