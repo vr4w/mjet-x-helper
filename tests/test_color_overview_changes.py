@@ -202,7 +202,7 @@ class ColorOverviewChangesTest(unittest.TestCase):
 
         html = Path(self.config["color_overview_html"]).read_text(encoding="utf-8")
         self.assertIn('<span class="colorCount">· Farben gesamt: 2</span>', html)
-        self.assertIn('<span class="versionTag">Version 1.5</span>', html)
+        self.assertIn('<span class="versionTag">Version 1.6</span>', html)
         self.assertIn("position: absolute; top: 0; right: 0", html)
         self.assertIn("Weitere Namen / Dubletten", html)
 
@@ -509,6 +509,11 @@ class ColorOverviewChangesTest(unittest.TestCase):
         self.assertIn('id="overviewRows"', html)
         self.assertIn("function renderCmykOrders(orders)", html)
         self.assertIn("customerGroupHeader", html)
+        self.assertIn("customerGroupHeaderContent", html)
+        self.assertIn("tr.customerGroupHeader td:first-child { display: block !important; }", html)
+        self.assertIn("sortMachineCards();", html)
+        self.assertIn("existingCustomerNames", html)
+        self.assertIn("Ohne Kundenzuordnung", html)
         self.assertIn("grid-column: 1 / -1 !important", html)
         self.assertNotIn('class="customerLabel"', html)
         self.assertIn("groupFor(customer, customer)", html)

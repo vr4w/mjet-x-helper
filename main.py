@@ -45,7 +45,7 @@ from update_service import (
 
 
 APP_NAME = "MJET-X Helper"
-APP_VERSION = "1.5"
+APP_VERSION = "1.6"
 APP_AUTHOR = "AE / Marvin Schöffel"
 APP_CONTACT = "ms@graphic-druck.de"
 CONFIG_NAME = "helper_config.json"
@@ -3931,12 +3931,14 @@ class ColorTableManager:
     .cmykOrderStatus.selected.printable {{ border-color: #83ad8e; background: #f1f8f2; color: #315d3c; }}
     .cmykOrderStatus.selected.blocked {{ border-color: #c99999; background: #fbf3f3; color: #864343; }}
     .cmykInfoEdit {{ padding: 5px 7px; font-size: 11px; white-space: nowrap; }}
-    .customerGroupHeader td {{ display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 12px; background: #f0f2f4; color: #263645; font-weight: 800; border-top: 2px solid #c6cdd3; }}
+    .customerGroupHeader td {{ padding: 0; background: #f0f2f4; color: #263645; font-weight: 800; border-top: 2px solid #c6cdd3; }}
+    .customerGroupHeaderContent {{ display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-width: 0; box-sizing: border-box; padding: 9px 12px; }}
     .customerGroupHeader strong {{ min-width: 0; overflow-wrap: anywhere; font-size: 15px; }}
     .customerGroupHeader span {{ margin-left: auto; color: #65717b; font-size: 12px; font-weight: 600; text-align: right; white-space: nowrap; }}
     .customerGroupHeader[hidden] {{ display: none !important; }}
-    body:not(.detailMode) tr.customerGroupHeader {{ grid-column: 1 / -1 !important; grid-row: auto !important; justify-self: stretch; width: 100%; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); height: auto; min-height: 0; padding: 0; overflow: visible; background: transparent; border: 0; box-shadow: none; color: #263645; }}
-    body:not(.detailMode) tr.customerGroupHeader td {{ display: flex; width: 100%; min-width: 0; min-height: 34px; box-sizing: border-box; padding: 8px 12px; background: #e9edf0; border: 0; }}
+    body:not(.detailMode) tr.customerGroupHeader {{ grid-column: 1 / -1 !important; grid-row: auto !important; justify-self: stretch; align-self: stretch; width: 100%; min-width: 0; display: block; height: auto; min-height: 0; padding: 0; overflow: visible; background: transparent; border: 0; box-shadow: none; color: #263645; }}
+    body:not(.detailMode) tr.customerGroupHeader td {{ display: block; width: 100%; min-width: 0; min-height: 34px; box-sizing: border-box; padding: 0; background: #e9edf0; border: 0; }}
+    body:not(.detailMode) .customerGroupHeaderContent {{ min-height: 34px; padding: 8px 12px; }}
     .cmykOrderRow td {{ vertical-align: top; }}
     .cmykOrderRow .cmykOrderIcon {{ margin: 0 0 5px; }}
     .cmykOrderRow .cmykOrderInfo {{ white-space: normal; }}
@@ -3964,6 +3966,7 @@ class ColorTableManager:
     body:not(.detailMode) td:nth-child(3),
     body:not(.detailMode) td:nth-child(8),
     body:not(.detailMode) td:nth-child(9) {{ display: none; }}
+    body:not(.detailMode) tr.customerGroupHeader td:first-child {{ display: block !important; }}
     body:not(.detailMode) .cmykOrderRow td:nth-child(4) {{ display: none; }}
     body:not(.detailMode) td.name {{ grid-column: 1 / -1; grid-row: 1; min-height: 0; padding-right: 48px; font-size: 18px; line-height: 1.15; color: inherit; font-weight: 800; z-index: 1; }}
     body:not(.detailMode) .colorNameText {{ display: -webkit-box; max-width: 100%; overflow: hidden; overflow-wrap: anywhere; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }}
@@ -4268,7 +4271,7 @@ class ColorTableManager:
       var groups = new Map();
       function groupFor(customer, label) {{
         var key = normalizeSearchText(customer) || '__ohne_kunde__';
-        if (!groups.has(key)) groups.set(key, {{ label: label || customer || 'Kunde nicht zugeordnet', rows: [], spot: 0, cmyk: 0, rank: 9 }});
+        if (!groups.has(key)) groups.set(key, {{ label: label || customer || 'Ohne Kundenzuordnung', rows: [], spot: 0, cmyk: 0, rank: 9 }});
         return groups.get(key);
       }}
       function stateRank(row) {{
@@ -4344,7 +4347,9 @@ class ColorTableManager:
         var counts = [];
         if (group.spot) counts.push(group.spot + (group.spot === 1 ? ' Volltonfarbe' : ' Volltonfarben'));
         if (group.cmyk) counts.push(group.cmyk + (group.cmyk === 1 ? ' CMYK-Auftrag' : ' CMYK-Aufträge'));
-        cell.append(title, cmykElement('span', '', counts.join(' · ')));
+        var content = cmykElement('div', 'customerGroupHeaderContent');
+        content.append(title, cmykElement('span', '', counts.join(' · ')));
+        cell.append(content);
         header.append(cell);
         tbody.append(header);
         group.rows.sort(function(a, b) {{
@@ -4356,6 +4361,7 @@ class ColorTableManager:
         }}).forEach(function(row) {{ tbody.append(row); }});
       }});
       applyColorSearch();
+      sortMachineCards();
     }}
     function loadCmykOrders() {{
       if (!window.mjetSpotColorRows) renderCmykOrders([]);
@@ -4740,11 +4746,18 @@ class ColorTableManager:
         var oldCustomer = button.getAttribute('data-customer') || '';
         var oldAliases = [];
         try {{ oldAliases = JSON.parse(button.getAttribute('data-aliases') || '[]'); }} catch (_error) {{ oldAliases = []; }}
+        var customerSuggestions = Array.from(new Set(
+          Array.from(document.querySelectorAll('#overviewRows tr.colorRow[data-customer-label]'))
+            .map(function(item) {{ return (item.getAttribute('data-customer-label') || '').trim(); }})
+            .concat((window.mjetCmykOrders || []).map(function(order) {{ return String(order.customer || '').trim(); }}))
+            .filter(Boolean)
+        )).sort(function(a, b) {{ return a.localeCompare(b, 'de'); }});
+        var customerOptions = customerSuggestions.map(function(name) {{ return '<option value="' + escapeHtml(name) + '"></option>'; }}).join('');
         var status = document.getElementById('entryStatus');
         var row = button.closest('tr');
         showDialog({{
           title: 'Farbe bearbeiten',
-          body: '<label>Farbname<input id="renamedColor" value="' + escapeHtml(oldName) + '" maxlength="160" autocomplete="off"></label><label>Kunde optional<input id="renamedCustomer" value="' + escapeHtml(oldCustomer) + '" maxlength="160" placeholder="z. B. Schneider"></label><label>Weitere Namen / Dubletten<textarea id="renamedAliases" rows="3" placeholder="Je Zeile ein weiterer Name">' + escapeHtml(oldAliases.join("\\n")) + '</textarea></label><p>Einträge mit diesen Namen werden in der Übersicht zusammengeführt. Die CCT-Dateien bleiben unverändert.</p>',
+          body: '<label>Farbname<input id="renamedColor" value="' + escapeHtml(oldName) + '" maxlength="160" autocomplete="off"></label><label>Kunde optional<input id="renamedCustomer" list="existingCustomerNames" value="' + escapeHtml(oldCustomer) + '" maxlength="160" placeholder="Kundennamen eingeben oder auswählen"><datalist id="existingCustomerNames">' + customerOptions + '</datalist></label><label>Weitere Namen / Dubletten<textarea id="renamedAliases" rows="3" placeholder="Je Zeile ein weiterer Name">' + escapeHtml(oldAliases.join("\\n")) + '</textarea></label><p>Einträge mit diesen Namen werden in der Übersicht zusammengeführt. Die CCT-Dateien bleiben unverändert.</p>',
           okText: 'Speichern',
           returnInputs: true
         }}).then(function(values) {{
