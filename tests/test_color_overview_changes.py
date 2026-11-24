@@ -202,7 +202,7 @@ class ColorOverviewChangesTest(unittest.TestCase):
 
         html = Path(self.config["color_overview_html"]).read_text(encoding="utf-8")
         self.assertIn('<span class="colorCount">· Farben gesamt: 2</span>', html)
-        self.assertIn('<span class="versionTag">Version 1.7</span>', html)
+        self.assertIn('<span class="versionTag">Version 1.8</span>', html)
         self.assertIn("position: absolute; top: 0; right: 0", html)
         self.assertIn("Weitere Namen / Dubletten", html)
 
@@ -504,8 +504,7 @@ class ColorOverviewChangesTest(unittest.TestCase):
         self.assertEqual(len(orders), 1)
 
         html = Path(self.config["color_overview_html"]).read_text(encoding="utf-8")
-        self.assertIn('id="cmykOrderForm" class="cmykOrderForm"', html)
-        self.assertNotIn('id="cmykOrderForm" class="cmykOrderForm" data-machine-only hidden', html)
+        self.assertIn('id="cmykOrderForm" class="cmykOrderForm" data-prepress-only hidden', html)
         self.assertIn('id="overviewRows"', html)
         self.assertIn("function renderCmykOrders(orders)", html)
         self.assertIn("var matchingRows = rows.filter(function(row)", html)
@@ -523,6 +522,11 @@ class ColorOverviewChangesTest(unittest.TestCase):
         self.assertNotIn('id="cmykOrderList"', html)
         self.assertIn("VOGT Blau", html)
         self.assertIn("/api/cmyk-orders", html)
+        self.assertIn('id="transferNotice"', html)
+        self.assertIn("function postHelper(url, data)", html)
+        self.assertIn("requestData.request_id = requestId", html)
+        self.assertIn("Neuer Sendeversuch in", html)
+        self.assertIn("idempotency_results", Path(__file__).parents[1].joinpath("main.py").read_text(encoding="utf-8"))
 
     def test_corrupt_cmyk_order_file_is_never_overwritten(self):
         path = Path(self.config["cmyk_orders_json"])

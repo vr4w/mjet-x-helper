@@ -45,7 +45,7 @@ from update_service import (
 
 
 APP_NAME = "MJET-X Helper"
-APP_VERSION = "1.7"
+APP_VERSION = "1.8"
 APP_AUTHOR = "AE / Marvin Schöffel"
 APP_CONTACT = "ms@graphic-druck.de"
 CONFIG_NAME = "helper_config.json"
@@ -3838,6 +3838,13 @@ class ColorTableManager:
     .connection.ok::before {{ background: #2f8f4e; }}
     .connection.down::before {{ background: #bd3f3f; }}
     .connection.checking::before {{ background: #c9901a; }}
+    .transferNotice {{ display: none; position: sticky; top: 8px; z-index: 20; width: fit-content; max-width: min(680px, 100%); align-items: center; gap: 10px; margin: 0 0 12px; padding: 10px 14px; border: 1px solid #b8c8d5; background: #f4f8fb; color: #1d3348; box-shadow: 0 2px 8px rgba(20, 35, 48, 0.14); font-size: 14px; font-weight: 700; }}
+    .transferNotice.visible {{ display: flex; }}
+    .transferNotice.success {{ border-color: #78aa87; background: #eef7f0; color: #245136; }}
+    .transferNotice.error {{ border-color: #ca7777; background: #fff2f1; color: #762f2f; }}
+    .transferSpinner {{ width: 16px; height: 16px; flex: none; border: 2px solid #c6d2dc; border-top-color: #2f6545; border-radius: 50%; animation: transferSpin 0.8s linear infinite; }}
+    .transferNotice.success .transferSpinner, .transferNotice.error .transferSpinner {{ display: none; }}
+    @keyframes transferSpin {{ to {{ transform: rotate(360deg); }} }}
     #entryStatus {{ margin: -8px 0 16px; color: #626b75; min-height: 20px; }}
     table {{ width: 100%; border-collapse: collapse; background: white; box-shadow: 0 0 0 1px #c8cdd3; }}
     .tableWrap {{ width: 100%; overflow-x: auto; }}
@@ -4095,6 +4102,7 @@ class ColorTableManager:
     </div>
   </header>
   {preview_banner}
+  <div id="transferNotice" class="transferNotice" role="status" aria-live="polite"><span class="transferSpinner" aria-hidden="true"></span><span id="transferNoticeText"></span></div>
   <div class="topBar">
     <div class="searchBar">
       <label for="colorSearch">Farbe, Kunde oder SK suchen</label>
@@ -4128,7 +4136,7 @@ class ColorTableManager:
   <section id="prepressControls" class="prepressControls" data-prepress-only hidden>
     <div class="summary">{summary_html}</div>
   </section>
-  <form id="cmykOrderForm" class="cmykOrderForm">
+  <form id="cmykOrderForm" class="cmykOrderForm" data-prepress-only hidden>
       <div class="cmykOrderFormHead"><strong>CMYK-Auftrag eintragen</strong><span>Für Aufträge ohne Kunden-Volltonfarbe</span></div>
       <input name="customer" maxlength="120" autocomplete="off" placeholder="Kunde" aria-label="Kunde" required>
       <input name="sk" maxlength="80" autocomplete="off" placeholder="SK-Nummer" aria-label="SK-Nummer" required>
@@ -4219,12 +4227,55 @@ class ColorTableManager:
         window.setTimeout(function() {{ button.textContent = '⧉'; button.title = 'Farbnamen kopieren'; }}, 1200);
       }});
     }});
+    var activeTransfers = 0;
+    var transferSuccessTimer = null;
+    function setTransferNotice(state, text) {{
+      var notice = document.getElementById('transferNotice');
+      var label = document.getElementById('transferNoticeText');
+      if (!notice || !label) return;
+      notice.className = 'transferNotice visible ' + state;
+      label.textContent = text;
+    }}
     function postHelper(url, data) {{
-      return fetchWithTimeout(url, {{
-        method: 'POST',
-        headers: {{ 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }},
-        body: new URLSearchParams(data).toString()
-      }}, 8000).then(responseTextOrError);
+      var requestData = Object.assign({{}}, data || {{}});
+      var requestId = window.crypto && window.crypto.randomUUID
+        ? window.crypto.randomUUID()
+        : String(Date.now()) + '-' + Math.random().toString(36).slice(2);
+      requestData.request_id = requestId;
+      activeTransfers += 1;
+      window.clearTimeout(transferSuccessTimer);
+      setTransferNotice('working', 'Änderungen werden an den Helper übertragen …');
+      var attempt = 0;
+      function send() {{
+        attempt += 1;
+        return fetchWithTimeout(url, {{
+          method: 'POST',
+          headers: {{ 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }},
+          body: new URLSearchParams(requestData).toString()
+        }}, 15000).then(responseTextOrError).catch(function(error) {{
+          if (error && (error.name === 'AbortError' || error instanceof TypeError || /Failed to fetch|NetworkError|Load failed/i.test(error.message || ''))) {{
+            var waitSeconds = Math.min(10, attempt);
+            setTransferNotice('working', 'Verbindung unterbrochen. Neuer Sendeversuch in ' + waitSeconds + ' s … (Versuch ' + (attempt + 1) + ')');
+            return new Promise(function(resolve) {{ window.setTimeout(resolve, waitSeconds * 1000); }}).then(send);
+          }}
+          throw error;
+        }});
+      }}
+      return send().then(function(payload) {{
+        activeTransfers = Math.max(0, activeTransfers - 1);
+        if (!activeTransfers) {{
+          setTransferNotice('success', 'Änderungen erfolgreich übertragen.');
+          transferSuccessTimer = window.setTimeout(function() {{
+            var notice = document.getElementById('transferNotice');
+            if (notice) notice.className = 'transferNotice';
+          }}, 2600);
+        }}
+        return payload;
+      }}).catch(function(error) {{
+        activeTransfers = Math.max(0, activeTransfers - 1);
+        setTransferNotice('error', 'Änderung nicht gespeichert: ' + friendlyFetchError(error));
+        throw error;
+      }});
     }}
     function payloadMessage(payload, fallback) {{
       return payload && payload.message ? payload.message : fallback;
@@ -5495,6 +5546,9 @@ class ColorRequestServer:
         port = int(self.config.get("color_request_server_port", 8765))
         color_manager = self.color_manager
         logger = self.logger
+        idempotency_guard = threading.Lock()
+        idempotency_locks: dict[str, threading.Lock] = {}
+        idempotency_results: dict[str, tuple[str, str, object, int]] = {}
 
         class Handler(BaseHTTPRequestHandler):
             def do_OPTIONS(self) -> None:
@@ -5525,6 +5579,29 @@ class ColorRequestServer:
                     length = int(self.headers.get("Content-Length", "0"))
                     body = self.rfile.read(min(length, 8192)).decode("utf-8", errors="replace")
                     values = parse_qs(body)
+                    request_id = values.get("request_id", [""])[0].strip()[:100]
+                    if request_id:
+                        signature = (path, hashlib.sha256(body.encode("utf-8")).hexdigest())
+                        with idempotency_guard:
+                            request_lock = idempotency_locks.setdefault(request_id, threading.Lock())
+                        request_lock.acquire()
+                        with idempotency_guard:
+                            cached = idempotency_results.get(request_id)
+                        if cached:
+                            if cached[:2] != signature:
+                                self._request_lock = request_lock
+                                self._request_id = request_id
+                                self._request_signature = signature
+                                self._send_json({"ok": False, "message": "Anfragekennung wurde bereits für eine andere Änderung verwendet."}, status=409)
+                            else:
+                                self._request_lock = request_lock
+                                self._request_id = request_id
+                                self._request_signature = signature
+                                self._send_json(cached[2], status=cached[3])
+                            return
+                        self._request_lock = request_lock
+                        self._request_id = request_id
+                        self._request_signature = signature
                     color_name = values.get("farbe", [""])[0]
                     sk_number = values.get("sk", [""])[0]
                     template_updated = bool(values.get("template_updated", [""])[0].strip())
@@ -5675,6 +5752,16 @@ class ColorRequestServer:
 
             def _send_json(self, payload: object, status: int = 200) -> None:
                 data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+                request_lock = getattr(self, "_request_lock", None)
+                if request_lock is not None:
+                    with idempotency_guard:
+                        idempotency_results[self._request_id] = (*self._request_signature, payload, status)
+                        while len(idempotency_results) > 500:
+                            oldest = next(iter(idempotency_results))
+                            idempotency_results.pop(oldest, None)
+                            idempotency_locks.pop(oldest, None)
+                    self._request_lock = None
+                    request_lock.release()
                 self.send_response(status)
                 self._send_common_headers(len(data), "application/json; charset=utf-8")
                 self.end_headers()
