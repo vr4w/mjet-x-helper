@@ -45,7 +45,7 @@ from update_service import (
 
 
 APP_NAME = "MJET-X Helper"
-APP_VERSION = "1.6"
+APP_VERSION = "1.7"
 APP_AUTHOR = "AE / Marvin Schöffel"
 APP_CONTACT = "ms@graphic-druck.de"
 CONFIG_NAME = "helper_config.json"
@@ -4441,15 +4441,17 @@ class ColorTableManager:
         var rows = [];
         function applyGroup() {{
           if (!header) return;
-          var customer = normalizeSearchText(header.textContent || '');
-          var matches = !query || customer.indexOf(query) !== -1 || rows.some(function(row) {{
+          var customerTitle = header.querySelector('strong');
+          var customerMatches = !query || normalizeSearchText(customerTitle ? customerTitle.textContent : '').indexOf(query) !== -1;
+          var matchingRows = rows.filter(function(row) {{
             if (!row.dataset.searchText) refreshRowSearchText(row);
             return row.dataset.searchText.indexOf(query) !== -1;
           }});
-          header.hidden = !matches;
+          header.hidden = !customerMatches && matchingRows.length === 0;
           rows.forEach(function(row) {{
-            row.hidden = !matches;
-            if (matches) visible += 1;
+            var rowMatches = !query || customerMatches || matchingRows.indexOf(row) !== -1;
+            row.hidden = !rowMatches;
+            if (rowMatches) visible += 1;
           }});
           rows = [];
         }}

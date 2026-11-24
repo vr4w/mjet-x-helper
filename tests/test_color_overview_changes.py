@@ -202,7 +202,7 @@ class ColorOverviewChangesTest(unittest.TestCase):
 
         html = Path(self.config["color_overview_html"]).read_text(encoding="utf-8")
         self.assertIn('<span class="colorCount">· Farben gesamt: 2</span>', html)
-        self.assertIn('<span class="versionTag">Version 1.6</span>', html)
+        self.assertIn('<span class="versionTag">Version 1.7</span>', html)
         self.assertIn("position: absolute; top: 0; right: 0", html)
         self.assertIn("Weitere Namen / Dubletten", html)
 
@@ -508,6 +508,9 @@ class ColorOverviewChangesTest(unittest.TestCase):
         self.assertNotIn('id="cmykOrderForm" class="cmykOrderForm" data-machine-only hidden', html)
         self.assertIn('id="overviewRows"', html)
         self.assertIn("function renderCmykOrders(orders)", html)
+        self.assertIn("var matchingRows = rows.filter(function(row)", html)
+        self.assertIn("header.hidden = !customerMatches && matchingRows.length === 0", html)
+        self.assertIn("!query || customerMatches || matchingRows.indexOf(row) !== -1", html)
         self.assertIn("customerGroupHeader", html)
         self.assertIn("customerGroupHeaderContent", html)
         self.assertIn("tr.customerGroupHeader td:first-child { display: block !important; }", html)
