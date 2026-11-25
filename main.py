@@ -45,7 +45,7 @@ from update_service import (
 
 
 APP_NAME = "MJET-X Helper"
-APP_VERSION = "1.9"
+APP_VERSION = "1.10"
 APP_AUTHOR = "AE / Marvin Schöffel"
 APP_CONTACT = "ms@graphic-druck.de"
 CONFIG_NAME = "helper_config.json"
@@ -3600,6 +3600,12 @@ class ColorTableManager:
                 machine_state = "printed"
             else:
                 machine_state = "pending"
+            workflow_label = {
+                "pending": "Angelegt",
+                "printed": "Druckbar",
+                "transferred": "In Vorlage übernommen",
+                "blocked": "Nicht druckbar",
+            }[machine_state]
             if not printed and not not_printable:
                 open_print_tests += 1
             if printed and not not_printable:
@@ -3772,8 +3778,8 @@ class ColorTableManager:
                 )
             body_rows.append(
                 f"<tr class=\"colorRow {css} machine-{machine_state}\" style=\"--machine-order:{machine_sort.get(row_index, row_index + 1)}\" data-customer=\"{html.escape(customer_name, quote=True)}\" data-customer-label=\"{html.escape(customer_name, quote=True)}\" data-color-search=\"{search_attr}\">"
-                f"<td><span class=\"dot\" aria-hidden=\"true\"></span></td>"
-                f"<td class=\"name\"><span class=\"customerGlow\" data-cmyk=\"{button_cmyk}\" title=\"{button_name} · {button_cmyk}\" aria-hidden=\"true\"></span><span class=\"colorNameText\" title=\"{button_name}\">{escaped_name}</span><span class=\"machineCmyk\" title=\"{button_cmyk}\">{escaped_cmyk}</span>{not_printable_banner}</td>"
+                f"<td class=\"indicator\"><span class=\"workflowMarker\" title=\"{workflow_label}\" aria-hidden=\"true\"></span></td>"
+                f"<td class=\"name\"><span class=\"customerGlow\" data-cmyk=\"{button_cmyk}\" title=\"{button_name} · {button_cmyk}\" aria-hidden=\"true\"></span><span class=\"colorNameText\" title=\"{button_name}\">{escaped_name}</span><span class=\"machineCmyk\" title=\"{button_cmyk}\">{escaped_cmyk}</span><span class=\"workflowStateBadge\">{workflow_label}</span>{not_printable_banner}</td>"
                 f"<td><button type=\"button\" class=\"copy\" data-name=\"{button_name}\" title=\"Farbnamen kopieren\" aria-label=\"Farbnamen kopieren\">⧉</button></td>"
                 f"<td class=\"cmykCell\">{escaped_cmyk}</td>"
                 f"<td class=\"printCell\">{print_summary}</td>"
@@ -3956,7 +3962,7 @@ class ColorTableManager:
     body:not(.detailMode) #entryStatus {{ margin-top: 0; }}
     body:not(.detailMode) .viewToggle {{ min-width: 142px; }}
     body:not(.detailMode) tbody {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 12px; align-items: start; }}
-    body:not(.detailMode) tr {{ order: var(--machine-order, 0); position: relative; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr) max-content; grid-template-rows: 57px 33px 46px; gap: 8px 12px; height: 180px; padding: 14px; background: #f8fafb; border: 1px solid #cbd3d9; border-left: 3px solid #aeb8c0; box-shadow: 0 2px 8px rgba(32,36,42,0.06); box-sizing: border-box; color: #5c6770; }}
+    body:not(.detailMode) tr {{ order: var(--machine-order, 0); position: relative; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr) max-content; grid-template-rows: 92px 33px 46px; gap: 8px 12px; height: 219px; padding: 14px; background: #f8fafb; border: 1px solid #cbd3d9; border-left: 3px solid #aeb8c0; box-shadow: 0 2px 8px rgba(32,36,42,0.06); box-sizing: border-box; color: #5c6770; }}
     body:not(.detailMode) tr.ok {{ background: #ffffff; border-color: #bfd2c5; border-left-color: #3f8050; box-shadow: 0 2px 9px rgba(32,36,42,0.09); color: #151a20; }}
     body:not(.detailMode) tr.wait,
     body:not(.detailMode) tr.new,
@@ -3965,9 +3971,9 @@ class ColorTableManager:
     body:not(.detailMode) tr.blocked {{ background: #fbf7f6; border-color: #dccdca; border-left-color: #a76560; box-shadow: 0 2px 8px rgba(32,36,42,0.04); color: #695c5b; }}
     body:not(.detailMode) tr.machine-pending {{ background: #e9ecef; border-color: #d5dade; border-left: 5px solid #aab2b9; box-shadow: none; color: #6c757e; }}
     body:not(.detailMode) tr.machine-pending .machineCmyk {{ color: #737c84; }}
-    body:not(.detailMode) tr.machine-printed {{ background: #ffffff; border: 1px solid #91ad98; border-left: 5px solid #6e9578; box-shadow: 0 2px 8px rgba(48,88,58,0.10); color: #202922; }}
+    body:not(.detailMode) tr.machine-printed {{ background: #f3f8fc; border: 2px solid #5c8bad; border-left: 6px solid #376f98; box-shadow: none; color: #202b34; }}
     body:not(.detailMode) tr.machine-transferred {{ background: #f1f8f2; border: 2px solid #438052; border-left: 6px solid #347448; box-shadow: 0 0 0 1px rgba(52,116,72,0.16), 0 3px 10px rgba(45,95,57,0.12); color: #17271b; }}
-    body:not(.detailMode) tr.machine-blocked {{ background: #f0eeee; border: 1px solid #d4cecd; border-left: 5px solid #a76560; box-shadow: none; color: #716665; }}
+    body:not(.detailMode) tr.machine-blocked {{ background: #f0eeee; border: 2px solid #b66360; border-left: 6px solid #a94340; box-shadow: none; color: #716665; }}
     body:not(.detailMode) td {{ display: block; border: 0; padding: 0; white-space: normal; }}
     body:not(.detailMode) td:first-child,
     body:not(.detailMode) td:nth-child(3),
@@ -4061,10 +4067,22 @@ class ColorTableManager:
       .viewToggle {{ width: 100%; }}
       body:not(.detailMode) tr {{ grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }}
     }}
-    .dot {{ display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: #8c939b; }}
-    tr.ok .dot {{ background: #2f8f4e; }}
-    tr.wait .dot {{ background: #c9901a; }}
-    tr.new .dot, tr.warn .dot {{ background: #bd3f3f; }}
+    tr.machine-pending {{ --state-ink: #59636b; --state-bg: #e5e8eb; --state-line: #aeb6bd; --state-symbol: "○"; }}
+    tr.machine-printed {{ --state-ink: #22597f; --state-bg: #e4eff8; --state-line: #5c8bad; --state-symbol: "✓"; }}
+    tr.machine-transferred {{ --state-ink: #25633a; --state-bg: #e0f0e5; --state-line: #438052; --state-symbol: "✓✓"; }}
+    tr.machine-blocked {{ --state-ink: #973c38; --state-bg: #f6e5e4; --state-line: #b66360; --state-symbol: "×"; }}
+    .workflowMarker {{ display: inline-grid; place-items: center; width: 22px; height: 22px; margin-top: 2px; border: 1px solid var(--state-line); border-radius: 4px; background: var(--state-bg); color: var(--state-ink); font-size: 12px; font-weight: 800; }}
+    .workflowMarker::before {{ content: var(--state-symbol); }}
+    .workflowStateBadge {{ display: block; width: fit-content; max-width: 100%; box-sizing: border-box; margin-top: 7px; padding: 3px 7px; border: 1px solid var(--state-line); border-radius: 3px; background: var(--state-bg); color: var(--state-ink); font-size: 12px; line-height: 16px; font-weight: 700; white-space: normal; }}
+    .workflowStateBadge::before {{ content: var(--state-symbol); margin-right: 5px; }}
+    tr.machine-printed .printChoice.printable.active, tr.machine-printed .cmykOrderStatus.selected.printable {{ color: #22597f; border-color: #5c8bad; background: #e4eff8; }}
+    body:not(.detailMode) tr.machine-pending .customerGlow {{ opacity: 0.55; }}
+    body.detailMode tr.machine-pending > td {{ background: #f5f6f7; }}
+    body.detailMode tr.machine-printed > td {{ background: #f3f8fc; }}
+    body.detailMode tr.machine-transferred > td {{ background: #eef7f0; }}
+    body.detailMode tr.machine-blocked > td {{ background: #f6f2f2; }}
+    body.detailMode tr.colorRow > td:first-child, body.detailMode tr.cmykOrderRow > td:first-child {{ border-left: 4px solid var(--state-line); }}
+    .notPrintableBanner {{ display: none !important; }}
     .dialogBackdrop {{ position: fixed; inset: 0; background: rgba(32, 36, 42, 0.28); display: none; align-items: center; justify-content: center; z-index: 10; }}
     .dialogBackdrop.open {{ display: flex; }}
     .dialogBox {{ width: min(420px, calc(100vw - 32px)); background: #fff; border: 1px solid #b7c0ca; box-shadow: 0 18px 45px rgba(0, 0, 0, 0.22); padding: 16px; }}
@@ -4619,7 +4637,26 @@ class ColorTableManager:
     function sortMachineCards() {{
       Array.from(document.querySelectorAll('#overviewRows > tr')).forEach(function(row, index) {{
         row.style.setProperty('--machine-order', String(index + 1));
+        syncWorkflowStatus(row);
       }});
+    }}
+    function syncWorkflowStatus(row) {{
+      if (!row.matches('.colorRow, .cmykOrderRow')) return;
+      var state = row.classList.contains('machine-blocked') ? 'blocked'
+        : row.classList.contains('machine-transferred') ? 'transferred'
+        : row.classList.contains('machine-printed') ? 'printed' : 'pending';
+      var label = {{ pending: 'Angelegt', printed: 'Druckbar', transferred: 'In Vorlage übernommen', blocked: 'Nicht druckbar' }}[state];
+      var name = row.querySelector('td.name');
+      var badge = row.querySelector('.workflowStateBadge');
+      if (!badge && name) {{
+        badge = cmykElement('span', 'workflowStateBadge');
+        name.append(badge);
+      }}
+      if (badge) badge.textContent = label;
+      var indicator = row.querySelector('td.indicator');
+      if (indicator && !indicator.querySelector('.workflowMarker')) indicator.append(cmykElement('span', 'workflowMarker'));
+      var marker = row.querySelector('.workflowMarker');
+      if (marker) {{ marker.title = label; marker.setAttribute('aria-hidden', 'true'); }}
     }}
     function updateSummaries() {{
       var printOpen = document.querySelectorAll('.workflow[data-action="printed"]').length;
@@ -4751,6 +4788,11 @@ class ColorTableManager:
         transfer.title = total && done === total ? 'Alle SK übernommen' : String(Math.max(0, total - done)) + ' SK offen';
         transfer.textContent = total && done === total ? '✓ ' + done + ' / ' + total : done + ' / ' + total;
       }}
+      if (row.classList.contains('machine-transferred')) {{
+        row.classList.remove('machine-transferred');
+        row.classList.add('machine-printed');
+      }}
+      syncWorkflowStatus(row);
       refreshRowSearchText(row);
       applyColorSearch();
     }}

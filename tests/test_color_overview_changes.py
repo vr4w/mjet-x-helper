@@ -202,7 +202,7 @@ class ColorOverviewChangesTest(unittest.TestCase):
 
         html = Path(self.config["color_overview_html"]).read_text(encoding="utf-8")
         self.assertIn('<span class="colorCount">· Farben gesamt: 2</span>', html)
-        self.assertIn('<span class="versionTag">Version 1.9</span>', html)
+        self.assertIn('<span class="versionTag">Version 1.10</span>', html)
         self.assertIn("position: absolute; top: 0; right: 0", html)
         self.assertIn("Weitere Namen / Dubletten", html)
 
@@ -223,10 +223,16 @@ class ColorOverviewChangesTest(unittest.TestCase):
         self.assertIn('class="colorRow new machine-pending" style="--machine-order:3"', html)
         self.assertIn('class="colorRow blocked machine-blocked" style="--machine-order:4"', html)
         self.assertIn("tr.machine-pending { background: #e9ecef", html)
-        self.assertIn("tr.machine-printed { background: #ffffff; border: 1px solid #91ad98", html)
+        self.assertIn("tr.machine-printed { background: #f3f8fc; border: 2px solid #5c8bad", html)
         self.assertIn("tr.machine-transferred { background: #f1f8f2; border: 2px solid #438052", html)
         self.assertIn("tr.machine-blocked { background: #f0eeee", html)
         self.assertIn('<span class="colorCount">· Farben gesamt: 4</span>', html)
+        self.assertIn('<span class="workflowStateBadge">Angelegt</span>', html)
+        self.assertIn('<span class="workflowStateBadge">Druckbar</span>', html)
+        self.assertIn('<span class="workflowStateBadge">In Vorlage übernommen</span>', html)
+        self.assertIn('<span class="workflowStateBadge">Nicht druckbar</span>', html)
+        self.assertNotIn('class="dot"', html)
+        self.assertIn('syncWorkflowStatus(row)', html)
 
     def test_marking_printable_enables_template_transfer_without_review_status(self):
         self.manager.add_requested_color("Schneider Druckbar")
@@ -243,6 +249,34 @@ class ColorOverviewChangesTest(unittest.TestCase):
         self.assertNotIn("Prüfungen offen", html)
         self.assertNotIn("Prüfung abschließen", html)
         self.assertIn("Übernahmen verwalten", html)
+
+    def test_workflow_status_is_independent_of_cct_and_cmyk_values(self):
+        self.color_file("Datei ohne Freigabe.cct", "Datei ohne Freigabe", True)
+        self.manager.rebuild_master(write_master=True)
+        html = Path(self.config["color_overview_html"]).read_text(encoding="utf-8")
+        self.assertIn('class="colorRow ok machine-pending"', html)
+        self.assertIn('<span class="workflowStateBadge">Angelegt</span>', html)
+        self.manager.add_requested_color("Freigabe ohne CMYK")
+        self.manager.mark_sk_printed("Freigabe ohne CMYK", "")
+        html = Path(self.config["color_overview_html"]).read_text(encoding="utf-8")
+        self.assertIn('class="colorRow new machine-printed"', html)
+        self.assertIn('<span class="workflowStateBadge">Druckbar</span>', html)
+        self.assertNotIn('class="workflowStateBadge">In Vorlage übernommen', html)
+
+    def test_new_sk_reopens_completed_color_and_blocked_status_takes_priority(self):
+        self.manager.add_requested_color("Vorlagenstatus")
+        self.manager.mark_sk_printed("Vorlagenstatus", "")
+        self.manager.add_sk_assignment("Vorlagenstatus", "SK 1")
+        self.manager.mark_template_updated("Vorlagenstatus", "SK 1", template_updated=True)
+        self.manager.add_sk_assignment("Vorlagenstatus", "SK 2")
+        html = Path(self.config["color_overview_html"]).read_text(encoding="utf-8")
+        self.assertIn('class="colorRow new machine-printed"', html)
+        self.assertNotIn('class="colorRow new machine-transferred"', html)
+        self.manager.mark_template_updated("Vorlagenstatus", "SK 2", template_updated=True)
+        self.manager.set_color_not_printable("Vorlagenstatus", "Test")
+        html = Path(self.config["color_overview_html"]).read_text(encoding="utf-8")
+        self.assertIn('class="colorRow blocked machine-blocked"', html)
+        self.assertIn('<span class="workflowStateBadge">Nicht druckbar</span>', html)
 
     def test_machine_color_allows_customer_assignment_and_renaming(self):
         self.color_file("Schneider Blau.cct", "Schneider Blau", True)
