@@ -1,5 +1,5 @@
 #define MyAppName "MJET-X Helper"
-#define MyAppVersion "1.8"
+#define MyAppVersion "1.9"
 #define MyAppPublisher "AE / Marvin Schoeffel"
 #define MyAppExeName "MJETXHelper.exe"
 
@@ -45,3 +45,15 @@ Name: "{userstartup}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: st
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{#MyAppName} starten"; Flags: nowait postinstall skipifsilent
 Filename: "{app}\{#MyAppExeName}"; Flags: nowait skipifnotsilent
+
+[Code]
+function SetProcessEnvironmentVariable(Name, Value: String): BOOL;
+  external 'SetEnvironmentVariableW@kernel32.dll stdcall setuponly';
+
+function InitializeSetup: Boolean;
+begin
+  { Also protect updates launched by older helpers with inherited bootloader state. }
+  Result := SetProcessEnvironmentVariable('PYINSTALLER_RESET_ENVIRONMENT', '1');
+  if not Result then
+    MsgBox('Der sichere Neustart des Helpers konnte nicht vorbereitet werden. Bitte das Setup erneut starten.', mbError, MB_OK);
+end;

@@ -45,7 +45,7 @@ from update_service import (
 
 
 APP_NAME = "MJET-X Helper"
-APP_VERSION = "1.8"
+APP_VERSION = "1.9"
 APP_AUTHOR = "AE / Marvin Schöffel"
 APP_CONTACT = "ms@graphic-druck.de"
 CONFIG_NAME = "helper_config.json"
@@ -8644,6 +8644,8 @@ class MainApp:
                 [str(installer), "/SILENT", "/NORESTART", "/SP-"],
                 cwd=str(installer.parent),
                 close_fds=True,
+                # The installer restarts the helper after this instance's temp files are removed.
+                env={**os.environ, "PYINSTALLER_RESET_ENVIRONMENT": "1"},
             )
         except Exception as exc:
             self.update_install_running = False

@@ -1,3 +1,4 @@
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -38,7 +39,22 @@ class UpdateFlowTest(unittest.TestCase):
         launch.assert_called_once()
         self.assertEqual(launch.call_args.args[0][0], str(installer))
         self.assertIn("/NORESTART", launch.call_args.args[0])
+        self.assertEqual(launch.call_args.kwargs["env"]["PYINSTALLER_RESET_ENVIRONMENT"], "1")
         app._on_close.assert_called_once()
+
+    def test_installer_gets_fresh_bootloader_environment_without_changing_parent(self):
+        app = self.app()
+        with mock.patch.dict(os.environ, {"PYINSTALLER_RESET_ENVIRONMENT": "0", "HELPER_TEST_VALUE": "keep"}):
+            with mock.patch("main.messagebox.askyesno", return_value=True), mock.patch("main.subprocess.Popen") as launch:
+                app._offer_verified_update(Path("C:/Temp/setup.exe"), "1.9")
+            self.assertEqual(launch.call_args.kwargs["env"]["PYINSTALLER_RESET_ENVIRONMENT"], "1")
+            self.assertEqual(launch.call_args.kwargs["env"]["HELPER_TEST_VALUE"], "keep")
+            self.assertEqual(os.environ["PYINSTALLER_RESET_ENVIRONMENT"], "0")
+
+    def test_installer_resets_environment_for_updates_from_older_helpers(self):
+        script = Path(__file__).parents[1].joinpath("installer.iss").read_text(encoding="utf-8")
+        self.assertIn("function InitializeSetup: Boolean;", script)
+        self.assertIn("SetProcessEnvironmentVariable('PYINSTALLER_RESET_ENVIRONMENT', '1')", script)
 
 
 if __name__ == "__main__":
