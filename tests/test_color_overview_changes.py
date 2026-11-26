@@ -202,7 +202,7 @@ class ColorOverviewChangesTest(unittest.TestCase):
 
         html = Path(self.config["color_overview_html"]).read_text(encoding="utf-8")
         self.assertIn('<span class="colorCount">· Farben gesamt: 2</span>', html)
-        self.assertIn('<span class="versionTag">Version 1.10</span>', html)
+        self.assertIn('<span class="versionTag">Version 1.11</span>', html)
         self.assertIn("position: absolute; top: 0; right: 0", html)
         self.assertIn("Weitere Namen / Dubletten", html)
 
@@ -233,6 +233,9 @@ class ColorOverviewChangesTest(unittest.TestCase):
         self.assertIn('<span class="workflowStateBadge">Nicht druckbar</span>', html)
         self.assertNotIn('class="dot"', html)
         self.assertIn('syncWorkflowStatus(row)', html)
+        self.assertIn('height: 178px', html)
+        self.assertIn('grid-template-rows: 12px 32px', html)
+        self.assertIn('body:not(.detailMode) .printChoice.active, body:not(.detailMode) .cmykOrderStatus.selected { display: none; }', html)
 
     def test_marking_printable_enables_template_transfer_without_review_status(self):
         self.manager.add_requested_color("Schneider Druckbar")
@@ -553,6 +556,8 @@ class ColorOverviewChangesTest(unittest.TestCase):
         self.assertIn("grid-column: 1 / -1 !important", html)
         self.assertNotIn('class="customerLabel"', html)
         self.assertIn("groupFor(customer, customer)", html)
+        self.assertIn("return Number(aUnassigned) - Number(bUnassigned) || a.label.localeCompare(b.label, 'de');", html)
+        self.assertNotIn("return a.rank - b.rank || a.label.localeCompare", html)
         self.assertNotIn('id="cmykOrderList"', html)
         self.assertIn("VOGT Blau", html)
         self.assertIn("/api/cmyk-orders", html)

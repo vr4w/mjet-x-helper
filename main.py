@@ -45,7 +45,7 @@ from update_service import (
 
 
 APP_NAME = "MJET-X Helper"
-APP_VERSION = "1.10"
+APP_VERSION = "1.11"
 APP_AUTHOR = "AE / Marvin Schöffel"
 APP_CONTACT = "ms@graphic-druck.de"
 CONFIG_NAME = "helper_config.json"
@@ -3962,7 +3962,7 @@ class ColorTableManager:
     body:not(.detailMode) #entryStatus {{ margin-top: 0; }}
     body:not(.detailMode) .viewToggle {{ min-width: 142px; }}
     body:not(.detailMode) tbody {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 12px; align-items: start; }}
-    body:not(.detailMode) tr {{ order: var(--machine-order, 0); position: relative; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr) max-content; grid-template-rows: 92px 33px 46px; gap: 8px 12px; height: 219px; padding: 14px; background: #f8fafb; border: 1px solid #cbd3d9; border-left: 3px solid #aeb8c0; box-shadow: 0 2px 8px rgba(32,36,42,0.06); box-sizing: border-box; color: #5c6770; }}
+    body:not(.detailMode) tr {{ order: var(--machine-order, 0); position: relative; overflow: hidden; display: grid; grid-template-columns: 54px minmax(0, 1fr) 68px; grid-template-rows: 60px 28px 48px; gap: 6px 8px; height: 178px; padding: 12px; background: #f8fafb; border: 1px solid #cbd3d9; border-left: 3px solid #aeb8c0; box-shadow: 0 2px 8px rgba(32,36,42,0.06); box-sizing: border-box; color: #5c6770; }}
     body:not(.detailMode) tr.ok {{ background: #ffffff; border-color: #bfd2c5; border-left-color: #3f8050; box-shadow: 0 2px 9px rgba(32,36,42,0.09); color: #151a20; }}
     body:not(.detailMode) tr.wait,
     body:not(.detailMode) tr.new,
@@ -3992,12 +3992,12 @@ class ColorTableManager:
     body:not(.detailMode) tr.blocked .customerGlow {{ opacity: 0.65; }}
     body:not(.detailMode) .cornerCmyk {{ display: none; }}
     body:not(.detailMode) .cmykCell {{ display: none; }}
-    body:not(.detailMode) .printCell {{ grid-column: 1; grid-row: 2; align-self: stretch; min-width: 0; padding-top: 0; z-index: 1; }}
+    body:not(.detailMode) .printCell {{ grid-column: 1 / -1; grid-row: 2; align-self: stretch; min-width: 0; padding-top: 0; z-index: 1; }}
     body:not(.detailMode) .printCell::before {{ content: none; }}
     body:not(.detailMode) td:nth-child(6) {{ grid-column: 1; grid-row: 3; padding: 0; z-index: 1; }}
-    body:not(.detailMode) .transferCell {{ grid-column: 2; grid-row: 3; }}
-    body:not(.detailMode) .skCell {{ display: grid; align-content: start; justify-items: start; gap: 7px; min-width: 0; }}
-    body:not(.detailMode) .transferCell {{ display: grid; align-content: start; justify-items: end; gap: 7px; min-width: 0; padding: 0; background: transparent; border: 0; box-sizing: border-box; z-index: 1; }}
+    body:not(.detailMode) .transferCell {{ grid-column: 3; grid-row: 3; }}
+    body:not(.detailMode) .skCell {{ display: grid; grid-template-rows: 12px 32px; align-content: end; justify-items: start; gap: 4px; min-width: 0; }}
+    body:not(.detailMode) .transferCell {{ display: grid; grid-template-rows: 12px 32px; align-content: end; justify-items: end; gap: 4px; min-width: 0; padding: 0; background: transparent; border: 0; box-sizing: border-box; z-index: 1; }}
     body:not(.detailMode) .skCell::before,
     body:not(.detailMode) .transferCell::before {{ color: #777f88; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0; }}
     body:not(.detailMode) .skCell::before {{ content: "SK"; }}
@@ -4006,7 +4006,7 @@ class ColorTableManager:
     body:not(.detailMode) tr.ok .transferCell {{ background: transparent; border-color: transparent; }}
     body:not(.detailMode) .printDecision {{ display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; min-width: 0; height: 100%; }}
     body:not(.detailMode) .printChoice {{ flex: 0 0 auto; padding: 6px 8px; font-size: 12px; white-space: nowrap; }}
-    body:not(.detailMode) .addSk {{ display: inline-grid; min-width: 54px; height: 34px; margin: 0; padding: 0 12px; place-items: center; background: rgba(255,255,255,0.78); border: 1px solid #c3cbd2; color: #20242a; text-align: center; cursor: pointer; }}
+    body:not(.detailMode) .addSk {{ display: inline-grid; box-sizing: border-box; width: 54px; min-width: 54px; height: 32px; margin: 0; padding: 0 12px; place-items: center; background: rgba(255,255,255,0.78); border: 1px solid #c3cbd2; color: #20242a; text-align: center; cursor: pointer; }}
     body:not(.detailMode) .addSk:hover {{ background: #fff; border-color: #9aa7b3; }}
     body:not(.detailMode) tr.ok .addSk {{ background: #ffffff; border-color: #abc0b0; }}
     body:not(.detailMode) .templateButtonLabel,
@@ -4015,7 +4015,7 @@ class ColorTableManager:
     body:not(.detailMode) .workflow.danger {{ display: none; }}
     body:not(.detailMode) .detailStatusChange {{ display: none; }}
     body:not(.detailMode) .transferSummary {{ display: none; }}
-    body:not(.detailMode) .machineTransferSummary {{ display: block; min-width: 0; font-size: 20px; line-height: 1; font-weight: 900; white-space: nowrap; overflow: visible; }}
+    body:not(.detailMode) .machineTransferSummary {{ display: flex; align-items: center; justify-content: flex-end; height: 32px; min-width: 0; font-size: 20px; line-height: 1; font-weight: 900; white-space: nowrap; overflow: visible; }}
     body:not(.detailMode) .machineTransferSummary.done {{ color: #3f6248; }}
     body:not(.detailMode) .machineTransferSummary.open {{ color: #6d6f72; }}
     body:not(.detailMode) .machineTransferSummary.idle {{ color: #8c939b; }}
@@ -4075,6 +4075,11 @@ class ColorTableManager:
     .workflowMarker::before {{ content: var(--state-symbol); }}
     .workflowStateBadge {{ display: block; width: fit-content; max-width: 100%; box-sizing: border-box; margin-top: 7px; padding: 3px 7px; border: 1px solid var(--state-line); border-radius: 3px; background: var(--state-bg); color: var(--state-ink); font-size: 12px; line-height: 16px; font-weight: 700; white-space: normal; }}
     .workflowStateBadge::before {{ content: var(--state-symbol); margin-right: 5px; }}
+    body:not(.detailMode) .workflowStateBadge {{ position: absolute; left: 80px; right: 88px; bottom: 12px; display: flex; align-items: center; justify-content: center; width: auto; min-height: 32px; margin: 0; padding: 3px 5px; font-size: 11px; line-height: 13px; text-align: center; }}
+    body:not(.detailMode) .printChoice.active, body:not(.detailMode) .cmykOrderStatus.selected {{ display: none; }}
+    body:not(.detailMode) .detailStatusChange {{ display: inline-block; margin: 0; }}
+    body:not(.detailMode) .cmykSkNumber, body:not(.detailMode) .machineOrderKind {{ display: block; max-width: 100%; height: 32px; line-height: 32px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }}
+    body:not(.detailMode) .cmykSkNumber {{ width: 54px; }}
     tr.machine-printed .printChoice.printable.active, tr.machine-printed .cmykOrderStatus.selected.printable {{ color: #22597f; border-color: #5c8bad; background: #e4eff8; }}
     body:not(.detailMode) tr.machine-pending .customerGlow {{ opacity: 0.55; }}
     body.detailMode tr.machine-pending > td {{ background: #f5f6f7; }}
@@ -4374,8 +4379,12 @@ class ColorTableManager:
         statusActions.append(cmykStatusButton(order, 'druckbar', 'Druckbar'));
         statusActions.append(cmykStatusButton(order, 'nicht_druckbar', 'Nicht druckbar'));
         print.append(statusActions);
-        var sk = cmykElement('td', 'skCell', 'SK ' + order.sk_number);
-        var transfer = cmykElement('td', 'transferCell', 'CMYK');
+        var sk = cmykElement('td', 'skCell');
+        var skNumber = cmykElement('span', 'cmykSkNumber', order.sk_number);
+        skNumber.title = 'SK ' + order.sk_number;
+        sk.append(skNumber);
+        var transfer = cmykElement('td', 'transferCell');
+        transfer.append(cmykElement('span', 'machineOrderKind', 'CMYK'));
         var historyCell = cmykElement('td');
         var history = Array.isArray(order.history) ? order.history : [];
         if (history.length) {{
@@ -4408,7 +4417,11 @@ class ColorTableManager:
         group.rank = Math.min(group.rank, stateRank(row));
       }});
       tbody.replaceChildren();
-      Array.from(groups.values()).sort(function(a, b) {{ return a.rank - b.rank || a.label.localeCompare(b.label, 'de'); }}).forEach(function(group) {{
+      Array.from(groups.values()).sort(function(a, b) {{
+        var aUnassigned = !a.rows.some(function(row) {{ return (row.dataset.customer || '').trim(); }});
+        var bUnassigned = !b.rows.some(function(row) {{ return (row.dataset.customer || '').trim(); }});
+        return Number(aUnassigned) - Number(bUnassigned) || a.label.localeCompare(b.label, 'de');
+      }}).forEach(function(group) {{
         var header = cmykElement('tr', 'customerGroupHeader');
         var cell = cmykElement('td');
         cell.colSpan = 9;
